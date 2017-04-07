@@ -55,7 +55,7 @@ std::vector<const sai_attr_metadata_t*> get_attributes_metadata(
 
     SWSS_LOG_DEBUG("objecttype: %s", sai_serialize_object_type(objecttype).c_str());
 
-    auto meta = sai_all_object_type_infos[objecttype]->attrmetadata;
+    auto meta = sai_metadata_all_object_type_infos[objecttype]->attrmetadata;
 
     std::vector<const sai_attr_metadata_t*> attrs;
 
@@ -693,7 +693,7 @@ sai_object_id_t meta_extract_switch_id(
      * We assume here that objecttype in meta key is in valid range.
      */
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -751,7 +751,7 @@ sai_status_t meta_generic_validate_non_object_on_create(
      * check in object hash whether this object exists.
      */
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (!info->isnonobjectid)
     {
@@ -1283,7 +1283,7 @@ sai_status_t meta_generic_validation_create(
 
     // we are creating object, no need for check if exists (only key values needs to be checked)
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -1470,7 +1470,7 @@ sai_status_t meta_generic_validation_remove(
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -1577,7 +1577,7 @@ sai_status_t meta_generic_validation_set(
 
     sai_object_id_t switch_id = SAI_NULL_OBJECT_ID;
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (!info->isnonobjectid)
     {
@@ -2133,7 +2133,7 @@ sai_status_t meta_generic_validation_get(
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -2189,7 +2189,7 @@ void meta_generic_validation_post_create(
 
     create_object(meta_key);
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -2545,7 +2545,7 @@ void meta_generic_validation_post_remove(
     // we don't keep track of fdb, neighbor, route since
     // those are safe to remove any time (leafs)
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_all_object_type_infos[meta_key.objecttype];
 
     if (info->isnonobjectid)
     {
@@ -3979,9 +3979,9 @@ sai_status_t meta_sai_validate_oid(
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    const char* otname =  sai_metadata_get_enum_value_name(&metadata_enum_sai_object_type_t, object_type);
+    const char* otname =  sai_metadata_get_enum_value_name(&sai_metadata_enum_sai_object_type_t, object_type);
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_all_object_type_infos[object_type];
 
     if (info->isnonobjectid)
     {

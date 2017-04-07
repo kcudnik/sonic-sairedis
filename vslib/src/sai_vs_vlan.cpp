@@ -52,7 +52,8 @@ sai_status_t vs_remove_vlan(
 
         if (it == vlan_members_map.end())
         {
-            SWSS_LOG_ERROR("failed to find vlan %u in vlan members map", vlan_id);
+            SWSS_LOG_ERROR("failed to find vlan %s in vlan members map", 
+                    sai_serialize_object_id(vlan_id).c_str());
 
             return SAI_STATUS_FAILURE;
         }
@@ -118,12 +119,14 @@ void update_vlan_member_list_on_vlan(
 
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("failed to update vlan %d members list: %d", vlan_id, status);
-
-        throw std::runtime_error("failed to update vlan members list");
+        SWSS_LOG_THROW("failed to update vlan %s members list: %s", 
+                sai_serialize_object_id(vlan_id).c_str(), 
+                sai_serialize_status(status).c_str());
     }
 
-    SWSS_LOG_INFO("updated vlan %d member list to %zu", vlan_id, vlan_member_list.size());
+    SWSS_LOG_INFO("updated vlan %s member list to %zu", 
+            sai_serialize_object_id(vlan_id).c_str(),
+            vlan_member_list.size());
 }
 
 sai_object_id_t get_vlan_id_from_member(
@@ -285,8 +288,8 @@ sai_status_t vs_remove_vlan_members(
 
 sai_status_t vs_get_vlan_stats(
         _In_ sai_object_id_t vlan_id,
-        _In_ const sai_vlan_stat_t *counter_ids,
         _In_ uint32_t number_of_counters,
+        _In_ const sai_vlan_stat_t *counter_ids,
         _Out_ uint64_t *counters)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recursive_mutex);
@@ -300,8 +303,8 @@ sai_status_t vs_get_vlan_stats(
 
 sai_status_t vs_clear_vlan_stats(
         _In_ sai_object_id_t vlan_id,
-        _In_ const sai_vlan_stat_t *counter_ids,
-        _In_ uint32_t number_of_counters)
+        _In_ uint32_t number_of_counters,
+        _In_ const sai_vlan_stat_t *counter_ids)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recursive_mutex);
 

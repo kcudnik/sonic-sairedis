@@ -81,6 +81,9 @@ CFLAGS_COMMON+=" -Wunreachable-code"
 CFLAGS_COMMON+=" -Wunused"
 CFLAGS_COMMON+=" -Wvariadic-macros"
 CFLAGS_COMMON+=" -Wno-write-strings"
+CFLAGS_COMMON+=" -Wno-switch-default"
+CFLAGS_COMMON+=" -Wno-conversion"
+CFLAGS_COMMON+=" -Wno-long-long"
 
 AC_SUBST(CFLAGS_COMMON)
 
@@ -90,6 +93,6 @@ AC_OUTPUT(Makefile
           lib/src/Makefile
           vslib/Makefile
           vslib/src/Makefile
-          syncd/Makefile
-          saiplayer/Makefile
-          saidump/Makefile)
+          syncd/Makefile)
+          #saiplayer/Makefile
+          #saidump/Makefile)

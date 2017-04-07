@@ -1312,20 +1312,22 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 
     std::vector<sai_port_stat_t> supportedCounters;
 
-    for (uint32_t idx = 0; idx < metadata_enum_sai_port_stat_t.valuescount; ++idx)
+    for (uint32_t idx = 0; idx < sai_metadata_enum_sai_port_stat_t.valuescount; ++idx)
     {
-        sai_port_stat_t counter = (sai_port_stat_t)metadata_enum_sai_port_stat_t.values[idx];
+        sai_port_stat_t counter = (sai_port_stat_t)sai_metadata_enum_sai_port_stat_t.values[idx];
 
         uint64_t value;
 
-        sai_status_t status = sai_metadata_sai_port_api->get_port_stats(port_rid, &counter, 1, &value);
+        sai_status_t status = sai_metadata_sai_port_api->get_port_stats(port_rid, 1, &counter, &value);
 
         if (status != SAI_STATUS_SUCCESS)
         {
             const std::string &name = sai_serialize_port_stat(counter);
 
             SWSS_LOG_WARN("counter %s is not supported on port RID %s: %s",
-                    name.c_str(), port_rid, status);
+                    name.c_str(), 
+                    sai_serialize_object_id(port_rid).c_str(), 
+                    sai_serialize_status(status).c_str());
 
             continue;
         }
@@ -1364,8 +1366,8 @@ void SaiSwitch::collectCounters(
     {
         sai_status_t status = sai_metadata_sai_port_api->get_port_stats(
                 port_rid,
-                m_supported_counters.data(),
                 countersSize,
+                m_supported_counters.data(),
                 counters.data());
 
         if (status != SAI_STATUS_SUCCESS)

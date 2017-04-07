@@ -32,7 +32,8 @@ class SwitchState
 
             if (sai_object_type_query(switch_id) != SAI_OBJECT_TYPE_SWITCH)
             {
-                SWSS_LOG_THROW("object 0x%lx is not SWITCH, its %s",
+                SWSS_LOG_THROW("object %s is not SWITCH, its %s",
+                        sai_serialize_object_id(switch_id).c_str(),
                         sai_serialize_object_type(sai_object_type_query(switch_id)).c_str());
             }
 

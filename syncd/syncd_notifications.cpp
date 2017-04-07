@@ -237,11 +237,11 @@ void on_packet_event(
     */
 }
 
-sai_switch_state_change_notification_fn on_switch_state_change_ntf = on_switch_state_change;
-sai_switch_shutdown_request_fn          on_switch_shutdown_request_ntf = on_switch_shutdown_request;
-sai_fdb_event_notification_fn           on_fdb_event_ntf = on_fdb_event_ntf;
-sai_port_state_change_notification_fn   on_port_state_change_ntf = on_port_state_change;
-sai_packet_event_notification_fn        on_packet_event_ntf = on_packet_event;
+sai_switch_state_change_notification_fn     on_switch_state_change_ntf = on_switch_state_change;
+sai_switch_shutdown_request_notification_fn on_switch_shutdown_request_ntf = on_switch_shutdown_request;
+sai_fdb_event_notification_fn               on_fdb_event_ntf = on_fdb_event_ntf;
+sai_port_state_change_notification_fn       on_port_state_change_ntf = on_port_state_change;
+sai_packet_event_notification_fn            on_packet_event_ntf = on_packet_event;
 
 void check_notifications_pointers(
         _In_ uint32_t attr_count,

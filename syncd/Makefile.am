@@ -15,13 +15,13 @@ SAILIB=-lsai
 endif
 
 syncd_SOURCES = \
-				syncd_applyview.cpp \
 				syncd.cpp \
 				syncd_saiswitch.cpp \
 				syncd_hard_reinit.cpp \
 				syncd_notifications.cpp \
 				syncd_counters.cpp \
 				syncd_cli.cpp
+# syncd_applyview.cpp
 
 syncd_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
 syncd_LDADD = -lhiredis -lswsscommon $(SAILIB) -lpthread -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -lopennsl -ldl

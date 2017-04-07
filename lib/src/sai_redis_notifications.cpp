@@ -7,18 +7,18 @@
  * this will need to be corrected later.
  */
 
-sai_switch_state_change_notification_fn on_switch_state_change = NULL;
-sai_switch_shutdown_request_fn          on_switch_shutdown_request = NULL;
-sai_fdb_event_notification_fn           on_fdb_event = NULL;
-sai_port_state_change_notification_fn   on_port_state_change = NULL;
-sai_packet_event_notification_fn        on_packet_event = NULL;
+sai_switch_state_change_notification_fn     on_switch_state_change = NULL;
+sai_switch_shutdown_request_notification_fn on_switch_shutdown_request_notification = NULL;
+sai_fdb_event_notification_fn               on_fdb_event = NULL;
+sai_port_state_change_notification_fn       on_port_state_change = NULL;
+sai_packet_event_notification_fn            on_packet_event = NULL;
 
 void clear_notifications()
 {
     SWSS_LOG_ENTER();
 
     on_switch_state_change = NULL;
-    on_switch_shutdown_request = NULL;
+    on_switch_shutdown_request_notification = NULL;
     on_fdb_event = NULL;
     on_port_state_change = NULL;
     on_packet_event = NULL;
@@ -46,7 +46,7 @@ void check_notifications_pointers(
                 break;
 
             case SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY:
-                on_switch_shutdown_request = (sai_switch_shutdown_request_fn)attr.value.ptr;
+                on_switch_shutdown_request_notification = (sai_switch_shutdown_request_notification_fn)attr.value.ptr;
                 break;
 
             case SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY:
@@ -146,9 +146,9 @@ void handle_switch_shutdown_request(
 
     sai_deserialize_switch_shutdown_request(data, switch_id);
 
-    if (on_switch_shutdown_request != NULL)
+    if (on_switch_shutdown_request_notification != NULL)
     {
-        on_switch_shutdown_request(switch_id);
+        on_switch_shutdown_request_notification(switch_id);
     }
 }
 

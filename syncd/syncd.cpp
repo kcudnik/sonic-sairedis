@@ -354,7 +354,7 @@ sai_object_id_t translate_rid_to_vid(
          * created switch, so we should never get here.
          */
 
-        SWSS_LOG_THROW("RID 0x%lx is switch object, but not in local or redis db, bug!");
+        SWSS_LOG_THROW("RID 0x%lx is switch object, but not in local or redis db, bug!", rid);
     }
 
     vid = redis_create_virtual_object_id(switch_vid, object_type);
@@ -1049,7 +1049,7 @@ sai_status_t handle_generic(
      * TODO: use metadata utils.
      */
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_all_object_type_infos[object_type];
 
     if (info->isnonobjectid)
     {
@@ -1630,7 +1630,7 @@ sai_status_t processEventInInitViewMode(
      * TODO: use metadata utils.
      */
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_all_object_type_infos[object_type];
 
     switch (api)
     {
@@ -1786,7 +1786,7 @@ sai_object_id_t extractSwitchVid(
 {
     SWSS_LOG_ENTER();
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_all_object_type_infos[object_type];
 
     /*
      * Could be replaced by meta_key.
@@ -1951,7 +1951,7 @@ sai_status_t processEvent(
         translate_vid_to_rid_list(object_type, attr_count, attr_list);
     }
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_all_object_type_infos[object_type];
 
     sai_status_t status;
 
@@ -2363,7 +2363,7 @@ void saiLoglevelNotify(std::string apiStr, std::string prioStr)
         return;
     }
 
-    sai_api_t api = (sai_api_t)get_enum_value_from_name(apiStr.c_str(), &metadata_enum_sai_api_t);
+    sai_api_t api = (sai_api_t)get_enum_value_from_name(apiStr.c_str(), &sai_metadata_enum_sai_api_t);
 
     sai_status_t status = sai_log_set(api, saiLoglevelMap.at(prioStr));
 
@@ -2380,9 +2380,9 @@ void set_sai_api_loglevel()
 {
     SWSS_LOG_ENTER();
 
-    for (uint32_t idx = 0; idx < metadata_enum_sai_api_t.valuescount; ++idx)
+    for (uint32_t idx = 0; idx < sai_metadata_enum_sai_api_t.valuescount; ++idx)
     {
-        swss::Logger::linkToDb(metadata_enum_sai_api_t.valuesnames[idx], saiLoglevelNotify, "SAI_LOG_LEVEL_NOTICE");
+        swss::Logger::linkToDb(sai_metadata_enum_sai_api_t.valuesnames[idx], saiLoglevelNotify, "SAI_LOG_LEVEL_NOTICE");
     }
 }
 
@@ -2565,7 +2565,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    int failed = sai_meta_apis_query(sai_api_query);
+    int failed = sai_metadata_apis_query(sai_api_query);
 
     if (failed > 0)
     {
