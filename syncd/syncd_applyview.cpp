@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+// TODO: get rig of throws
+
 // TODO since next view maybe empty, then this mean it will execute remove switch
 // we need to handle taht case and clear switches to update and clear them
 // also clear db and vid maps
