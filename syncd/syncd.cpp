@@ -1417,7 +1417,9 @@ sai_status_t notifySyncd(
 
         SWSS_LOG_WARN("syncd received APPLY VIEW, will translate");
 
-        sai_status_t status = syncdApplyView();
+        SWSS_LOG_THROW("apply view is not implemented yet, FIXME");
+
+        sai_status_t status = SAI_STATUS_NOT_IMPLEMENTED; // TODO enable syncdApplyView();
 
         sendNotifyResponse(status);
 
@@ -2316,11 +2318,14 @@ bool isVeryFirstRun()
      *
      * TODO: if we add more switches then we need lane maps per switch.
      * TODO: we also need other way to check if this is first start
+     *
+     * We could use VIDCOUNTER also, but if something is defined in the DB then
+     * we assume this is not the first start.
      */
 
-    auto redisLaneMap = redisGetLaneMap();
+    auto keys = g_redisClient->keys("*");
 
-    bool firstRun = redisLaneMap.size() == 0;
+    bool firstRun = keys.size() == 0;
 
     SWSS_LOG_NOTICE("First Run: %s", firstRun ? "True" : "False");
 
