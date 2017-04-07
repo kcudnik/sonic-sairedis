@@ -215,7 +215,7 @@ int main(int argc, char ** argv)
         sai_object_type_t object_type;
         sai_deserialize_object_type(str_object_type, object_type);
 
-        auto info = sai_all_object_type_infos[object_type];
+        auto info = sai_metadata_all_object_type_infos[object_type];
 
         if (!info->isnonobjectid)
         {
@@ -237,12 +237,12 @@ int main(int argc, char ** argv)
 
         if (g_cmdOptions.shortNames)
         {
-            str_object_type = metadata_enum_sai_object_type_t.valuesshortnames[object_type];
+            str_object_type = sai_metadata_enum_sai_object_type_t.valuesshortnames[object_type];
         }
 
         std::cout << str_object_type << " " << str_object_id << " " << std::endl;
 
-        auto info = sai_all_object_type_infos[object_type];
+        auto info = sai_metadata_all_object_type_infos[object_type];
 
         switch (object_type)
         {
