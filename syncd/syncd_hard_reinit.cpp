@@ -768,7 +768,7 @@ void processFdbs()
         // we could use metadata generic to process
 
         fdbEntry.switch_id = processSingleVid(fdbEntry.switch_id);
-        fdbEntry.bridge_id = processSingleVid(fdbEntry.bridge_id);
+        fdbEntry.bvid = processSingleVid(fdbEntry.bvid);
 
         std::shared_ptr<SaiAttributeList> list = g_attributesLists[asicKey];
 

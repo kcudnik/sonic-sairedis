@@ -1208,7 +1208,7 @@ sai_status_t handle_fdb(
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
     fdb_entry.switch_id = translate_vid_to_rid(fdb_entry.switch_id);
-    fdb_entry.bridge_id = translate_vid_to_rid(fdb_entry.bridge_id);
+    fdb_entry.bvid = translate_vid_to_rid(fdb_entry.bvid);
 
     switch (api)
     {
@@ -1417,9 +1417,7 @@ sai_status_t notifySyncd(
 
         SWSS_LOG_WARN("syncd received APPLY VIEW, will translate");
 
-        SWSS_LOG_THROW("apply view is not implemented yet, FIXME");
-
-        sai_status_t status = SAI_STATUS_NOT_IMPLEMENTED; // TODO enable syncdApplyView();
+        sai_status_t status = syncdApplyView();
 
         sendNotifyResponse(status);
 

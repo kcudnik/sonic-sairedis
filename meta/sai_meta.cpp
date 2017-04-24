@@ -815,6 +815,8 @@ sai_status_t meta_generic_validate_non_object_on_create(
         {
             SWSS_LOG_ERROR("object id 0x%lx is %s, but it's not allowed on member %s",
                     oid, sai_serialize_object_type(ot).c_str(), m->membername);
+
+            return SAI_STATUS_INVALID_PARAMETER;
         }
 
         sai_object_id_t oid_switch_id = sai_switch_id_query(oid);
@@ -822,6 +824,7 @@ sai_status_t meta_generic_validate_non_object_on_create(
         if (!object_reference_exists(oid_switch_id))
         {
             SWSS_LOG_ERROR("switch id 0x%lx don't exists", oid_switch_id);
+
             return SAI_STATUS_INVALID_PARAMETER;
         }
 
@@ -3120,14 +3123,14 @@ sai_status_t meta_sai_validate_fdb_entry(
         return SAI_STATUS_INVALID_PARAMETER;
     }
 
-    sai_vlan_id_t vlan_id = fdb_entry->vlan_id;
+    //sai_vlan_id_t vlan_id = fdb_entry->vlan_id;
 
-    if (vlan_id < MINIMUM_VLAN_NUMBER || vlan_id > MAXIMUM_VLAN_NUMBER)
-    {
-        SWSS_LOG_ERROR("invalid vlan number %d expected <%d..%d>", vlan_id, MINIMUM_VLAN_NUMBER, MAXIMUM_VLAN_NUMBER);
+    //if (vlan_id < MINIMUM_VLAN_NUMBER || vlan_id > MAXIMUM_VLAN_NUMBER)
+    //{
+    //    SWSS_LOG_ERROR("invalid vlan number %d expected <%d..%d>", vlan_id, MINIMUM_VLAN_NUMBER, MAXIMUM_VLAN_NUMBER);
 
-        return SAI_STATUS_INVALID_PARAMETER;
-    }
+    //    return SAI_STATUS_INVALID_PARAMETER;
+    //}
 
     // check if fdb entry exists
 

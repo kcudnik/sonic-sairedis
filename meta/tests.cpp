@@ -744,11 +744,10 @@ void test_fdb_entry_create()
     sai_mac_t mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 
     memcpy(fdb_entry.mac_address, mac, sizeof(mac));
-    fdb_entry.vlan_id = 1;
     fdb_entry.switch_id = switch_id;
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bridge_id = bridge_id;
+    fdb_entry.bvid = bridge_id;
 
     sai_object_id_t port = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT, switch_id);
     object_reference_insert(port);
@@ -851,11 +850,10 @@ void test_fdb_entry_remove()
     sai_mac_t mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 
     memcpy(fdb_entry.mac_address, mac, sizeof(mac));
-    fdb_entry.vlan_id = 1;
     fdb_entry.switch_id = switch_id;
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bridge_id = bridge_id;
+    fdb_entry.bvid= bridge_id;
 
     sai_object_id_t port = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT,switch_id);
     object_reference_insert(port);
@@ -885,13 +883,10 @@ void test_fdb_entry_remove()
     status = meta_sai_remove_fdb_entry(NULL, &dummy_success_sai_remove_fdb_entry);
     META_ASSERT_FAIL(status);
 
-    fdb_entry.vlan_id = 2;
+    //SWSS_LOG_NOTICE("invalid vlan");
+    //status = meta_sai_remove_fdb_entry(&fdb_entry, &dummy_success_sai_remove_fdb_entry);
+    //META_ASSERT_FAIL(status);
 
-    SWSS_LOG_NOTICE("invalid vlan");
-    status = meta_sai_remove_fdb_entry(&fdb_entry, &dummy_success_sai_remove_fdb_entry);
-    META_ASSERT_FAIL(status);
-
-    fdb_entry.vlan_id = 1;
     fdb_entry.mac_address[0] = 1;
 
     SWSS_LOG_NOTICE("invalid mac");
@@ -930,7 +925,6 @@ void test_fdb_entry_set()
     sai_mac_t mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 
     memcpy(fdb_entry.mac_address, mac, sizeof(mac));
-    fdb_entry.vlan_id = 1;
     fdb_entry.switch_id = switch_id;
 
     // TODO we should use CREATE for this
@@ -938,42 +932,39 @@ void test_fdb_entry_set()
     std::string fdb_key = sai_serialize_object_meta_key(meta_key_fdb);
     ObjectAttrHash[fdb_key] = { };
 
-    // attr is null
+    SWSS_LOG_NOTICE("attr is null");
     status = meta_sai_set_fdb_entry(&fdb_entry, NULL, &dummy_success_sai_set_fdb_entry);
     META_ASSERT_FAIL(status);
 
-    // fdb entry is null
+    SWSS_LOG_NOTICE("fdb entry is null");
     status = meta_sai_set_fdb_entry(NULL, &attr, &dummy_success_sai_set_fdb_entry);
     META_ASSERT_FAIL(status);
 
-    // setting read only object
+    SWSS_LOG_NOTICE("setting read only object");
     attr.id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
     attr.value.oid = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT,switch_id);
 
     status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
     META_ASSERT_FAIL(status);
 
-    // setting invalid attrib id
+    SWSS_LOG_NOTICE("setting invalid attrib id");
     attr.id = -1;
     status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
     META_ASSERT_FAIL(status);
 
-    // invalid vlan
-    attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
-    attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
-    fdb_entry.vlan_id = 2;
-    status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
-    META_ASSERT_FAIL(status);
+    //SWSS_LOG_NOTICE("invalid vlan");
+    //attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
+    //attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
+    //status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
+    //META_ASSERT_FAIL(status);
 
-    // vlan outside range
-    fdb_entry.vlan_id = MAXIMUM_VLAN_NUMBER + 1;
-    attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
-    attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
-    status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
-    META_ASSERT_FAIL(status);
+    //SWSS_LOG_NOTICE("vlan outside range");
+    //attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
+    //attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
+    //status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
+    //META_ASSERT_FAIL(status);
 
     // correct
-    fdb_entry.vlan_id = 1;
     attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
     attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
     status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
@@ -999,19 +990,17 @@ void test_fdb_entry_get()
     sai_object_id_t switch_id = create_switch();
 
     memcpy(fdb_entry.mac_address, mac, sizeof(mac));
-    fdb_entry.vlan_id = 1;
     fdb_entry.switch_id = switch_id;
 
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bridge_id = bridge_id;
+    fdb_entry.bvid = bridge_id;
 
     // TODO we should use CREATE for this
     sai_object_meta_key_t meta_key_fdb = { .objecttype = SAI_OBJECT_TYPE_FDB_ENTRY, .objectkey = { .key = { .fdb_entry = fdb_entry } } };
     std::string fdb_key = sai_serialize_object_meta_key(meta_key_fdb);
     ObjectAttrHash[fdb_key] = { };
 
-    fdb_entry.vlan_id = 1;
     attr.id = SAI_FDB_ENTRY_ATTR_TYPE;
     attr.value.s32 = SAI_FDB_ENTRY_TYPE_STATIC;
     status = meta_sai_set_fdb_entry(&fdb_entry, &attr, &dummy_success_sai_set_fdb_entry);
@@ -1076,12 +1065,11 @@ void test_fdb_entry_flow()
     sai_mac_t mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 
     memcpy(fdb_entry.mac_address, mac, sizeof(mac));
-    fdb_entry.vlan_id = 1;
     fdb_entry.switch_id = switch_id;
 
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bridge_id = bridge_id;
+    fdb_entry.bvid= bridge_id;
 
     sai_object_id_t lag = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT,switch_id);
     object_reference_insert(lag);
@@ -3046,7 +3034,6 @@ void test_acl_entry_field_and_action()
         SAI_ACL_ENTRY_ATTR_ACTION_SET_L4_DST_PORT,
         SAI_ACL_ENTRY_ATTR_ACTION_INGRESS_SAMPLEPACKET_ENABLE,
         SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_SAMPLEPACKET_ENABLE,
-        SAI_ACL_ENTRY_ATTR_ACTION_SET_CPU_QUEUE,
         SAI_ACL_ENTRY_ATTR_ACTION_SET_ACL_META_DATA,
         SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_BLOCK_PORT_LIST,
         SAI_ACL_ENTRY_ATTR_ACTION_SET_USER_TRAP_ID,
@@ -3093,9 +3080,6 @@ void test_acl_entry_field_and_action()
 
         if (attr.id == SAI_ACL_ENTRY_ATTR_ACTION_EGRESS_SAMPLEPACKET_ENABLE)
             attr.value.aclaction.parameter.oid = insert_dummy_object(SAI_OBJECT_TYPE_SAMPLEPACKET,switch_id);
-
-        if (attr.id == SAI_ACL_ENTRY_ATTR_ACTION_SET_CPU_QUEUE)
-            attr.value.aclaction.parameter.oid = insert_dummy_object(SAI_OBJECT_TYPE_QUEUE,switch_id);
 
         if (attr.id == SAI_ACL_ENTRY_ATTR_ACTION_SET_USER_TRAP_ID)
             attr.value.aclaction.parameter.oid = insert_dummy_object(SAI_OBJECT_TYPE_HOSTIF_USER_DEFINED_TRAP,switch_id);

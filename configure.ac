@@ -93,6 +93,6 @@ AC_OUTPUT(Makefile
           lib/src/Makefile
           vslib/Makefile
           vslib/src/Makefile
-          syncd/Makefile)
-          #saiplayer/Makefile
-          #saidump/Makefile)
+          syncd/Makefile
+          saiplayer/Makefile
+          saidump/Makefile)
