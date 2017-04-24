@@ -142,6 +142,7 @@ class SaiSwitch
         uint32_t saiGetMaxNumberOfChildsPerSchedulerGroup();
 
         std::vector<sai_port_stat_t> saiGetSupportedCounters();
+
         /*
          * Redis Methods.
          */

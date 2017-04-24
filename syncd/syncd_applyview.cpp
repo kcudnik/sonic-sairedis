@@ -4610,6 +4610,16 @@ sai_status_t internalSyncdApplyView()/*{{{*/
 {
     SWSS_LOG_ENTER();
 
+    // TODO consider trivial cases:
+    // switches: 0 0, 1 vs 0, 0 vs 1 and don't support them
+    // and support only 1 to 1 switch
+    // also we need to be aware of create only attributes on switch itself.
+    //
+    // we assume that there will be no case that we will move from 1 to 0
+    // also if at the beggining there is no switch, then when user will send
+    // create it will be actually created! so there should be no case
+    // when we are moving from 0 -> 1
+
     /*
      * Initialize rand for future candidate object selection if necessary.
      *
@@ -4623,6 +4633,11 @@ sai_status_t internalSyncdApplyView()/*{{{*/
      */
 
     std::srand((unsigned int)std::time(0));
+
+    /*
+     * NOTE: Current view can contain multiple switches at once but in our
+     * implementation we only will have 1 switch.
+     */
 
     AsicView current;
     AsicView temp;
@@ -4765,7 +4780,8 @@ sai_status_t internalSyncdApplyView()/*{{{*/
 
     /*
      * Those operations if any of them fail, then we have inconsistent state.
-     * Everything above is non destructive.
+     * Everything above is non destructive and can be returned as error code
+     * to orch agent.
      *
      * TODO: split this to 2 methods which only one will be under try/catch
      */
