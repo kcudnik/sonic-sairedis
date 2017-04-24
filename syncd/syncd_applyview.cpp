@@ -1542,7 +1542,7 @@ bool hasEqualAttribute(/*{{{*/
              */
 
             /*
-             * Woth noticing here acout acl entry field/action since they have
+             * Worth noticing here acout acl entry field/action since they have
              * enable flag, and if it's disabled then parameter value don't
              * matter. But this is fine here since serialized value don't
              * contain parameter value if it's disabled so we don't need to
@@ -4119,7 +4119,7 @@ void processObjectForViewTransition(/*{{{*/
      *   object on the way since it will know that set transition is not
      *   possible so here when we find best match (other object) in that case
      *   we always will be able to do "SET", or when no object will be returned
-     *   then we can just righ away create this object since all keys objects
+     *   then we can just right away create this object since all keys objects
      *   were removed by finding best match
      *
      * in both cases logic is the same, someone needs to figure out wheter
@@ -4615,7 +4615,7 @@ sai_status_t internalSyncdApplyView()/*{{{*/
      *
      * NOTE: should this be deterministic? So we could repeat random choice
      * when something bad happen or we hit a bug, so in that case it will be
-     * easier for reproduce, we could at least log valur returned from time().
+     * easier for reproduce, we could at least log value returned from time().
      *
      * TODO: to make it stable, we also need to make stable redisGetAsicView
      * sinec now order of items is random. Also redis result needs to be
@@ -4879,7 +4879,7 @@ void asic_translate_vid_to_rid_list(/*{{{*/
 {
     SWSS_LOG_ENTER();
 
-    // all id's reseived from view should be virtual, so
+    // all id's received from view should be virtual, so
     // lets translate them to real id's
 
     for (uint32_t i = 0; i < attr_count; i++)
