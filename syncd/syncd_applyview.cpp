@@ -6,8 +6,6 @@
 
 #include <algorithm>
 
-// TODO: get rig of throws
-
 // TODO since next view maybe empty, then this mean it will execute remove switch
 // we need to handle taht case and clear switches to update and clear them
 // also clear db and vid maps
@@ -142,7 +140,7 @@ class SaiAttr
          *
          * Based on serialization type attribute may be oid attribute, oid list
          * attribute or non oid attribute. This method will extract all those oids from
-         * this attribute and return as vector.  This is handy when we nedd processin
+         * this attribute and return as vector.  This is handy when we need processing
          * oids per attribute.
          */
         std::vector<sai_object_id_t> getOidListFromAttribute() const/*{{{*/
@@ -290,7 +288,6 @@ class SaiObj
 
             if (it == m_attrs.end())
             {
-                SWSS_LOG_ERROR("object %s has no attribute %d", str_object_id.c_str(), id);
 
                 for (const auto &ita: m_attrs)
                 {
@@ -299,7 +296,7 @@ class SaiObj
                     SWSS_LOG_ERROR("%s: %s", a->getStrAttrId().c_str(), a->getStrAttrValue().c_str());
                 }
 
-                throw std::runtime_error("object has no attribute");
+                SWSS_LOG_THROW("object %s has no attribute %d", str_object_id.c_str(), id);
             }
 
             return it->second;
@@ -343,9 +340,7 @@ class SaiObj
                 return meta_key.objectkey.key.object_id;
             }
 
-            SWSS_LOG_ERROR("object %s it not object id type", str_object_id.c_str());
-
-            throw std::runtime_error("object is not object id type");
+            SWSS_LOG_THROW("object %s it not object id type", str_object_id.c_str());
         }/*}}}*/
 
         /*
@@ -393,9 +388,7 @@ class AsicView
 
                 if (start == std::string::npos)
                 {
-                    SWSS_LOG_ERROR("failed to find colon in %s", key.first.c_str());
-
-                    throw std::runtime_error("failed to find colon inside key");
+                    SWSS_LOG_THROW("failed to find colon in %s", key.first.c_str());
                 }
 
                 std::shared_ptr<SaiObj> o = std::make_shared<SaiObj>();
@@ -404,6 +397,8 @@ class AsicView
                 o->str_object_id    = key.first.substr(start + 1);
 
                 sai_deserialize_object_type(o->str_object_type, o->meta_key.objecttype);
+
+                // TODO for vid references we can iterate via metadata for non object id's
 
                 switch (o->meta_key.objecttype)
                 {
@@ -445,6 +440,7 @@ class AsicView
                         break;
 
                     default:
+                        // TODO check for non object id
                         sai_deserialize_object_id(o->str_object_id, o->meta_key.objectkey.key.object_id);
                         soOids[o->str_object_id] = o;
                         oOids[o->meta_key.objectkey.key.object_id] = o;
@@ -507,18 +503,14 @@ class AsicView
 
             if (it == m_vidReference.end())
             {
-                SWSS_LOG_ERROR("vid 0x%lx don't exist in reference map", vid);
-
-                throw std::runtime_error("vid don't exist in reference map");
+                SWSS_LOG_THROW("vid 0x%lx don't exist in reference map", vid);
             }
 
             int referenceCount = --(it->second);
 
             if (referenceCount < 0)
             {
-                SWSS_LOG_ERROR("vid 0x%lx decreased reference too many times: %d, referenceCount, BUG", vid, referenceCount);
-
-                throw std::runtime_error("vid decreased reference too many times, BUG");
+                SWSS_LOG_THROW("vid 0x%lx decreased reference count too many times: %d, BUG", vid, referenceCount);
             }
 
             SWSS_LOG_INFO("released vid 0x%lx refrence from %d to %d", vid, referenceCount + 1, referenceCount);
@@ -549,9 +541,7 @@ class AsicView
 
             if (it == m_vidReference.end())
             {
-                SWSS_LOG_ERROR("vid 0x%lx don't exist in reference map", vid);
-
-                throw std::runtime_error("vid don't exist in reference map");
+                SWSS_LOG_THROW("vid 0x%lx don't exist in reference map", vid);
             }
 
             int referenceCount = ++(it->second);
@@ -583,9 +573,7 @@ class AsicView
 
             if (it != m_vidReference.end())
             {
-                SWSS_LOG_ERROR("vid 0x%lx already exist in reference map, BUG", vid);
-
-                throw std::runtime_error("vid already exist in reference map, BUG");
+                SWSS_LOG_THROW("vid 0x%lx already exist in reference map, BUG", vid);
             }
 
             m_vidReference[vid] = 0;
@@ -711,9 +699,7 @@ class AsicView
 
             if (object_type == SAI_OBJECT_TYPE_NULL)
             {
-                SWSS_LOG_ERROR("null object type from vid 0x%lx", vid);
-
-                throw std::runtime_error("null object type from vid");
+                SWSS_LOG_THROW("null object type from vid 0x%lx", vid);
             }
 
             std::shared_ptr<SaiObj> o = std::make_shared<SaiObj>();
@@ -781,11 +767,9 @@ class AsicView
 
             if (!currentObj->oidObject)
             {
-                SWSS_LOG_ERROR("non object id not supported yet %s:%s FIXME",
+                SWSS_LOG_THROW("non object id not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
                         currentObj->str_object_id.c_str());
-
-                throw std::runtime_error("non object id not supported yet");
             }
 
             soOids[currentObj->str_object_id] = currentObj;
@@ -844,12 +828,12 @@ class AsicView
 
             if (currentObj->oidObject)
             {
-                SWSS_LOG_ERROR("object id is not supported yet %s:%s FIXME",
+                SWSS_LOG_THROW("object id is not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
                         currentObj->str_object_id.c_str());
-
-                throw std::runtime_error("object id is not supported yet");
             }
+
+            // TODO vid references by iterating struct members
 
             switch (currentObj->getObjectType())
             {
@@ -888,10 +872,8 @@ class AsicView
 
                 default:
 
-                    SWSS_LOG_ERROR("unsupported object type: %s",
+                    SWSS_LOG_THROW("unsupported object type: %s",
                             sai_serialize_object_type(currentObj->getObjectType()).c_str());
-
-                    throw std::runtime_error("unsupported object type");
             }
 
             // TODO fix this
@@ -949,11 +931,9 @@ class AsicView
 
             if (currentObj->oidObject)
             {
-                SWSS_LOG_ERROR("object id is not supported yet %s:%s FIXME",
+                SWSS_LOG_THROW("object id is not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
                         currentObj->str_object_id.c_str());
-
-                throw std::runtime_error("object id is not supported yet");
             }
 
             switch (currentObj->getObjectType())
@@ -994,10 +974,8 @@ class AsicView
 
                 default:
 
-                    SWSS_LOG_ERROR("unsupported object type: %s",
+                    SWSS_LOG_THROW("unsupported object type: %s",
                             sai_serialize_object_type(currentObj->getObjectType()).c_str());
-
-                    throw std::runtime_error("unsupported object type");
             }
 
             soAll.erase(currentObj->str_object_id);
@@ -1023,11 +1001,9 @@ class AsicView
 
             if (!currentObj->oidObject)
             {
-                SWSS_LOG_ERROR("non object id is not supported yet %s:%s FIXME",
+                SWSS_LOG_THROW("non object id is not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
                         currentObj->str_object_id.c_str());
-
-                throw std::runtime_error("non object id is not supported yet");
             }
 
             /*
@@ -1308,9 +1284,7 @@ void checkMatchedPorts(/*{{{*/
          * rulled out.
          */
 
-        SWSS_LOG_ERROR("port %s object status is not MATCHED (%d)", p->str_object_id.c_str(), p->getObjectStatus());
-
-        throw std::runtime_error("not all PORT objects status are MATCHED");
+        SWSS_LOG_THROW("port %s object status is not MATCHED (%d)", p->str_object_id.c_str(), p->getObjectStatus());
     }
 
     SWSS_LOG_NOTICE("all ports are matched");
@@ -1391,11 +1365,9 @@ bool hasEqualObjectList(/*{{{*/
                  * VID, if this happens then we have a bug.
                  */
 
-                SWSS_LOG_ERROR("temporary object type is %d and current object type is %d, FATAL",
+                SWSS_LOG_THROW("temporary object type is %d and current object type is %d, FATAL",
                         temporaryObjectType,
                         currentObjectType);
-
-                throw std::runtime_error("temporary or current object returned NULL object type, FATAL");
             }
 
             if (temporaryObjectType != currentObjectType)
@@ -1454,9 +1426,7 @@ bool hasEqualObjectList(/*{{{*/
 
             if (currentIt == currentView.vidToRid.end())
             {
-                SWSS_LOG_ERROR("current VID 0x%lx exists but current RID is missing, FATAL", currentVid);
-
-                throw std::runtime_error("current VID exists, but current RID is missing, FATAL");
+                SWSS_LOG_THROW("current VID 0x%lx exists but current RID is missing, FATAL", currentVid);
             }
 
             sai_object_id_t temporaryRid = temporaryIt->second;
@@ -1773,9 +1743,8 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
 
     if (!temporaryObj->oidObject)
     {
-        SWSS_LOG_ERROR("non object id %s is used in generic method, please implement special case, FIXME", temporaryObj->str_object_type.c_str());
-
-        throw std::runtime_error("non object id is used in generic method, implement special case, FIXME");
+        SWSS_LOG_THROW("non object id %s is used in generic method, please implement special case, FIXME",
+                temporaryObj->str_object_type.c_str());
     }
 
     /*
@@ -1891,7 +1860,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
         candidateObjects.push_back(soci);
     }
 
-    SWSS_LOG_INFO("number candidate objects for %s is %zu", temporaryObj->str_object_id.c_str(), candidateObjects.size());
+    SWSS_LOG_INFO("number candidate objects for %s is %zu",
+            temporaryObj->str_object_id.c_str(),
+            candidateObjects.size());
 
     if (candidateObjects.size() == 0)
     {
@@ -2041,9 +2012,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
          * This is just sanity check, should never happen.
          */
 
-        SWSS_LOG_ERROR("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
-
-        throw std::runtime_error("found temporary RID but current VID don't exists, FATAL");
+        SWSS_LOG_THROW("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
     }
 
     /*
@@ -2088,10 +2057,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
      * can indicate a bug or somehow duplicated entries.
      */
 
-    SWSS_LOG_ERROR("found neighbor entry %s in current view, but it status is %d, FATAL",
-            str_neighbor_entry.c_str(), currentNeighborObj->getObjectStatus());
-
-    throw std::runtime_error("found neighbor entry in current view, but it status was processed");
+    SWSS_LOG_THROW("found neighbor entry %s in current view, but it status is %d, FATAL",
+            str_neighbor_entry.c_str(),
+            currentNeighborObj->getObjectStatus());
 }/*}}}*/
 
 std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
@@ -2157,9 +2125,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
          * This is just sanity check, should never happen.
          */
 
-        SWSS_LOG_ERROR("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
-
-        throw std::runtime_error("found temporary RID but current VID don't exists, FATAL");
+        SWSS_LOG_THROW("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
     }
 
     /*
@@ -2203,10 +2169,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
      * can indicate a bug or somehow duplicated entries.
      */
 
-    SWSS_LOG_ERROR("found route entry %s in current view, but it status is %d, FATAL",
-            str_route_entry.c_str(), currentRouteObj->getObjectStatus());
-
-    throw std::runtime_error("found route entry in current view, but it status was processed");
+    SWSS_LOG_THROW("found route entry %s in current view, but it status is %d, FATAL",
+            str_route_entry.c_str(),
+            currentRouteObj->getObjectStatus());
 }/*}}}*/
 
 std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(/*{{{*/
@@ -2247,10 +2212,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(/*{{{*/
      * can indicate a bug or somehow duplicated entries.
      */
 
-    SWSS_LOG_ERROR("found switch object %s in current view, but it status is %d, FATAL",
-            currentSwitchObj->str_object_id.c_str(), currentSwitchObj->getObjectStatus());
-
-    throw std::runtime_error("found switch object in current view, but it status was processed");
+    SWSS_LOG_THROW("found switch object %s in current view, but it status is %d, FATAL",
+            currentSwitchObj->str_object_id.c_str(),
+            currentSwitchObj->getObjectStatus());
 }/*}}}*/
 
 std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(/*{{{*/
@@ -2302,10 +2266,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(/*{{{*/
      * can indicate a bug or somehow duplicated entries.
      */
 
-    SWSS_LOG_ERROR("found fdb entry %s in current view, but it status is %d, FATAL",
-            str_fdb_entry.c_str(), currentFdbObj->getObjectStatus() );
-
-    throw std::runtime_error("found fdb entry in current view, but it status was processed");
+    SWSS_LOG_THROW("found fdb entry %s in current view, but it status is %d, FATAL",
+            str_fdb_entry.c_str(),
+            currentFdbObj->getObjectStatus() );
 }/*}}}*/
 
 std::shared_ptr<SaiObj> findCurrentBestMatch(/*{{{*/
@@ -2489,9 +2452,8 @@ void procesObjectAttributesForViewTransition(/*{{{*/
 
         default:
 
-            SWSS_LOG_ERROR("non object id %s is not supported for processing yet, FIXME", temporaryObj->str_object_type.c_str());
-
-            throw std::runtime_error("non object id is not supported for processing yet, FIXME");
+            SWSS_LOG_THROW("non object id %s is not supported for processing yet, FIXME",
+                    temporaryObj->str_object_type.c_str());
     }
 }/*}}}*/
 
@@ -2544,27 +2506,21 @@ void bringNonRemovableObjectToDefaultState(/*{{{*/
 
         if (!HAS_FLAG_CREATE_AND_SET(meta->flags))
         {
-            SWSS_LOG_ERROR("attribute %s is not CREATE_AND_SET, bug?", meta->attridname);
-
-            throw std::runtime_error("attribute is not create and set");
+            SWSS_LOG_THROW("attribute %s is not CREATE_AND_SET, bug?", meta->attridname);
         }
 
         if (meta->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_NONE)
         {
-            SWSS_LOG_ERROR("attribute %s default value type is NONE, bug?", meta->attridname);
-
-            throw std::runtime_error("attribute default value type is none");
+            SWSS_LOG_THROW("attribute %s default value type is NONE, bug?", meta->attridname);
         }
 
         auto defaultValueAttr = getSaiAttrFromDefaultValue(currentView, *meta);
 
         if (defaultValueAttr == nullptr)
         {
-            SWSS_LOG_ERROR("Can't get default value for present current attr %s:%s, FIXME",
+            SWSS_LOG_THROW("Can't get default value for present current attr %s:%s, FIXME",
                     meta->attridname,
                     attr->getStrAttrValue().c_str());
-
-            throw std::runtime_error("cant get default value for attribute");
         }
 
         if (attr->getStrAttrValue() == defaultValueAttr->getStrAttrValue())
@@ -2649,12 +2605,10 @@ void removeExistingObjectFromCurrentView(/*{{{*/
              * first for that we need dependency tree, not supported yet.
              */
 
-            SWSS_LOG_ERROR("can't remove existing object %s:%s since reference count is %d, FIXME",
+            SWSS_LOG_THROW("can't remove existing object %s:%s since reference count is %d, FIXME",
                     currentObj->str_object_type.c_str(),
                     currentObj->str_object_id.c_str(),
                     count);
-
-            throw std::runtime_error("can't remove existing object since reference count is not zero, FIXME");
         }
     }
 
@@ -2780,11 +2734,9 @@ void removeExistingObjectFromCurrentView(/*{{{*/
             break;
     }
 
-    SWSS_LOG_ERROR("remove existing object %s:%s from current view is not supported yet, FIXME",
+    SWSS_LOG_THROW("remove existing object %s:%s from current view is not supported yet, FIXME",
             currentObj->str_object_type.c_str(),
             currentObj->str_object_id.c_str());
-
-    throw std::runtime_error("remove existing object from current view is not supported yet, FIXME");
 }/*}}}*/
 
 void releaseExisgingLinks(/*{{{*/
@@ -2845,9 +2797,7 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
 
         if (tempIt == temporaryView.oOids.end())
         {
-            SWSS_LOG_ERROR("temporary VID 0x%lx not found in temporary view", tvid);
-
-            throw std::runtime_error("temporary VID not found in temporary view");
+            SWSS_LOG_THROW("temporary VID 0x%lx not found in temporary view", tvid);
         }
 
         const auto &tempObj = tempIt->second;
@@ -2859,9 +2809,7 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
             return tvid;
         }
 
-        SWSS_LOG_ERROR("VID 0x%lx was not found in temporary view, was object created? FIXME", tvid);
-
-        throw std::runtime_error("VID was not found in temp view, object was created? FIXME");
+        SWSS_LOG_THROW("VID 0x%lx was not found in temporary view, was object created? FIXME", tvid);
     }
 
     sai_object_id_t rid = temporaryIt->second;
@@ -2870,9 +2818,7 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
 
     if (currentIt == currentView.ridToVid.end())
     {
-        SWSS_LOG_ERROR("RID 0x%lx was not found in current view", rid);
-
-        throw std::runtime_error("RID was not found in current view");
+        SWSS_LOG_THROW("RID 0x%lx was not found in current view", rid);
     }
 
     sai_object_id_t cvid = currentIt->second;
@@ -3021,12 +2967,10 @@ void setAttributeOnCurrentObject(/*{{{*/
 
     if (!HAS_FLAG_CREATE_AND_SET(meta->flags))
     {
-        SWSS_LOG_ERROR("can't set attribute %s on current object %s:%s since it's not CREATE_AND_SET",
+        SWSS_LOG_THROW("can't set attribute %s on current object %s:%s since it's not CREATE_AND_SET",
                 meta->attridname,
                 currentObj->str_object_type.c_str(),
                 currentObj->str_object_id.c_str());
-
-        throw std::runtime_error("can't set attribute on current object since it's not CREATE_AND_SET");
     }
 
     /*
@@ -3096,11 +3040,9 @@ void createNewOidObjectFromTemporaryObject(/*{{{*/
 
     if (!temporaryObj->oidObject)
     {
-        SWSS_LOG_ERROR("expected OID object type, got: %s:%s",
+        SWSS_LOG_THROW("expected OID object type, got: %s:%s",
                 temporaryObj->str_object_type.c_str(),
                 temporaryObj->str_object_id.c_str());
-
-        throw std::runtime_error("expected OID object type");
     }
 
     /*
@@ -3208,11 +3150,9 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
 
     if (temporaryObj->oidObject)
     {
-        SWSS_LOG_ERROR("expected non OID object type, got: %s:%s",
+        SWSS_LOG_THROW("expected non OID object type, got: %s:%s",
                 temporaryObj->str_object_type.c_str(),
                 temporaryObj->str_object_id.c_str());
-
-        throw std::runtime_error("expected OID object type");
     }
 
     /*
@@ -3323,10 +3263,8 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
 
         default:
 
-            SWSS_LOG_ERROR("unexpected non object id type: %s",
+            SWSS_LOG_THROW("unexpected non object id type: %s",
                     sai_serialize_object_type(temporaryObj->getObjectType()).c_str());
-
-            throw std::runtime_error("unexpected non object id type");
     }
 
     /*
@@ -3455,11 +3393,9 @@ void createNewObjectFromTemporaryObject(/*{{{*/
             break;
     }
 
-    SWSS_LOG_ERROR("create new object %s:%s from temporay is not supported yet, FIXME",
+    SWSS_LOG_THROW("create new object %s:%s from temporay is not supported yet, FIXME",
             temporaryObj->str_object_type.c_str(),
             temporaryObj->str_object_id.c_str());
-
-    throw std::runtime_error("finding current best match failed, not supported yet, FIXME");
 }/*}}}*/
 
 void UpdateObjectStatus(/*{{{*/
@@ -3547,11 +3483,9 @@ void UpdateObjectStatus(/*{{{*/
          * remove existing current object.
          */
 
-        SWSS_LOG_ERROR("unexpected status combination: current %d, temporary %d",
+        SWSS_LOG_THROW("unexpected status combination: current %d, temporary %d",
                 currentBestMatch->getObjectStatus(),
                 temporaryObj->getObjectStatus());
-
-        throw std::runtime_error("unexpected status combination");
     }
 }/*}}}*/
 
@@ -4019,12 +3953,10 @@ bool performObjectSetTransition(/*{{{*/
             continue;
         }
 
-        SWSS_LOG_ERROR("we should not get here, we have a bug, current present attribute %s:%s has some wrong flags 0x%x",
+        SWSS_LOG_THROW("we should not get here, we have a bug, current present attribute %s:%s has some wrong flags 0x%x",
                     meta->attridname,
                     currentAttr->getStrAttrValue().c_str(),
                     meta->flags);
-
-        throw std::runtime_error("unexpected current preset attribute flags, FIXME");
     }
 
     /*
@@ -4299,6 +4231,11 @@ void checkSwitch(/*{{{*/
 
     if (csize == 1 && tsize == 1)
     {
+        // TODO we should match switches here if they relly match over hardware info
+        // if not, then we should trhwo exception here that hardware infor is different.
+        // we probably could support that scenario by removing previous switch and recreating
+        // existing one, but that is not the case here
+
         return;
     }
 
@@ -4307,11 +4244,11 @@ void checkSwitch(/*{{{*/
      * should have only 1 instance of switch and they must match.
      */
 
-    SWSS_LOG_ERROR("unsupported number of switches: current %zu, temp %zu", csize, tsize);
-
-    throw std::runtime_error("unsupported number of switches");
+    SWSS_LOG_THROW("unsupported number of switches: current %zu, temp %zu", csize, tsize);
 
     /*
+     * TODO:
+     *
      * In current SAI 0.9.4 switch is non object id so we don't need to make
      * VID/RID for it, but in SAI 1.0 it will be object id so we need to change
      * our strategy here.
@@ -4491,9 +4428,7 @@ void populateExistingObjects(/*{{{*/
 
         if (it == currentView.ridToVid.end())
         {
-            SWSS_LOG_ERROR("unable to find existing object RID 0x%lx in current view", rid);
-
-            throw std::runtime_error("unable to find existing object RID in current view");
+            SWSS_LOG_THROW("unable to find existing object RID 0x%lx in current view", rid);
         }
 
         sai_object_id_t vid = it->second;
@@ -4525,6 +4460,8 @@ void updateRedisDatabase(/*{{{*/
 
     /*
      * TODO we can make lua script for this which will be much faster.
+     *
+     * TODO this needs to be updated if we want to support multiple switches.
      */
 
     SWSS_LOG_TIMER("redis update");
@@ -4643,7 +4580,7 @@ sai_status_t internalSyncdApplyView()/*{{{*/
     AsicView temp;
 
     /*
-     * Need to be per switch.
+     * NOTE: Need to be per switch.
      */
 
     ObjectIdMap vidToRidMap = redisGetVidToRidMap();
@@ -4864,9 +4801,7 @@ sai_object_id_t asic_translate_vid_to_rid(/*{{{*/
 
         if (currentIt == current.removedVidToRid.end())
         {
-            SWSS_LOG_ERROR("unable to find VID 0x%lx in current view", vid);
-
-            throw std::runtime_error("unable to find VID in current view");
+            SWSS_LOG_THROW("unable to find VID 0x%lx in current view", vid);
         }
     }
 
@@ -5085,7 +5020,7 @@ sai_status_t asic_handle_fdb(/*{{{*/
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
     fdb_entry.switch_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.switch_id);
-    fdb_entry.bridge_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.bridge_id);
+    fdb_entry.bvid = asic_translate_vid_to_rid(current, temporary, fdb_entry.bvid);
 
     switch (api)
     {
