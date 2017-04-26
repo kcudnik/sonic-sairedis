@@ -6,21 +6,15 @@
 
 #include <algorithm>
 
-// TODO since next view maybe empty, then this mean it will execute remove switch
-// we need to handle taht case and clear switches to update and clear them
-// also clear db and vid maps
-
-
-// TODO we need to support obvious cases where switch don't exists on the beginning
-// so there is nothing to compare, that means just apply temporary state right away
-// no need to do any extra logic
-
 /*
- * NOTE: all methods taking current and temporary view could be moved to
+ * NOTE: All methods taking current and temporary view could be moved to
  * transition class etc to just use class members instead of passing those
- * everywhere.
+ * parameters to every function.
  */
 
+/**
+ * @brief Represents SAI object status during comparison
+ */
 typedef enum _sai_object_status_t
 {
     /**
@@ -33,17 +27,14 @@ typedef enum _sai_object_status_t
     /**
      * @brief Object was matched in previous view
      *
-     * Previous VID was matched to temp VID since
-     * it's the same. Objects exists in both previous
-     * and next view and have the save VID/RID values.
+     * Previous VID was matched to temp VID since it's the same. Objects exists
+     * in both previous and next view and have the save VID/RID values.
      *
-     * However attributes of that object could be different
-     * and may be not matched yet. This object still needs
-     * processing for attributes.
+     * However attributes of that object could be different and may be not
+     * matched yet. This object still needs processing for attributes.
      *
-     * Since only attributes can be updated then this object
-     * may not be removed at all, it must be possible to update
-     * only attribute values.
+     * Since only attributes can be updated then this object may not be removed
+     * at all, it must be possible to update only attribute values.
      */
     SAI_OBJECT_STATUS_MATCHED,
 
@@ -57,19 +48,30 @@ typedef enum _sai_object_status_t
     /**
      * @brief Object is in final stage
      *
-     * This means object was matched/set/created
-     * and proper actions were generated as diff data
-     * to be executed on ASIC.
+     * This means object was matched/set/created and proper actions were
+     * generated as diff data to be executed on ASIC.
      */
     SAI_OBJECT_STATUS_FINAL,
 
 } sai_object_status_t;
 
+/**
+ * @brief Class represents single attribute
+ *
+ * Some attriutes are lists, and have allocated memory, this class will help to
+ * handle memory management and also will keep metadata for attribute.
+ */
 class SaiAttr
 {
     public:
 
-        SaiAttr(/*{{{*/
+        /**
+         * @brief Constructor
+         *
+         * @param[in] str_attr_id Attribute is as string
+         * @param[in] str_attr_value Attribute value as string
+         */
+        SaiAttr(
                 _In_ const std::string &str_attr_id,
                 _In_ const std::string &str_attr_value):
             m_str_attr_id(str_attr_id),
@@ -80,8 +82,8 @@ class SaiAttr
 
             /*
              * We perform deserialize here to have attribute value when we need
-             * it, this can include allocated lists, so on destructor we ned to
-             * free this memory.
+             * it, this can include allocated lists, so on destructor we need
+             * to free this memory.
              */
 
             sai_deserialize_attr_id(str_attr_id, &m_meta);
@@ -89,51 +91,57 @@ class SaiAttr
             m_attr.id = m_meta->attrid;
 
             sai_deserialize_attr_value(str_attr_value, *m_meta, m_attr, false);
+        }
 
-            m_is_object_id_attr = m_meta->allowedobjecttypeslength > 0;
-        }/*}}}*/
-
-        ~SaiAttr()/*{{{*/
+        /**
+         * @brief Destructor
+         */
+        ~SaiAttr()
         {
             SWSS_LOG_ENTER();
 
             sai_deserialize_free_attribute_value(m_meta->attrvaluetype, m_attr);
-        }/*}}}*/
+        }
 
-        sai_attribute_t* getRWSaiAttr()/*{{{*/
+        sai_attribute_t* getRWSaiAttr()
         {
             return &m_attr;
-        }/*}}}*/
+        }
 
-        const sai_attribute_t* getSaiAttr() const/*{{{*/
+        const sai_attribute_t* getSaiAttr() const
         {
             return &m_attr;
-        }/*}}}*/
+        }
 
-        bool isObjectIdAttr() const/*{{{*/
+        /**
+         * @brief Tells whether attribute contains OIDs
+         *
+         * @return True if attribute contains OIDs, false otherwise
+         */
+        bool isObjectIdAttr() const
         {
-            return m_is_object_id_attr;
-        }/*}}}*/
+            return m_meta->isoidattribute;
+        }
 
-        const std::string& getStrAttrId() const/*{{{*/
+        const std::string& getStrAttrId() const
         {
             return m_str_attr_id;
-        }/*}}}*/
+        }
 
-        const std::string& getStrAttrValue() const/*{{{*/
+        const std::string& getStrAttrValue() const
         {
             return m_str_attr_value;
-        }/*}}}*/
+        }
 
-        const sai_attr_metadata_t* getAttrMetadata() const/*{{{*/
+        const sai_attr_metadata_t* getAttrMetadata() const
         {
             return m_meta;
-        }/*}}}*/
+        }
 
-        void UpdateValue()/*{{{*/
+        void UpdateValue()
         {
             m_str_attr_value = sai_serialize_attr_value(*m_meta, m_attr);
-        }/*}}}*/
+        }
 
         /**
          * @brief Get OID list from attribute
@@ -142,8 +150,10 @@ class SaiAttr
          * attribute or non oid attribute. This method will extract all those oids from
          * this attribute and return as vector.  This is handy when we need processing
          * oids per attribute.
+         *
+         * @return Object list used in attribute
          */
-        std::vector<sai_object_id_t> getOidListFromAttribute() const/*{{{*/
+        std::vector<sai_object_id_t> getOidListFromAttribute() const
         {
             SWSS_LOG_ENTER();
 
@@ -154,20 +164,25 @@ class SaiAttr
             const sai_object_id_t *objectIdList = NULL;
 
             /*
-             * For ACL fields and actions we need to use enable flag as indicator,
-             * since when attribute is disabled then parameter can be garbage.
+             * For ACL fields and actions we need to use enable flag as
+             * indicator, since when attribute is disabled then parameter can
+             * be garbage.
              */
 
             switch (m_meta->attrvaluetype)
             {
                 case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
+
                     count = 1;
                     objectIdList = &attr.value.oid;
+
                     break;
 
                 case SAI_ATTR_VALUE_TYPE_OBJECT_LIST:
+
                     count = attr.value.objlist.count;
                     objectIdList = attr.value.objlist.list;
+
                     break;
 
                 case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID:
@@ -212,7 +227,7 @@ class SaiAttr
 
                 default:
 
-                    if (m_meta->allowedobjecttypeslength > 0)
+                    if (m_meta->isoidattribute)
                     {
                         SWSS_LOG_THROW("attribute %s is oid attrubute but not handled", m_meta->attridname);
                     }
@@ -227,9 +242,18 @@ class SaiAttr
             std::vector<sai_object_id_t> result(objectIdList, objectIdList + count);
 
             return result;
-        }/*}}}*/
+        }
 
     private:
+
+        /*
+         * Copy constructor and assignment operator are marked as prived to
+         * prevent copy of this object, since attribute can contain pointers to
+         * list which can lead to double free when object copy.
+         *
+         * This can be solved by making proper implementations of those
+         * methods, currently this is not required.
+         */
 
         SaiAttr(const SaiAttr&);
         SaiAttr& operator=(const SaiAttr&);
@@ -239,31 +263,36 @@ class SaiAttr
 
         const sai_attr_metadata_t* m_meta;
         sai_attribute_t m_attr;
-        bool m_is_object_id_attr;
 };
 
+/**
+ * @brief Class represents SAI object
+ */
 class SaiObj
 {
     public:
 
-        SaiObj():/*{{{*/
-            oidObject(false),
+        /**
+         * @brief Constructor
+         */
+        SaiObj():
             createdObject(false),
             defaultObject(false),
             m_object_status(SAI_OBJECT_STATUS_NOT_PROCESSED)
         {
-        }/*}}}*/
+            /* empty intentionally */
+        }
 
-        // TODO move to methods
+        // TODO move to methods or constructor ?
         std::string str_object_type;
         std::string str_object_id;
 
         sai_object_meta_key_t meta_key;
 
-        bool oidObject;
+        const sai_object_type_info_t *info;
 
         /**
-         * @brief This will indicate whether obect was created and it will
+         * @brief This will indicate whether object was created and it will
          * indicate that currently there is no RID for it.
          */
         bool createdObject;
@@ -276,12 +305,17 @@ class SaiObj
          */
         bool defaultObject;
 
-        const std::unordered_map<sai_attr_id_t, std::shared_ptr<SaiAttr>>& getAllAttributes() const/*{{{*/
+        bool isOidObject() const
+        {
+            return info->isobjectid;
+        }
+
+        const std::unordered_map<sai_attr_id_t, std::shared_ptr<SaiAttr>>& getAllAttributes() const
         {
             return m_attrs;
-        }/*}}}*/
+        }
 
-        std::shared_ptr<SaiAttr> getSaiAttr(/*{{{*/
+        std::shared_ptr<SaiAttr> getSaiAttr(
                 _In_ sai_attr_id_t id) const
         {
             auto it = m_attrs.find(id);
@@ -300,48 +334,62 @@ class SaiObj
             }
 
             return it->second;
-        }/*}}}*/
+        }
 
-        void setObjectStatus(/*{{{*/
-                _In_ sai_object_status_t os)
+        /**
+         * @brief Sets object status
+         *
+         * @param[in] object_status New object status
+         */
+        void setObjectStatus(
+                _In_ sai_object_status_t object_status)
         {
             SWSS_LOG_ENTER();
 
-            m_object_status = os;
+            m_object_status = object_status;
+        }
 
-        }/*}}}*/
-
-        sai_object_status_t getObjectStatus() const/*{{{*/
+        /**
+         * @brief Gets current object status
+         *
+         * @return Current object status
+         */
+        sai_object_status_t getObjectStatus() const
         {
             return m_object_status;
-        }/*}}}*/
+        }
 
-        sai_object_type_t getObjectType() const/*{{{*/
+        /**
+         * @brief Gets obejct type
+         *
+         * @return Object type
+         */
+        sai_object_type_t getObjectType() const
         {
             return meta_key.objecttype;
-        }/*}}}*/
+        }
 
-        void setAttr(/*{{{*/
-                _In_ std::shared_ptr<SaiAttr> a)
+        void setAttr(
+                _In_ std::shared_ptr<SaiAttr> attr)
         {
-            m_attrs[a->getSaiAttr()->id] = a;
-        }/*}}}*/
+            m_attrs[attr->getSaiAttr()->id] = attr;
+        }
 
-        bool hasAttr(/*{{{*/
+        bool hasAttr(
                 _In_ sai_attr_id_t id) const
         {
             return m_attrs.find(id) != m_attrs.end();
-        }/*}}}*/
+        }
 
-        sai_object_id_t getVid() const/*{{{*/
+        sai_object_id_t getVid() const
         {
-            if (oidObject)
+            if (isOidObject())
             {
                 return meta_key.objectkey.key.object_id;
             }
 
             SWSS_LOG_THROW("object %s it not object id type", str_object_id.c_str());
-        }/*}}}*/
+        }
 
         /*
          * TODO we need dependency tree if we want to remove objects which have
@@ -362,23 +410,35 @@ typedef std::unordered_map<sai_object_id_t, sai_object_id_t> ObjectIdMap;
 typedef std::unordered_map<std::string, std::shared_ptr<SaiObj>> StrObjectIdToSaiObjectHash;
 typedef std::unordered_map<sai_object_id_t, std::shared_ptr<SaiObj>> ObjectIdToSaiObjectHash;
 
+/**
+ * @brief Class represents ASIC view
+ */
 class AsicView
 {
     public:
 
-        AsicView()/*{{{*/
+        /**
+         * @brief Constructor
+         */
+        AsicView()
         {
-            // empty intentionally
-        }/*}}}*/
+            /* empty intentionally */
+        }
 
-        // TODO should this be static method that returns AsicViewObject?
-        void fromDump(/*{{{*/
+        /**
+         * @brief Populates ASIC view from REDIS table dump
+         *
+         * @param[in] dump Redis table dump
+         *
+         * NOTE: Could be static method that returns AsicView object.
+         */
+        void fromDump(
                 _In_ const swss::TableDump &dump)
         {
             SWSS_LOG_ENTER();
 
             /*
-             * Input should be also existing obejcts, so they could be created
+             * Input should be also existing objects, so they could be created
              * here right away but we would need VIDs as well.
              */
 
@@ -393,63 +453,58 @@ class AsicView
 
                 std::shared_ptr<SaiObj> o = std::make_shared<SaiObj>();
 
+                // TODO we could use sai deserialize object meta key
+
                 o->str_object_type  = key.first.substr(0, start);
                 o->str_object_id    = key.first.substr(start + 1);
 
                 sai_deserialize_object_type(o->str_object_type, o->meta_key.objecttype);
 
-                // TODO for vid references we can iterate via metadata for non object id's
+                o->info = sai_metadata_get_object_type_info(o->meta_key.objecttype);
+
+                /*
+                 * Since neighbor/route/fdb structs objects contains OIDs, we
+                 * need to increase vid reference. With new metadata for SAI
+                 * 1.0 this can be done in generic way for all non object ids.
+                 */
 
                 switch (o->meta_key.objecttype)
                 {
-                    case SAI_OBJECT_TYPE_SWITCH:
-                        soSwitches[o->str_object_id] = o;
-                        break;
-
                     case SAI_OBJECT_TYPE_FDB_ENTRY:
                         sai_deserialize_fdb_entry(o->str_object_id, o->meta_key.objectkey.key.fdb_entry);
                         soFdbs[o->str_object_id] = o;
+
+                        m_vidReference[o->meta_key.objectkey.key.fdb_entry.bvid] += 1;
+                        m_vidReference[o->meta_key.objectkey.key.fdb_entry.switch_id] += 1;
                         break;
 
                     case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
                         sai_deserialize_neighbor_entry(o->str_object_id, o->meta_key.objectkey.key.neighbor_entry);
                         soNeighbors[o->str_object_id] = o;
 
-                        /*
-                         * Since neighbor struct object contains RIF ID, we
-                         * need to increase vid reference With new metadata for
-                         * SAI 1.0 this can be done in generic way for all non
-                         * object ids.
-                         */
-
                         m_vidReference[o->meta_key.objectkey.key.neighbor_entry.rif_id] += 1;
-
+                        m_vidReference[o->meta_key.objectkey.key.neighbor_entry.switch_id] += 1;
                         break;
 
                     case SAI_OBJECT_TYPE_ROUTE_ENTRY:
                         sai_deserialize_route_entry(o->str_object_id, o->meta_key.objectkey.key.route_entry);
                         soRoutes[o->str_object_id] = o;
 
-                        /*
-                         * Since route struct object contains VR ID, we need to
-                         * increase vid reference.
-                         */
-
                         m_vidReference[o->meta_key.objectkey.key.route_entry.vr_id] += 1;
-
+                        m_vidReference[o->meta_key.objectkey.key.route_entry.switch_id] += 1;
                         break;
 
                     default:
-                        // TODO check for non object id
+
+                        if (o->info->isnonobjectid)
+                        {
+                            SWSS_LOG_THROW("object %s is non object id, not handled, FIXME", key.first.c_str());
+                        }
+
                         sai_deserialize_object_id(o->str_object_id, o->meta_key.objectkey.key.object_id);
+
                         soOids[o->str_object_id] = o;
                         oOids[o->meta_key.objectkey.key.object_id] = o;
-
-                        /*
-                         * From SAI 1.0 this will be in metadata.
-                         */
-
-                        o->oidObject = true;
 
                         /*
                          * Here is only object VID declaration, since we don't
@@ -471,25 +526,19 @@ class AsicView
                 populateAttributes(o, key.second);
             }
 
-            /*
-             * If tere is no switch, then create one by default with all empty
-             * values.
-             */
-
-            if (soSwitches.size() == 0)
-            {
-                const auto &o = createSwitchObject();
-
-                soAll[o->str_object_id] = o;
-                soSwitches[o->str_object_id] = o;
-                sotAll[o->meta_key.objecttype][o->str_object_id] = o;
-            }
-
             // TODO VLAN 1 also needs to be present (create it)
+        }
 
-        }/*}}}*/
-
-        void releaseVidReference(/*{{{*/
+        /**
+         * @brief Release VID reference
+         *
+         * If SET operation was performed on attribute, and attribute was OID
+         * attribute, then we need to release previous reference to that VID,
+         * and bind new reference to next OID if present.
+         *
+         * @param[in] vid Virtual ID to release reference
+         */
+        void releaseVidReference(
                 _In_ sai_object_id_t vid)
         {
             SWSS_LOG_ENTER();
@@ -503,20 +552,34 @@ class AsicView
 
             if (it == m_vidReference.end())
             {
-                SWSS_LOG_THROW("vid 0x%lx don't exist in reference map", vid);
+                SWSS_LOG_THROW("vid %s don't exist in reference map",
+                        sai_serialize_object_id(vid).c_str());
             }
 
             int referenceCount = --(it->second);
 
             if (referenceCount < 0)
             {
-                SWSS_LOG_THROW("vid 0x%lx decreased reference count too many times: %d, BUG", vid, referenceCount);
+                SWSS_LOG_THROW("vid %s decreased reference count too many times: %d, BUG",
+                        sai_serialize_object_id(vid).c_str(),
+                        referenceCount);
             }
 
-            SWSS_LOG_INFO("released vid 0x%lx refrence from %d to %d", vid, referenceCount + 1, referenceCount);
-        }/*}}}*/
+            SWSS_LOG_INFO("released vid %s refrence from %d to %d",
+                    sai_serialize_object_id(vid).c_str(),
+                    referenceCount + 1,
+                    referenceCount);
+        }
 
-        void bindNewVidReference(/*{{{*/
+        /**
+         * @brief Bind new VID reference
+         *
+         * If attribute is OID attribute then we need to increase reference
+         * count on that VID to mark it that it is in use.
+         *
+         * @param[in] vid Virtual ID reference to be bind
+         */
+        void bindNewVidReference(
                 _In_ sai_object_id_t vid)
         {
             SWSS_LOG_ENTER();
@@ -528,12 +591,12 @@ class AsicView
 
             /*
              * If we are doing bind on new vid reference that VID needs to
-             * exist int current view, eather object was matched or new object
+             * exist int current view, either object was matched or new object
              * was created.
              *
-             * TODO not sure if this will have impact on some other object
+             * TODO: Not sure if this will have impact on some other object
              * processing since if object was matched or created then this VID
-             * can be found in other attribures compring them, and it will get
+             * can be found in other attributes comparing them, and it will get
              * NULL instead RID.
              */
 
@@ -541,15 +604,19 @@ class AsicView
 
             if (it == m_vidReference.end())
             {
-                SWSS_LOG_THROW("vid 0x%lx don't exist in reference map", vid);
+                SWSS_LOG_THROW("vid %s don't exist in reference map",
+                        sai_serialize_object_id(vid).c_str());
             }
 
             int referenceCount = ++(it->second);
 
-            SWSS_LOG_INFO("increased vid 0x%lx refrence from %d to %d", vid, referenceCount - 1, referenceCount);
-        }/*}}}*/
+            SWSS_LOG_INFO("increased vid %s refrence from %d to %d",
+                    sai_serialize_object_id(vid).c_str(),
+                    referenceCount - 1,
+                    referenceCount);
+        }
 
-        int getVidReferenceCount(/*{{{*/
+        int getVidReferenceCount(
                 _In_ sai_object_id_t vid) const
         {
             SWSS_LOG_ENTER();
@@ -562,9 +629,18 @@ class AsicView
             }
 
             return -1;
-        }/*}}}*/
+        }
 
-        void insertNewVidReference(/*{{{*/
+        /**
+         * @brief Insert new VID reference
+         *
+         * Inserts new reference to be tracked. This also make sure that
+         * reference don't exists yet, as a sanity check if same reference
+         * would be inserted twice.
+         *
+         * @param[in] vid Virtual ID reference to be inserted
+         */
+        void insertNewVidReference(
                 _In_ sai_object_id_t vid)
         {
             SWSS_LOG_ENTER();
@@ -573,16 +649,18 @@ class AsicView
 
             if (it != m_vidReference.end())
             {
-                SWSS_LOG_THROW("vid 0x%lx already exist in reference map, BUG", vid);
+                SWSS_LOG_THROW("vid %s already exist in reference map, BUG",
+                        sai_serialize_object_id(vid).c_str());
             }
 
             m_vidReference[vid] = 0;
 
-            SWSS_LOG_INFO("inserted vid 0x%lx as reference", vid);
-        }/*}}}*/
+            SWSS_LOG_INFO("inserted vid %s as reference",
+                    sai_serialize_object_id(vid).c_str());
+        }
 
         // TODO convert to something like nonObjectIdMap
-        StrObjectIdToSaiObjectHash soSwitches;
+
         StrObjectIdToSaiObjectHash soFdbs;
         StrObjectIdToSaiObjectHash soNeighbors;
         StrObjectIdToSaiObjectHash soRoutes;
@@ -595,8 +673,11 @@ class AsicView
 
         ObjectIdToSaiObjectHash oOids;
 
-        // on temp view this needs to be used for actual NEW rids created
-        // and then reused with rid mapping to create new rid/vid map
+        /*
+         * On temp view this needs to be used for actual NEW rids created and
+         * then reused with rid mapping to create new rid/vid map.
+         */
+
         ObjectIdMap ridToVid;
         ObjectIdMap vidToRid;
         ObjectIdMap removedVidToRid;
@@ -607,8 +688,9 @@ class AsicView
         sai_object_id_t defaultVirtualRouterRid;
         sai_object_id_t defaultTrapGroupRid;
         sai_object_id_t defaultStpInstanceRid;
+        sai_object_id_t defaultVlanRid;
 
-        std::vector<std::shared_ptr<SaiObj>> getObjectsByObjectType(/*{{{*/
+        std::vector<std::shared_ptr<SaiObj>> getObjectsByObjectType(
                 _In_ sai_object_type_t object_type) const
         {
             SWSS_LOG_ENTER();
@@ -630,15 +712,15 @@ class AsicView
             }
 
             return list;
-        }/*}}}*/
+        }
 
         /*
          * Call to this method can be expensive, since every time we iterate
          * entire list. This list can contain even 10k elements if view will be
-         * hudge.
+         * very large.
          */
 
-        std::vector<std::shared_ptr<SaiObj>> getNotProcessedObjectsByObjectType(/*{{{*/
+        std::vector<std::shared_ptr<SaiObj>> getNotProcessedObjectsByObjectType(
                 _In_ sai_object_type_t object_type) const
         {
             SWSS_LOG_ENTER();
@@ -663,9 +745,9 @@ class AsicView
             }
 
             return list;
-        }/*}}}*/
+        }
 
-        std::vector<std::shared_ptr<SaiObj>> getAllNotProcessedObjects() const/*{{{*/
+        std::vector<std::shared_ptr<SaiObj>> getAllNotProcessedObjects() const
         {
             SWSS_LOG_ENTER();
 
@@ -681,39 +763,44 @@ class AsicView
             }
 
             return list;
-        }/*}}}*/
+        }
 
-        void createDummy(/*{{{*/
+        /**
+         * @brief Create dummy existing object
+         *
+         * Function creates dummy objects, which is used to indicate that
+         * this OID object exist in current view. This is used for existing
+         * objects, like cpu port, default trap group.
+         *
+         * @param[in] rid Real ID
+         * @param[in] vid Virtual ID
+         */
+        void createDummyExistingObject(
                 _In_ sai_object_id_t rid,
                 _In_ sai_object_id_t vid)
         {
             SWSS_LOG_ENTER();
 
-            /*
-             * Function creates dummy objects, which is used to indicate
-             * that this OID object exist in current view. This is used
-             * for existing objects, like cpu port, default trap group.
-             */
-
             sai_object_type_t object_type = getObjectTypeFromVid(vid);
 
             if (object_type == SAI_OBJECT_TYPE_NULL)
             {
-                SWSS_LOG_THROW("null object type from vid 0x%lx", vid);
+                SWSS_LOG_THROW("got null object type from VID %s",
+                        sai_serialize_object_id(vid).c_str());
             }
 
             std::shared_ptr<SaiObj> o = std::make_shared<SaiObj>();
 
-            o->str_object_type  = sai_serialize_object_type(object_type);
-            o->str_object_id    = sai_serialize_object_id(vid);
+            o->str_object_type = sai_serialize_object_type(object_type);
+            o->str_object_id   = sai_serialize_object_id(vid);
 
             o->meta_key.objecttype = object_type;
             o->meta_key.objectkey.key.object_id = vid;
 
+            o->info = sai_metadata_get_object_type_info(object_type);
+
             soOids[o->str_object_id] = o;
             oOids[o->meta_key.objectkey.key.object_id] = o;
-
-            o->oidObject = true;
 
             m_vidReference[o->meta_key.objectkey.key.object_id] += 0;
 
@@ -722,14 +809,17 @@ class AsicView
 
             ridToVid[rid] = vid;
             vidToRid[vid] = rid;
-        }/*}}}*/
+        }
 
-        ~AsicView()/*{{{*/
+        /**
+         * @brief Destructor
+         */
+        ~AsicView()
         {
-            // empty intentionally
-        }/*}}}*/
+            /* empty intentionally */
+        }
 
-        void asicSetAttribute(/*{{{*/
+        void asicSetAttribute(
                 _In_ const std::shared_ptr<SaiObj> &currentObj,
                 _In_ const std::shared_ptr<SaiAttr> &attr)
         {
@@ -739,12 +829,16 @@ class AsicView
              * This method will generate ASIC set operation on current existing
              * object similar like SAI REDIS is doing.
              *
-             * NOTE: in long run, this is serialize, and then we call deserialize
-             * to execute them on actual asic, maybe this is not necessary
+             * NOTE: In long run, this is serialize, and then we call deserialize
+             * to execute them on actual ASIC, maybe this is not necessary
              * and could be optimized later.
              *
-             * TODO set on object id should do release of links (currently done
+             * TODO: Set on object id should do release of links (currently done
              * outside) and modify dependency tree.
+             */
+
+            /*
+             * Generate asic commands.
              */
 
             std::vector<swss::FieldValueTuple> entry = SaiAttributeList::serialize_attr_list(
@@ -755,17 +849,31 @@ class AsicView
 
             std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
 
-            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco = std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "set", entry);
+            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
+                std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "set", entry);
 
             m_asicOperations.push_back(kco);
-        }/*}}}*/
+        }
 
-        void asicCreateObject(/*{{{*/
+        void asicCreateObject(
                 _In_ const std::shared_ptr<SaiObj> &currentObj)
         {
             SWSS_LOG_ENTER();
 
-            if (!currentObj->oidObject)
+            /*
+             * This method will generate ASIC create operation on current
+             * existing object similar like SAI REDIS is doing.
+             *
+             * NOTE: In long run, this is serialize, and then we call
+             * deserialize to execute them on actual asic, maybe this is not
+             * necessary and could be optimized later.
+             *
+             * TODO: Create on object id attributes should bind references to
+             * used VIDs of of links (currently done outside) and modify
+             * dependency tree.
+             */
+
+            if (!currentObj->isOidObject())
             {
                 SWSS_LOG_THROW("non object id not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
@@ -780,121 +888,11 @@ class AsicView
             soAll[currentObj->str_object_id] = currentObj;
             sotAll[currentObj->meta_key.objecttype][currentObj->str_object_id] = currentObj;
 
-            /*
-             * This method will generate ASIC create operation on current
-             * existing object similar like SAI REDIS is doing.
-             *
-             * NOTE: in long run, this is serialize, and then we call
-             * deserialize to execute them on actual asic, maybe this is not
-             * necessary and could be optimized later.
-             *
-             * TODO create on object id attributes should bind references to
-             * used VIDs of of links (currently done outside) and modify
-             * dependency tree.
-             */
-
             std::vector<swss::FieldValueTuple> entry;
 
-            for (auto const &pair: currentObj->getAllAttributes())
-            {
-                const auto &attr = pair.second;
-
-                swss::FieldValueTuple fvt(attr->getStrAttrId(), attr->getStrAttrValue());
-
-                entry.push_back(fvt);
-            }
-
-            if (entry.size() == 0)
-            {
-                // make sure that we put object into db
-                // even if there are no attributes set
-                swss::FieldValueTuple null("NULL", "NULL");
-
-                entry.push_back(null);
-            }
-
-            std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
-
-            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco = std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "create", entry);
-
-            m_asicOperations.push_back(kco);
-        }/*}}}*/
-
-        // TODO combine with creating object id
-        void asicCreateNonObjectIdObject(/*{{{*/
-                _In_ const std::shared_ptr<SaiObj> &currentObj)
-        {
-            SWSS_LOG_ENTER();
-
-            if (currentObj->oidObject)
-            {
-                SWSS_LOG_THROW("object id is not supported yet %s:%s FIXME",
-                        currentObj->str_object_type.c_str(),
-                        currentObj->str_object_id.c_str());
-            }
-
-            // TODO vid references by iterating struct members
-
-            switch (currentObj->getObjectType())
-            {
-                case SAI_OBJECT_TYPE_FDB_ENTRY:
-                    sai_deserialize_fdb_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.fdb_entry);
-                    soFdbs[currentObj->str_object_id] = currentObj;
-                    break;
-
-                case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
-                    sai_deserialize_neighbor_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.neighbor_entry);
-                    soNeighbors[currentObj->str_object_id] = currentObj;
-
-                    /*
-                     * Since neighbor struct object contains RIF ID, we
-                     * need to increase vid reference With new metadata for
-                     * SAI 1.0 this can be done in generic way for all non
-                     * object ids.
-                     */
-
-                    m_vidReference[currentObj->meta_key.objectkey.key.neighbor_entry.rif_id] += 1;
-
-                    break;
-
-                case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-                    sai_deserialize_route_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.route_entry);
-                    soRoutes[currentObj->str_object_id] = currentObj;
-
-                    /*
-                     * Since route struct object contains VR ID, we need to
-                     * increase vid reference.
-                     */
-
-                    m_vidReference[currentObj->meta_key.objectkey.key.route_entry.vr_id] += 1;
-
-                    break;
-
-                default:
-
-                    SWSS_LOG_THROW("unsupported object type: %s",
-                            sai_serialize_object_type(currentObj->getObjectType()).c_str());
-            }
-
-            // TODO fix this
-
-            soAll[currentObj->str_object_id] = currentObj;
-            sotAll[currentObj->meta_key.objecttype][currentObj->str_object_id] = currentObj;
-
             /*
-             * This method will generate ASIC create operation on current
-             * existing object similar like SAI REDIS is doing.
-             *
-             * NOTE: in long run, this is serialize, and then we call
-             * deserialize to execute them on actual asic, maybe this is not
-             * necessary and could be optimized later.
-             *
-             * TODO create on object id attributes should do bind references to
-             * used VIDs of of links (currently done outside) and modify
-             * dependency tree.
+             * Generate asic commands.
              */
-
-            std::vector<swss::FieldValueTuple> entry;
 
             for (auto const &pair: currentObj->getAllAttributes())
             {
@@ -911,6 +909,7 @@ class AsicView
                  * Make sure that we put object into db even if there are no
                  * attributes set.
                  */
+
                 swss::FieldValueTuple null("NULL", "NULL");
 
                 entry.push_back(null);
@@ -918,23 +917,136 @@ class AsicView
 
             std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
 
-            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco = std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "create", entry);
+            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
+                std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "create", entry);
 
             m_asicOperations.push_back(kco);
-        }/*}}}*/
+        }
 
-        // TODO combine to 1 method
-        void asicRemoveNonObjectIdObject(/*{{{*/
+        void asicCreateNonObjectIdObject(
                 _In_ const std::shared_ptr<SaiObj> &currentObj)
         {
             SWSS_LOG_ENTER();
 
-            if (currentObj->oidObject)
+            /*
+             * This method will generate ASIC create operation on current
+             * existing object similar like SAI REDIS is doing.
+             *
+             * NOTE: In long run, this is serialize, and then we call
+             * deserialize to execute them on actual asic, maybe this is not
+             * necessary and could be optimized later.
+             *
+             * TODO: Create on object id attributes should do bind references to
+             * used VIDs of of links (currently done outside) and modify
+             * dependency tree.
+             */
+
+            if (currentObj->isOidObject())
             {
                 SWSS_LOG_THROW("object id is not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
                         currentObj->str_object_id.c_str());
             }
+
+            // TODO vid references by iterating struct members
+
+            /*
+             * Since neighbor/route/fdb structs objects contains OIDs, we
+             * need to increase vid reference. With new metadata for SAI
+             * 1.0 this can be done in generic way for all non object ids.
+             */
+
+            switch (currentObj->getObjectType())
+            {
+                case SAI_OBJECT_TYPE_FDB_ENTRY:
+                    sai_deserialize_fdb_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.fdb_entry);
+                    soFdbs[currentObj->str_object_id] = currentObj;
+
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bvid] += 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.switch_id] += 1;
+                    break;
+
+                case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+                    sai_deserialize_neighbor_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.neighbor_entry);
+                    soNeighbors[currentObj->str_object_id] = currentObj;
+
+                    m_vidReference[currentObj->meta_key.objectkey.key.neighbor_entry.rif_id] += 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.neighbor_entry.switch_id] += 1;
+
+                    break;
+
+                case SAI_OBJECT_TYPE_ROUTE_ENTRY:
+                    sai_deserialize_route_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.route_entry);
+                    soRoutes[currentObj->str_object_id] = currentObj;
+
+                    m_vidReference[currentObj->meta_key.objectkey.key.route_entry.vr_id] += 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.route_entry.switch_id] += 1;
+
+                    break;
+
+                default:
+
+                    SWSS_LOG_THROW("unsupported object type: %s",
+                            sai_serialize_object_type(currentObj->getObjectType()).c_str());
+            }
+
+            soAll[currentObj->str_object_id] = currentObj;
+            sotAll[currentObj->meta_key.objecttype][currentObj->str_object_id] = currentObj;
+
+            std::vector<swss::FieldValueTuple> entry;
+
+            /*
+             * Generate asic commands.
+             */
+
+            for (auto const &pair: currentObj->getAllAttributes())
+            {
+                const auto &attr = pair.second;
+
+                swss::FieldValueTuple fvt(attr->getStrAttrId(), attr->getStrAttrValue());
+
+                entry.push_back(fvt);
+            }
+
+            if (entry.size() == 0)
+            {
+                /*
+                 * Make sure that we put object into db even if there are no
+                 * attributes set.
+                 */
+
+                swss::FieldValueTuple null("NULL", "NULL");
+
+                entry.push_back(null);
+            }
+
+            std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
+
+            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
+                std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "create", entry);
+
+            m_asicOperations.push_back(kco);
+        }
+
+        void asicRemoveNonObjectIdObject(
+                _In_ const std::shared_ptr<SaiObj> &currentObj)
+        {
+            SWSS_LOG_ENTER();
+
+            if (currentObj->isOidObject())
+            {
+                SWSS_LOG_THROW("object id is not supported yet %s:%s FIXME",
+                        currentObj->str_object_type.c_str(),
+                        currentObj->str_object_id.c_str());
+            }
+
+            // TODO for non object id's we should do in generic way
+
+            /*
+             * Since neighbor/route/fdb structs objects contains OIDs, we
+             * need to decrease VID reference. With new metadata for SAI
+             * 1.0 this can be done in generic way for all non object ids.
+             */
 
             switch (currentObj->getObjectType())
             {
@@ -942,33 +1054,26 @@ class AsicView
 
                     soFdbs.erase(currentObj->str_object_id);
 
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bvid] -= 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.switch_id] -= 1;
+
                     break;
 
                 case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
 
-                    /*
-                     * Since neighbor struct object contains RIF ID, we
-                     * need to decrease vid reference, with new metadata for
-                     * SAI 1.0 this can be done in generic way for all non
-                     * object ids.
-                     */
-
                     soNeighbors.erase(currentObj->str_object_id);
 
                     m_vidReference[currentObj->meta_key.objectkey.key.neighbor_entry.rif_id] -= 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.neighbor_entry.switch_id] -= 1;
 
                     break;
 
                 case SAI_OBJECT_TYPE_ROUTE_ENTRY:
 
-                    /*
-                     * Since route struct object contains VR ID, we need to
-                     * decrease vid reference.
-                     */
-
                     soRoutes.erase(currentObj->str_object_id);
 
                     m_vidReference[currentObj->meta_key.objectkey.key.route_entry.vr_id] -= 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.route_entry.switch_id] -= 1;
 
                     break;
 
@@ -989,17 +1094,18 @@ class AsicView
 
             std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
 
-            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco = std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "remove", entry);
+            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
+                std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "remove", entry);
 
             m_asicOperations.push_back(kco);
-        }/*}}}*/
+        }
 
-        void asicRemoveObject(/*{{{*/
+        void asicRemoveObject(
                 _In_ const std::shared_ptr<SaiObj> &currentObj)
         {
             SWSS_LOG_ENTER();
 
-            if (!currentObj->oidObject)
+            if (!currentObj->isOidObject())
             {
                 SWSS_LOG_THROW("non object id is not supported yet %s:%s FIXME",
                         currentObj->str_object_type.c_str(),
@@ -1048,54 +1154,55 @@ class AsicView
 
             std::string key = currentObj->str_object_type + ":" + currentObj->str_object_id;
 
-            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco = std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "remove", entry);
+            std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
+                std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "remove", entry);
 
             m_asicOperations.push_back(kco);
-        }/*}}}*/
+        }
 
-        const std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>>& asicGetOperations() const/*{{{*/
+        const std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>>& asicGetOperations() const
         {
             SWSS_LOG_ENTER();
 
             return m_asicOperations;
-        }/*}}}*/
+        }
 
-        size_t asicGetOperationsCount() const/*{{{*/
+        size_t asicGetOperationsCount() const
         {
             SWSS_LOG_ENTER();
 
             return m_asicOperations.size();
-        }/*}}}*/
+        }
 
-        bool hasRid(/*{{{*/
+        bool hasRid(
                 _In_ sai_object_id_t rid) const
         {
             return ridToVid.find(rid) != ridToVid.end();
-        }/*}}}*/
+        }
 
-        bool hasVid(/*{{{*/
+        bool hasVid(
                 _In_ sai_object_id_t vid) const
         {
             return vidToRid.find(vid) != vidToRid.end();
-        }/*}}}*/
+        }
 
     private:
 
         std::map<sai_object_id_t, int> m_vidReference;
 
-        void populateAttributes(/*{{{*/
-                _In_ std::shared_ptr<SaiObj> &o,
+        void populateAttributes(
+                _In_ std::shared_ptr<SaiObj> &obj,
                 _In_ const swss::TableMap &map)
         {
             SWSS_LOG_ENTER();
 
             for (const auto &field: map)
             {
-                std::shared_ptr<SaiAttr> a = std::make_shared<SaiAttr>(field.first, field.second);
+                std::shared_ptr<SaiAttr> attr = std::make_shared<SaiAttr>(field.first, field.second);
 
-                o->setAttr(a);
+                obj->setAttr(attr);
 
-                for (auto const &vid: a->getOidListFromAttribute())
+                for (auto const &vid: attr->getOidListFromAttribute())
                 {
                     if (vid != SAI_NULL_OBJECT_ID)
                     {
@@ -1103,43 +1210,26 @@ class AsicView
                     }
                 }
             }
-        }/*}}}*/
-
-        std::shared_ptr<SaiObj> createSwitchObject()/*{{{*/
-        {
-            SWSS_LOG_ENTER();
-
-            /*
-             * Switch object is using default value which is zero for object id.  In
-             * SAI 1.0 it will use actual value, and this method here will not be
-             * needed.
-             */
-
-            sai_object_id_t object_id = 0;
-
-            std::shared_ptr<SaiObj> sw = std::make_shared<SaiObj>();
-
-            sw->str_object_id        = sai_serialize_object_id(object_id);
-            sw->str_object_type      = "SAI_OBJECT_TYPE_SWITCH";
-            sw->meta_key.objecttype = SAI_OBJECT_TYPE_SWITCH;
-            sw->meta_key.objectkey.key.object_id = object_id;
-
-            return sw;
-        }/*}}}*/
+        }
 
         /*
-         * Not sure if there is sense to make this shared, ony reason is to skip
+         * Not sure if there is sense to make this shared, only reason is to skip
          * copy expensive KeyOpFieldsValuesTuple objects.
          */
 
         std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>> m_asicOperations;
 
+        /*
+         * Copy constructor and assignment operator are marked as privete to
+         * avoid copy of data of entire view. This is not needed for now.
+         */
+
         AsicView(const SaiAttr&);
         AsicView& operator=(const SaiAttr&);
 };
 
-void redisGetAsicView(/*{{{*/
-        _In_ std::string tableName,
+void redisGetAsicView(
+        _In_ const std::string &tableName,
         _In_ AsicView &view)
 {
     SWSS_LOG_ENTER();
@@ -1157,9 +1247,9 @@ void redisGetAsicView(/*{{{*/
     view.fromDump(dump);
 
     SWSS_LOG_NOTICE("objects count: %zu", view.soAll.size());
-}/*}}}*/
+}
 
-sai_status_t checkObjectsStatus(/*{{{*/
+void checkObjectsStatus(
         _In_ const AsicView &view)
 {
     SWSS_LOG_ENTER();
@@ -1176,7 +1266,7 @@ sai_status_t checkObjectsStatus(/*{{{*/
                     o.str_object_type.c_str(),
                     o.str_object_id.c_str(),
                     o.getObjectStatus(),
-                    o.oidObject ? view.getVidReferenceCount(o.getVid()): -1);
+                    o.isOidObject() ? view.getVidReferenceCount(o.getVid()): -1);
 
             count++;
         }
@@ -1184,30 +1274,11 @@ sai_status_t checkObjectsStatus(/*{{{*/
 
     if (count > 0)
     {
-        SWSS_LOG_ERROR("%d objects were not processed", count);
-
-        return SAI_STATUS_FAILURE;
+        SWSS_LOG_THROW("%d objects were not processed", count);
     }
+}
 
-    return SAI_STATUS_SUCCESS;
-}/*}}}*/
-
-ObjectIdToSaiObjectHash vectorToHash(/*{{{*/
-        _In_ const std::vector<std::shared_ptr<SaiObj>> &vec)
-{
-    SWSS_LOG_ENTER();
-
-    ObjectIdToSaiObjectHash hash;
-
-    for (const auto &i: vec)
-    {
-        hash[i->getVid()] = i;
-    }
-
-    return hash;
-}/*}}}*/
-
-void matchOids(/*{{{*/
+void matchOids(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView)
 {
@@ -1245,13 +1316,16 @@ void matchOids(/*{{{*/
         temporaryIt.second->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
         currentIt->second->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
 
-        SWSS_LOG_INFO("matched %s RID 0x%lx VID 0x%lx", currentIt->second->str_object_type.c_str(), rid, vid);
+        SWSS_LOG_INFO("matched %s RID %s VID %s",
+                currentIt->second->str_object_type.c_str(),
+                sai_serialize_object_id(rid).c_str(),
+                sai_serialize_object_id(vid).c_str());
     }
 
     SWSS_LOG_NOTICE("matched oids");
-}/*}}}*/
+}
 
-void checkMatchedPorts(/*{{{*/
+void checkMatchedPorts(
         _In_ const AsicView &temporaryView)
 {
     SWSS_LOG_ENTER();
@@ -1281,14 +1355,14 @@ void checkMatchedPorts(/*{{{*/
          * currently we don't expect port OIDs to change, there is check on
          * syncd start for that, and our goal is that each time we will load
          * the same profile for switch so different number of ports should be
-         * rulled out.
+         * ruled out.
          */
 
         SWSS_LOG_THROW("port %s object status is not MATCHED (%d)", p->str_object_id.c_str(), p->getObjectStatus());
     }
 
     SWSS_LOG_NOTICE("all ports are matched");
-}/*}}}*/
+}
 
 /**
  * @brief Check if both list contains the same objects
@@ -1308,7 +1382,7 @@ void checkMatchedPorts(/*{{{*/
  * temporary list (if one of them don't exists then lists are not equal) sort
  * both list nlog(n) and then compare sequentially.
  */
-bool hasEqualObjectList(/*{{{*/
+bool hasEqualObjectList(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ uint32_t current_count,
@@ -1365,9 +1439,9 @@ bool hasEqualObjectList(/*{{{*/
                  * VID, if this happens then we have a bug.
                  */
 
-                SWSS_LOG_THROW("temporary object type is %d and current object type is %d, FATAL",
-                        temporaryObjectType,
-                        currentObjectType);
+                SWSS_LOG_THROW("temporary object type is %s and current object type is %s, FATAL",
+                        sai_serialize_object_type(temporaryObjectType).c_str(),
+                        sai_serialize_object_type(currentObjectType).c_str());
             }
 
             if (temporaryObjectType != currentObjectType)
@@ -1411,7 +1485,8 @@ bool hasEqualObjectList(/*{{{*/
                  * needs to be created.
                  */
 
-                SWSS_LOG_INFO("temporary RID don't exists (VID 0x%lx), attributes are not equal", temporaryVid);
+                SWSS_LOG_INFO("temporary RID don't exists (VID %s), attributes are not equal",
+                        sai_serialize_object_id(temporaryVid).c_str());
 
                 return false;
             }
@@ -1426,7 +1501,8 @@ bool hasEqualObjectList(/*{{{*/
 
             if (currentIt == currentView.vidToRid.end())
             {
-                SWSS_LOG_THROW("current VID 0x%lx exists but current RID is missing, FATAL", currentVid);
+                SWSS_LOG_THROW("current VID %s exists but current RID is missing, FATAL",
+                        sai_serialize_object_id(currentVid).c_str());
             }
 
             sai_object_id_t temporaryRid = temporaryIt->second;
@@ -1464,13 +1540,13 @@ bool hasEqualObjectList(/*{{{*/
      */
 
     return true;
-}/*}}}*/
+}
 
 /**
  * @brief Check if current and temporary object has
  * the same attribute and attribute has the same value on both.
  *
- * This also includes object ID attributes, thats why we need
+ * This also includes object ID attributes, that's why we need
  * current and temporary view to compare RID values.
  *
  * NOTE: both objects must be the same object type, otherwise
@@ -1480,7 +1556,7 @@ bool hasEqualObjectList(/*{{{*/
  * different, whether we can update existing one to new one,
  * for that we will need different method
  */
-bool hasEqualAttribute(/*{{{*/
+bool hasEqualAttribute(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> &current,
@@ -1552,10 +1628,10 @@ bool hasEqualAttribute(/*{{{*/
          * This function already supports enable flags for acl field and action
          * so we don't need to worry about it here.
          *
-         * TODO: for acl list/action this maybe missleading since one can be
+         * TODO: For acl list/action this maybe missleading since one can be
          * enabled and list is empty and other one can be disabled and this
          * function also return empty, so this will mean they are equal but
-         * they don't sinec they differ with enable flag. We probably won't hit
+         * they don't since they differ with enable flag. We probably won't hit
          * this, since we probably always have some oids on the list.
          */
 
@@ -1574,17 +1650,17 @@ bool hasEqualAttribute(/*{{{*/
      */
 
     return false;
-}/*}}}*/
+}
 
-typedef struct _sai_object_compare_info_t/*{{{*/
+typedef struct _sai_object_compare_info_t
 {
     size_t equal_attributes;
 
     std::shared_ptr<SaiObj> obj;
 
-} sai_object_compare_info_t;/*}}}*/
+} sai_object_compare_info_t;
 
-bool compareByEqualAttributes(/*{{{*/
+bool compareByEqualAttributes(
         _In_ const sai_object_compare_info_t &a,
         _In_ const sai_object_compare_info_t &b)
 {
@@ -1593,7 +1669,7 @@ bool compareByEqualAttributes(/*{{{*/
      */
 
     return a.equal_attributes > b.equal_attributes;
-}/*}}}*/
+}
 
 /**
  * @brief this function will select random sai object from best candidates we
@@ -1601,7 +1677,7 @@ bool compareByEqualAttributes(/*{{{*/
  *
  * Input list should contain at least one candidate.
  */
-std::shared_ptr<SaiObj> selectRandomCandidate(/*{{{*/
+std::shared_ptr<SaiObj> selectRandomCandidate(
         _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
 {
     SWSS_LOG_ENTER();
@@ -1613,26 +1689,9 @@ std::shared_ptr<SaiObj> selectRandomCandidate(/*{{{*/
     size_t index = std::rand() % candidateCount;
 
     return candidateObjects.at(index).obj;
-}/*}}}*/
+}
 
-bool isOidOnAttrValue(/*{{{*/
-        _In_ const std::shared_ptr<SaiAttr> &attr,
-        _In_ sai_object_id_t oid)
-{
-    SWSS_LOG_ENTER();
-
-    for (auto const &vid: attr->getOidListFromAttribute())
-    {
-        if (vid == oid)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}/*}}}*/
-
-std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(/*{{{*/
+std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj,
@@ -1643,13 +1702,13 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(/*{{{
     /*
      * This method will select heuristic method for best current object
      * matching for given temporary object based on object type.  If heuristic
-     * don't exists yet, then current object will be choosen at random.
+     * don't exists yet, then current object will be chosen at random.
      */
 
     sai_object_type_t object_type = temporaryObj->getObjectType();
 
     /*
-     * TODO later on we can have a list of heuristic function pointers since
+     * TODO: Later on we can have a list of heuristic function pointers since
      * all signatures will be the same.
      *
      * Also if heuristic function can't decide it should return random object
@@ -1667,9 +1726,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(/*{{{
     }
 
     return selectRandomCandidate(candidateObjects);
-}/*}}}*/
+}
 
-std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
+std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj)
@@ -1691,10 +1750,10 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
      */
 
     /*
-     * Since our system design is to restart orch agend withourt restarting
+     * Since our system design is to restart orch agent withourt restarting
      * syncd and recreating objects and reassign new VIDs created inside orch
      * agent, in our most cases values of objects will not change.  This will
-     * cause to make our comparison logic here faily simple:
+     * cause to make our comparison logic here fairly simple:
      *
      * Find all objects that have the same equal attributes on current object
      * and choose the one with the most attributes that match current and
@@ -1715,33 +1774,33 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
      *   destroyed becasuse we need to set new CREATE_ONLY attributes
      *
      * - there are also cases with default values of attributes where attribute
-     *   is present only in one object but on other one it have defaule value
+     *   is present only in one object but on other one it have default value
      *   and this default value is the same as the one in attribute
      *
      * - another case is for objects that needs to be removed since there are
-     *   no corresponding objects in remporary view, but they can't be removed,
+     *   no corresponding objects in temporary view, but they can't be removed,
      *   objects like PORT or default QUEUEs or INGRESS_PRIORITY_GROUPs, then
      *   we need to bring their current set values to default ones, which also
-     *   can be challenging since we need to know prevous default value and it
-     *   could be assigned by switch internally, like default MAC addres or
+     *   can be challenging since we need to know preiovus default value and it
+     *   could be assigned by switch internally, like default MAC address or
      *   default TRAP group etc
      *
      * - there is also interesting case with KEYs attributes which when
      *   doing remove/create they needs to be removed first since
      *   we can't have 2 identical cases
      *
-     * There are alot of aspects to consider here, in here we will cake only
+     * There are a lot of aspects to consider here, in here we will cake only
      * couple of them in consideration, and other will be taken care inside
      * processObjectForViewTransition method which will handle all other cases
      * not mentioned here.
      */
 
     /*
-     * First check if object is oid object, if yes, chek if it status is
+     * First check if object is oid object, if yes, check if it status is
      * matched.
      */
 
-    if (!temporaryObj->oidObject)
+    if (!temporaryObj->isOidObject())
     {
         SWSS_LOG_THROW("non object id %s is used in generic method, please implement special case, FIXME",
                 temporaryObj->str_object_type.c_str());
@@ -1750,7 +1809,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
     /*
      * Get not processed objects of temporary object type, and all attributes
      * that are set on that object. This function should be used only on oid
-     * object ids, since for non object id findinf best match is based on
+     * object ids, since for non object id finding best match is based on
      * struct entry of object id.
      */
 
@@ -1817,7 +1876,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
                  * If we check if attribute also exists in current view and has
                  * CREATE_ONLY flag then attributes are different and we
                  * disqualify this object since new temporary object needs to
-                 * pass new differetn attribute with CREATE_ONLY flag.
+                 * pass new different attribute with CREATE_ONLY flag.
                  *
                  * Case when attribute don't exists is much more complicated
                  * since it maybe conditional and have default value, we will
@@ -1834,7 +1893,8 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
                 {
                     has_different_create_only_attr = true;
 
-                    SWSS_LOG_INFO("obj has not equal create only attributes %s", temporaryObj->str_object_id.c_str());
+                    SWSS_LOG_INFO("obj has not equal create only attributes %s",
+                            temporaryObj->str_object_id.c_str());
 
                     /*
                      * In this case there is no need to compare other
@@ -1885,7 +1945,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
     /*
      * If we have more than 1 object matched actually more preffered
      * object would be the object with most CREATE_ONLY attributes matching
-     * since that will reduce risk of removind and recreateing that object in
+     * since that will reduce risk of removing and recreateing that object in
      * current view.
      */
 
@@ -1919,7 +1979,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
      * pointing to the same PORT as temporary object (since ports are matched
      * at the beginning). For different types of objects we need different type
      * of logic and we can start adding that when needed and when missing we
-     * will just choose at random possiblu causing some remove/recreate but
+     * will just choose at random possible causing some remove/recreate but
      * this logic is not perfect at this point.
      */
 
@@ -1947,9 +2007,77 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(/*{{{*/
             temporaryView,
             temporaryObj,
             candidateObjects);
-}/*}}}*/
+}
 
-std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
+bool exchangeTemporaryVidToCurrentVid(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _Inout_ sai_object_meta_key_t &meta_key)
+{
+    SWSS_LOG_ENTER();
+
+    auto info = sai_metadata_get_object_type_info(meta_key.objecttype);
+
+    if (info->isobjectid)
+    {
+        SWSS_LOG_THROW("this method should be used only for non object ids");
+    }
+
+    for (size_t j = 0; j < info->structmemberscount; ++j)
+    {
+        const sai_struct_member_info_t *m = info->structmembers[j];
+
+        if (m->membervaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            continue;
+        }
+
+        sai_object_id_t tempVid = m->getoid(&meta_key);
+
+        auto temporaryIt = temporaryView.vidToRid.find(tempVid);
+
+        if (temporaryIt == temporaryView.vidToRid.end())
+        {
+            /*
+             * RID for temporary VID was not assigned, so we didn't matched it
+             * in previous processing, or VID will be created later on. This
+             * mean we can't match because even if all attributes are matching,
+             * RID in struct after create will not match so at the end of
+             * processing current object will need to be destroyed and new one
+             * needs to be created.
+             */
+
+            return false;
+        }
+
+        sai_object_id_t temporaryRid = temporaryIt->second;
+
+        auto currentIt = currentView.ridToVid.find(temporaryRid);
+
+        if (currentIt == currentView.ridToVid.end())
+        {
+            /*
+             * This is just sanity check, should never happen.
+             */
+
+            SWSS_LOG_THROW("found tempoary RID %s but current VID don't exists, FATAL",
+                    sai_serialize_object_id(temporaryRid).c_str());
+        }
+
+        /*
+         * This vid is vid of current view, it may or may not be
+         * equal to temporaryVid, but we need to this step to not guess vids.
+         */
+
+        sai_object_id_t currentVid = currentIt->second;
+
+        m->setoid(&meta_key, currentVid);
+    }
+
+    return true;
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj)
@@ -1976,55 +2104,19 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
      * on this data should be read only.
      */
 
-    sai_neighbor_entry_t ne = temporaryObj->meta_key.objectkey.key.neighbor_entry;
+    sai_object_meta_key_t mk = temporaryObj->meta_key;
 
-    sai_object_id_t temporaryRouterInterfaceVid = ne.rif_id;
-
-    auto temporaryIt = temporaryView.vidToRid.find(temporaryRouterInterfaceVid);
-
-    if (temporaryIt == temporaryView.vidToRid.end())
+    if (!exchangeTemporaryVidToCurrentVid(currentView, temporaryView, mk))
     {
         /*
-         * RID for router interface in neighbor_entry struct was not assigned,
-         * so we didn't matched it in previous processing router interfaces, or
-         * router interface will be created later on. This mean we can't
-         * match neighbor because even if all attributes are matchind, RID in
-         * neighbor struct after create will not match so at the end of
-         * processing current neighbor will need to be destroyed and new one
-         * needs to be created.
+         * Not all oids inside struct object were translated, so there is no
+         * matching object in current view, we need to return null.
          */
 
         return nullptr;
     }
 
-    /*
-     * We found RID which should be in current view, now we need to
-     * get current view VID to replace is in our neighbor_entry copy.
-     */
-
-    sai_object_id_t temporaryRid = temporaryIt->second;
-
-    auto currentIt = currentView.ridToVid.find(temporaryRid);
-
-    if (currentIt == currentView.ridToVid.end())
-    {
-        /*
-         * This is just sanity check, should never happen.
-         */
-
-        SWSS_LOG_THROW("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
-    }
-
-    /*
-     * This vid is vid of current view router interface, it may or may not be
-     * equal to temporaryVid, but we need to this step to not guess vids.
-     */
-
-    sai_object_id_t currentRouterInterfaceVid = currentIt->second;
-
-    ne.rif_id = currentRouterInterfaceVid;
-
-    std::string str_neighbor_entry = sai_serialize_neighbor_entry(ne);
+    std::string str_neighbor_entry = sai_serialize_neighbor_entry(mk.objectkey.key.neighbor_entry);
 
     /*
      * Now when we have serialized neighbor entry with temporary rif_if VID
@@ -2035,7 +2127,8 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
 
     if (currentNeighborIt == currentView.soNeighbors.end())
     {
-        SWSS_LOG_DEBUG("unable to find neighbor entry %s in current asic view", str_neighbor_entry.c_str());
+        SWSS_LOG_DEBUG("unable to find neighbor entry %s in current asic view",
+                str_neighbor_entry.c_str());
 
         return nullptr;
     }
@@ -2060,9 +2153,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(/*{{{*/
     SWSS_LOG_THROW("found neighbor entry %s in current view, but it status is %d, FATAL",
             str_neighbor_entry.c_str(),
             currentNeighborObj->getObjectStatus());
-}/*}}}*/
+}
 
-std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
+std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj)
@@ -2089,55 +2182,19 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
      * on this data should be read only.
      */
 
-    sai_route_entry_t re = temporaryObj->meta_key.objectkey.key.route_entry;
+    sai_object_meta_key_t mk = temporaryObj->meta_key;
 
-    sai_object_id_t temporaryVirtualRouterVid = re.vr_id;
-
-    auto temporaryIt = temporaryView.vidToRid.find(temporaryVirtualRouterVid);
-
-    if (temporaryIt == temporaryView.vidToRid.end())
+    if (!exchangeTemporaryVidToCurrentVid(currentView, temporaryView, mk))
     {
         /*
-         * RID for virtual router in route_entry struct was not assigned,
-         * so we didn't matched it in previous processing virtual routers, or
-         * virtual router will be created later on. This mean we can't
-         * match route because even if all attributes are matchind, RID in
-         * route struct after create will not match so at the end of
-         * processing current route will need to be destroyed and new one
-         * needs to be created.
+         * Not all oids inside struct object were translated, so there is no
+         * matching object in current view, we need to return null.
          */
 
         return nullptr;
     }
 
-    /*
-     * We found RID which should be in current view, now we need to
-     * get current view VID to replace is in our route_entry copy.
-     */
-
-    sai_object_id_t temporaryRid = temporaryIt->second;
-
-    auto currentIt = currentView.ridToVid.find(temporaryRid);
-
-    if (currentIt == currentView.ridToVid.end())
-    {
-        /*
-         * This is just sanity check, should never happen.
-         */
-
-        SWSS_LOG_THROW("found tempoary RID 0x%lx but current VID don't exists, FATAL", temporaryRid);
-    }
-
-    /*
-     * This vid is vid of current view virtual router, it may or may not be
-     * equal to temporaryVid, but we need to this step to not guess vids.
-     */
-
-    sai_object_id_t currentVirtualRouterVid = currentIt->second;
-
-    re.vr_id = currentVirtualRouterVid;
-
-    std::string str_route_entry = sai_serialize_route_entry(re);
+    std::string str_route_entry = sai_serialize_route_entry(mk.objectkey.key.route_entry);
 
     /*
      * Now when we have serialized route entry with temporary vr_id VID
@@ -2172,9 +2229,9 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(/*{{{*/
     SWSS_LOG_THROW("found route entry %s in current view, but it status is %d, FATAL",
             str_route_entry.c_str(),
             currentRouteObj->getObjectStatus());
-}/*}}}*/
+}
 
-std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(/*{{{*/
+std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj)
@@ -2182,62 +2239,42 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(/*{{{*/
     SWSS_LOG_ENTER();
 
     /*
-     * On compare logic we checked that we have one switch
-     * so we can just get first.
+     * For FDB we don't need to iterate via all current
+     * FDBs, we can do dictionary lookup, but we need
+     * to do smart trick, since temporary object was processed
+     * we just need to check whether VID in fdb_entry
+     * struct is matched/final and it has RID assigned from
+     * current view. If, RID exists, we can use that RID
+     * to get VID of current view, exchange in fdb_entry
+     * struct and do dictionary lookup on serialized fdb_entry.
+     *
+     * With this approach for many entries this is the quickest
+     * possible way. In case when RID don't exist, that means
+     * we have invalid fdb entry, so we must return null.
      */
 
-    auto currentSwitchIt = currentView.soSwitches.begin();
+    /*
+     * Make a copy here to not destroy object data, later
+     * on this data should be read only.
+     */
 
-    if (currentSwitchIt == currentView.soSwitches.end())
+    sai_object_meta_key_t mk = temporaryObj->meta_key;
+
+    if (!exchangeTemporaryVidToCurrentVid(currentView, temporaryView, mk))
     {
-        SWSS_LOG_DEBUG("unable to find switch object in current view");
+        /*
+         * Not all oids inside struct object were translated, so there is no
+         * matching object in current view, we need to return null.
+         */
 
         return nullptr;
     }
 
-    /*
-     * We found switch object in current view! Just one extra check
-     * of object status if it's not processed yet.
-     */
-
-    auto currentSwitchObj = currentSwitchIt->second;
-
-    if (currentSwitchObj->getObjectStatus() == SAI_OBJECT_STATUS_NOT_PROCESSED)
-    {
-        return currentSwitchObj;
-    }
+    std::string str_fdb_entry = sai_serialize_fdb_entry(mk.objectkey.key.fdb_entry);
 
     /*
-     * If we are here, that means this switch was already processed, which
-     * can indicate a bug or somehow duplicated entries.
-     */
-
-    SWSS_LOG_THROW("found switch object %s in current view, but it status is %d, FATAL",
-            currentSwitchObj->str_object_id.c_str(),
-            currentSwitchObj->getObjectStatus());
-}/*}}}*/
-
-std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(/*{{{*/
-        _In_ const AsicView &currentView,
-        _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
-{
-    SWSS_LOG_ENTER();
-
-    /*
-     * For fdb we don't need to iterate via all current
-     * fdbs, we can do dictionary lookup, we don't even
-     * do OID translation since fdb entry don't contain
-     * any oids, so simple direct lookup is fine. This
-     * will change in SAI 1.0 since oids are added there.
-     */
-
-    sai_fdb_entry_t fe = temporaryObj->meta_key.objectkey.key.fdb_entry;
-
-    std::string str_fdb_entry = sai_serialize_fdb_entry(fe);
-
-    /*
-     * Now when we have serialized fdb entry can do dictionary lookup for fdb.
+     * Now when we have serialized fdb entry with temporary VIDs
+     * replaced to current VIDs we can do dictionary lookup for fdb.
      */
 
     auto currentFdbIt = currentView.soFdbs.find(str_fdb_entry);
@@ -2268,24 +2305,67 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(/*{{{*/
 
     SWSS_LOG_THROW("found fdb entry %s in current view, but it status is %d, FATAL",
             str_fdb_entry.c_str(),
-            currentFdbObj->getObjectStatus() );
-}/*}}}*/
+            currentFdbObj->getObjectStatus());
+}
 
-std::shared_ptr<SaiObj> findCurrentBestMatch(/*{{{*/
+std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> temporaryObj)
 {
     SWSS_LOG_ENTER();
 
-    if (temporaryObj->oidObject)
-    {
-        /*
-         * This approach will not work for neighbor but it could work for
-         * routes in SAI 0.9.4 with default virtual router. But make no sense
-         * to invest time since in SAI 1.0 it will not work for routes as well.
-         */
+    /*
+     * On compare logic we checked that we have one switch
+     * so we can just get first.
+     */
 
+    auto currentSwitches = currentView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH);
+
+    if (currentSwitches.size() == 0)
+    {
+        SWSS_LOG_NOTICE("unable to find switch object in current view");
+
+        return nullptr;
+    }
+
+    if (currentSwitches.size() > 1)
+    {
+        SWSS_LOG_THROW("found %zu switches declared in current view, not supported",
+                currentSwitches.size());
+    }
+
+    /*
+     * We found switch object in current view! Just one extra check
+     * of object status if it's not processed yet.
+     */
+
+    auto currentSwitchObj = currentSwitches.at(0);
+
+    if (currentSwitchObj->getObjectStatus() == SAI_OBJECT_STATUS_NOT_PROCESSED)
+    {
+        return currentSwitchObj;
+    }
+
+    /*
+     * If we are here, that means this switch was already processed, which
+     * can indicate a bug or somehow duplicated entries.
+     */
+
+    SWSS_LOG_THROW("found switch object %s in current view, but it status is %d, FATAL",
+            currentSwitchObj->str_object_id.c_str(),
+            currentSwitchObj->getObjectStatus());
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatch(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+{
+    SWSS_LOG_ENTER();
+
+    if (temporaryObj->isOidObject())
+    {
         if (temporaryObj->getObjectStatus() == SAI_OBJECT_STATUS_MATCHED)
         {
             /*
@@ -2302,7 +2382,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatch(/*{{{*/
     }
 
     /*
-     * NOTE: later on best match find can be done based on present CREATE_ONLY
+     * NOTE: Later on best match find can be done based on present CREATE_ONLY
      * attributes or on most matched CREATE_AND_SET attributes.
      */
 
@@ -2321,12 +2401,22 @@ std::shared_ptr<SaiObj> findCurrentBestMatch(/*{{{*/
         case SAI_OBJECT_TYPE_FDB_ENTRY:
             return findCurrentBestMatchForFdbEntry(currentView, temporaryView, temporaryObj);
 
+            /*
+             * We can have special case for switch since we know there should
+             * be only one switch.
+             */
+
         case SAI_OBJECT_TYPE_SWITCH:
             return findCurrentBestMatchForSwitch(currentView, temporaryView, temporaryObj);
 
         default:
 
-            // TODO check for oid
+            if (!temporaryObj->isOidObject())
+            {
+                SWSS_LOG_THROW("object %s:%s is non object id, not handled yet, FIXME",
+                        temporaryObj->str_object_type.c_str(),
+                        temporaryObj->str_object_id.c_str());
+            }
 
             /*
              * Here we support only object id object types.
@@ -2334,7 +2424,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatch(/*{{{*/
 
             return findCurrentBestMatchForGenericObject(currentView, temporaryView, temporaryObj);
     }
-}/*}}}*/
+}
 
 void processObjectForViewTransition(
         _In_ AsicView &currentView,
@@ -2350,7 +2440,7 @@ void processObjectForViewTransition(
  * This processing may result in changes in current view like removing and
  * recreateing or adding new objects depends on transitions.
  */
-void procesObjectAttributesForViewTransition(/*{{{*/
+void procesObjectAttributesForViewTransition(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> temporaryObj)
@@ -2371,7 +2461,10 @@ void procesObjectAttributesForViewTransition(/*{{{*/
 
         SWSS_LOG_INFO("attr %s", attribute->getStrAttrId().c_str());
 
-        // for each object id in attributes go recursively to match those objects
+        /*
+         * For each object id in attributes go recursively to match those
+         * objects.
+         */
 
         for (auto vid: attribute->getOidListFromAttribute())
         {
@@ -2380,7 +2473,7 @@ void procesObjectAttributesForViewTransition(/*{{{*/
                 continue;
             }
 
-            SWSS_LOG_INFO("- processing attr VID 0x%lx", vid);
+            SWSS_LOG_INFO("- processing attr VID %s", sai_serialize_object_id(vid).c_str());
 
             auto tempParent = temporaryView.oOids.at(vid);
 
@@ -2395,7 +2488,7 @@ void procesObjectAttributesForViewTransition(/*{{{*/
         }
     }
 
-    if (temporaryObj->oidObject)
+    if (temporaryObj->isOidObject())
     {
         return;
     }
@@ -2406,56 +2499,27 @@ void procesObjectAttributesForViewTransition(/*{{{*/
      * this can be automated since we have metadata for those structs.
      */
 
-    switch (temporaryObj->getObjectType())
+    for (size_t j = 0; j < temporaryObj->info->structmemberscount; ++j)
     {
-        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+        const sai_struct_member_info_t *m = temporaryObj->info->structmembers[j];
 
-            {
-                sai_object_id_t vid = temporaryObj->meta_key.objectkey.key.neighbor_entry.rif_id;
+        if (m->membervaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            continue;
+        }
 
-                auto structObject = temporaryView.oOids.at(vid);
+        sai_object_id_t vid = m->getoid(&temporaryObj->meta_key);
 
-                SWSS_LOG_INFO("- processing NEIGHBOR rif_id VID 0x%lx", vid);
+        SWSS_LOG_INFO("- processing %s (%s) VID %s",
+                temporaryObj->str_object_type.c_str(),
+                m->membername,
+                sai_serialize_object_id(vid).c_str());
 
-                processObjectForViewTransition(currentView, temporaryView, structObject); // recursion
-            }
+        auto structObject = temporaryView.oOids.at(vid);
 
-            break;
-
-        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-
-            {
-                sai_object_id_t vid = temporaryObj->meta_key.objectkey.key.route_entry.vr_id;
-
-                auto structObject = temporaryView.oOids.at(vid);
-
-                SWSS_LOG_INFO("- processing ROUTE vr_id VID 0x%lx", vid);
-
-                processObjectForViewTransition(currentView, temporaryView, structObject); // recursion
-            }
-
-            break;
-
-        case SAI_OBJECT_TYPE_SWITCH:
-        case SAI_OBJECT_TYPE_FDB_ENTRY:
-
-            // TODO support translation for fdb
-
-            {
-                /*
-                 * In SAI 0.9.4 FDB don't contains any object IDs so no extra work
-                 * required at this stage. As SAI 1.0 this will change.
-                 */
-            }
-
-            break;
-
-        default:
-
-            SWSS_LOG_THROW("non object id %s is not supported for processing yet, FIXME",
-                    temporaryObj->str_object_type.c_str());
+        processObjectForViewTransition(currentView, temporaryView, structObject); // recursion
     }
-}/*}}}*/
+}
 
 std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
         _In_ const AsicView &currentView,
@@ -2465,7 +2529,7 @@ void releaseExisgingLinks(
         _In_ AsicView &view,
         _In_ std::shared_ptr<SaiAttr> attr);
 
-void bindNewLinks(/*{{{*/
+void bindNewLinks(
         _In_ AsicView &view,
         _In_ std::shared_ptr<SaiAttr> attr)
 {
@@ -2477,8 +2541,8 @@ void bindNewLinks(/*{{{*/
      *
      * Notice that this list can contain VIDs from temporary view or default
      * view, so they may not exists in current view. But that should also be
-     * not the case since we eather created new object on current view or
-     * eather we matched current object to temporary object so RID can be the
+     * not the case since we either created new object on current view or
+     * either we matched current object to temporary object so RID can be the
      * same.
      *
      * Also if we want to keep track of object reverse dependency
@@ -2489,9 +2553,9 @@ void bindNewLinks(/*{{{*/
     {
         view.bindNewVidReference(vid);
     }
-}/*}}}*/
+}
 
-void bringNonRemovableObjectToDefaultState(/*{{{*/
+void bringNonRemovableObjectToDefaultState(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> currentObj)
@@ -2566,9 +2630,9 @@ void bringNonRemovableObjectToDefaultState(/*{{{*/
      * object so it will not be processed, and also it can't be removed since
      * it's default object.
      */
-}/*}}}*/
+}
 
-void releaseExisgingLinks(/*{{{*/
+void releaseExisgingLinks(
         _In_ AsicView &currentView,
         _In_ std::shared_ptr<SaiObj> currentObj)
 {
@@ -2578,9 +2642,9 @@ void releaseExisgingLinks(/*{{{*/
     {
         releaseExisgingLinks(currentView, ita.second);
     }
-}/*}}}*/
+}
 
-void removeExistingObjectFromCurrentView(/*{{{*/
+void removeExistingObjectFromCurrentView(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> currentObj)
@@ -2588,13 +2652,13 @@ void removeExistingObjectFromCurrentView(/*{{{*/
     SWSS_LOG_ENTER();
 
     /*
-     * This decreaseing VID reference will be hard when actual reference will
+     * This decreasing VID reference will be hard when actual reference will
      * be one of default objects like CPU or default trap group when we "bring
-     * defaul value" or maybe in oid case we will not bring default values and
+     * default value" or maybe in oid case we will not bring default values and
      * just remove and recreate.
      */
 
-    if (currentObj->oidObject)
+    if (currentObj->isOidObject())
     {
         int count = currentView.getVidReferenceCount(currentObj->getVid());
 
@@ -2621,6 +2685,17 @@ void removeExistingObjectFromCurrentView(/*{{{*/
      * removed, vlan 1, queues, ingress_pg etc.
      */
 
+    /*
+     * Remove for those objects is not supported now lets bring back
+     * object to default state.
+     *
+     * For oid values we can figure out if we would have list of
+     * defaults which can be removed and which can't and use list same
+     * for queues, schedulers etc.
+     *
+     * We could use switch here and non created objects to make this simpler.
+     */
+
     switch (currentObj->getObjectType())
     {
         case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
@@ -2629,8 +2704,8 @@ void removeExistingObjectFromCurrentView(/*{{{*/
 
             /*
              * For ROUTE/FDB/NEIGHBOR we don't need to worry about dependencies
-             * since those are struct object id and no object is usind it. But
-             * we need to release it reference id for useda OIDs in structs
+             * since those are struct object id and no object is using it. But
+             * we need to release it reference id for used OIDs in structs
              * like rif_id and vr_id.
              */
 
@@ -2641,44 +2716,18 @@ void removeExistingObjectFromCurrentView(/*{{{*/
 
             return;
 
-        case SAI_OBJECT_TYPE_VLAN:
-
-            if (false)
-            {
-                /*
-                 * TODO VLAN 1 can't be removed.
-                 * Check for vlan 1 in attributes of object
-                 */
-
-                bringNonRemovableObjectToDefaultState(currentView, temporaryView, currentObj);
-            }
-            else
-            {
-                currentView.asicRemoveNonObjectIdObject(currentObj);
-
-                releaseExisgingLinks(currentView, currentObj);
-                currentObj->setObjectStatus(SAI_OBJECT_STATUS_REMOVED);
-            }
-
-            return;
-
-        case SAI_OBJECT_TYPE_SWITCH:
-
-            bringNonRemovableObjectToDefaultState(currentView, temporaryView, currentObj);
-            return;
-
-        case SAI_OBJECT_TYPE_SCHEDULER:
+        case SAI_OBJECT_TYPE_ACL_ENTRY:
+        case SAI_OBJECT_TYPE_ACL_TABLE:
+        case SAI_OBJECT_TYPE_BUFFER_POOL:
+        case SAI_OBJECT_TYPE_BUFFER_PROFILE:
+        case SAI_OBJECT_TYPE_HOSTIF:
+        case SAI_OBJECT_TYPE_NEXT_HOP:
+        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
         case SAI_OBJECT_TYPE_POLICER:
         case SAI_OBJECT_TYPE_QOS_MAP:
-        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
-        case SAI_OBJECT_TYPE_BUFFER_POOL:
-        case SAI_OBJECT_TYPE_WRED:
-        case SAI_OBJECT_TYPE_BUFFER_PROFILE:
-        case SAI_OBJECT_TYPE_NEXT_HOP:
         case SAI_OBJECT_TYPE_ROUTER_INTERFACE:
-        case SAI_OBJECT_TYPE_ACL_ENTRY:
-        case SAI_OBJECT_TYPE_HOSTIF:
-        case SAI_OBJECT_TYPE_ACL_TABLE:
+        case SAI_OBJECT_TYPE_SCHEDULER:
+        case SAI_OBJECT_TYPE_WRED:
 
             currentView.asicRemoveObject(currentObj);
 
@@ -2686,15 +2735,6 @@ void removeExistingObjectFromCurrentView(/*{{{*/
             currentObj->setObjectStatus(SAI_OBJECT_STATUS_REMOVED);
 
             return;
-
-            /*
-             * Remove for those objects is not supported now lets bring back
-             * object to default state.
-             *
-             * For oid values we can figure out if we would have list of
-             * defaults which can be removed and which can't and use list same
-             * for queu schedulers etc.
-             */
 
         case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
         case SAI_OBJECT_TYPE_VIRTUAL_ROUTER:
@@ -2718,9 +2758,38 @@ void removeExistingObjectFromCurrentView(/*{{{*/
 
             return;
 
+        case SAI_OBJECT_TYPE_VLAN:
+
+            if (currentView.vidToRid.at(currentObj->getVid()) == currentView.defaultVlanRid)
+            {
+                /*
+                 * VLAN 1 can't be removed.
+                 */
+
+                bringNonRemovableObjectToDefaultState(currentView, temporaryView, currentObj);
+            }
+            else
+            {
+                currentView.asicRemoveObject(currentObj);
+
+                releaseExisgingLinks(currentView, currentObj);
+                currentObj->setObjectStatus(SAI_OBJECT_STATUS_REMOVED);
+            }
+
+            return;
+
+        case SAI_OBJECT_TYPE_SWITCH:
+
+            SWSS_LOG_THROW("switch can't be removed from current view, this scenario is not supported");
+            // bringNonRemovableObjectToDefaultState(currentView, temporaryView, currentObj);
+            return;
+
+
         /*
          * NOTE: Some queues can be user created and then they can be removed.
          * Also user can create scheduler groups as well.
+         *
+         * TODO: We could use switch and existing objects for fast lookup.
          */
 
         case SAI_OBJECT_TYPE_PORT:
@@ -2737,9 +2806,9 @@ void removeExistingObjectFromCurrentView(/*{{{*/
     SWSS_LOG_THROW("remove existing object %s:%s from current view is not supported yet, FIXME",
             currentObj->str_object_type.c_str(),
             currentObj->str_object_id.c_str());
-}/*}}}*/
+}
 
-void releaseExisgingLinks(/*{{{*/
+void releaseExisgingLinks(
         _In_ AsicView &view,
         _In_ std::shared_ptr<SaiAttr> attr)
 {
@@ -2760,9 +2829,9 @@ void releaseExisgingLinks(/*{{{*/
     {
         view.releaseVidReference(vid);
     }
-}/*}}}*/
+}
 
-sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
+sai_object_id_t translateTemporaryVidToCurrentVid(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ sai_object_id_t tvid)
@@ -2773,7 +2842,7 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
      * This method is used to translate temporary VID to current VID using RID
      * which should be present in both views.  If RID don't exist, then we
      * check whether object was created if so, then we return temporary VID
-     * instead of createing new current VID and we don't need to track mapping
+     * instead of creating new current VID and we don't need to track mapping
      * of those vids not having actual RID. This function should be used only
      * when we creating new objects in current view.
      */
@@ -2797,19 +2866,22 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
 
         if (tempIt == temporaryView.oOids.end())
         {
-            SWSS_LOG_THROW("temporary VID 0x%lx not found in temporary view", tvid);
+            SWSS_LOG_THROW("temporary VID %s not found in temporary view",
+                    sai_serialize_object_id(tvid).c_str());
         }
 
         const auto &tempObj = tempIt->second;
 
         if (tempObj->createdObject)
         {
-            SWSS_LOG_DEBUG("translated temp VID 0x%lx to current, since object was created", tvid);
+            SWSS_LOG_DEBUG("translated temp VID %s to current, since object was created",
+                    sai_serialize_object_id(tvid).c_str());
 
             return tvid;
         }
 
-        SWSS_LOG_THROW("VID 0x%lx was not found in temporary view, was object created? FIXME", tvid);
+        SWSS_LOG_THROW("VID %s was not found in temporary view, was object created? FIXME",
+                sai_serialize_object_id(tvid).c_str());
     }
 
     sai_object_id_t rid = temporaryIt->second;
@@ -2818,17 +2890,21 @@ sai_object_id_t translateTemporaryVidToCurrentVid(/*{{{*/
 
     if (currentIt == currentView.ridToVid.end())
     {
-        SWSS_LOG_THROW("RID 0x%lx was not found in current view", rid);
+        SWSS_LOG_THROW("RID %s was not found in current view",
+                sai_serialize_object_id(rid).c_str());
     }
 
     sai_object_id_t cvid = currentIt->second;
 
-    SWSS_LOG_DEBUG("translated temp VID 0x%lx using RID 0x%lx to current VID 0x%lx", tvid, rid, cvid);
+    SWSS_LOG_DEBUG("translated temp VID %s using RID %s to current VID %s",
+            sai_serialize_object_id(tvid).c_str(),
+            sai_serialize_object_id(rid).c_str(),
+            sai_serialize_object_id(cvid).c_str());
 
     return cvid;
-}/*}}}*/
+}
 
-std::shared_ptr<SaiAttr> translateTemporaryVidsToCurrentVids(/*{{{*/
+std::shared_ptr<SaiAttr> translateTemporaryVidsToCurrentVids(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> &currentObj,
@@ -2837,7 +2913,7 @@ std::shared_ptr<SaiAttr> translateTemporaryVidsToCurrentVids(/*{{{*/
     SWSS_LOG_ENTER();
 
     /*
-     * We are creating copy here since we will modyify contents of that
+     * We are creating copy here since we will modify contents of that
      * attribute.
      */
 
@@ -2935,23 +3011,23 @@ std::shared_ptr<SaiAttr> translateTemporaryVidsToCurrentVids(/*{{{*/
 
     /*
      * Since we probably performed updates on this attribute, since VID was
-     * eschanged, we need to update value string of that attribute.
+     * exchanged, we need to update value string of that attribute.
      */
 
     attr->UpdateValue();
 
     return attr;
-}/*}}}*/
+}
 
 /**
  * @brief Set attribute on current object
  *
  * This function will set given attribute to current object adding new
- * attribute or replacing exising one. Given attribute can be eather one
+ * attribute or replacing existing one. Given attribute can be either one
  * temporary attribute missing or different from current object object or
  * default attribute value if we need to bring some attribute to default value.
  */
-void setAttributeOnCurrentObject(/*{{{*/
+void setAttributeOnCurrentObject(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ const std::shared_ptr<SaiObj> &currentObj,
@@ -3029,16 +3105,16 @@ void setAttributeOnCurrentObject(/*{{{*/
     }
 
     currentView.asicSetAttribute(currentObj, attr);
-}/*}}}*/
+}
 
-void createNewOidObjectFromTemporaryObject(/*{{{*/
+void createNewOidObjectFromTemporaryObject(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
-    if (!temporaryObj->oidObject)
+    if (!temporaryObj->isOidObject())
     {
         SWSS_LOG_THROW("expected OID object type, got: %s:%s",
                 temporaryObj->str_object_type.c_str(),
@@ -3083,7 +3159,7 @@ void createNewOidObjectFromTemporaryObject(/*{{{*/
     currentObj->str_object_id    = temporaryObj->str_object_id;      // temporary VID
     currentObj->meta_key         = temporaryObj->meta_key;           // temporary VID
     currentObj->defaultObject    = temporaryObj->defaultObject;
-    currentObj->oidObject        = temporaryObj->oidObject;
+    currentObj->info             = temporaryObj->info;
 
     /*
      * CreateObject flag is set to true, so when we we will be looking to
@@ -3126,7 +3202,7 @@ void createNewOidObjectFromTemporaryObject(/*{{{*/
     }
 
     /*
-     * Asic create object inserts new fererence to track inside asic view.
+     * Asic create object inserts new reference to track inside asic view.
      */
 
     currentView.asicCreateObject(currentObj);
@@ -3138,17 +3214,20 @@ void createNewOidObjectFromTemporaryObject(/*{{{*/
 
     currentObj->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
     temporaryObj->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
-}/*}}}*/
+}
 
-// TODO combine those 2 methdos to 1
-void createNewNonOidObjectFromTemporaryObject(/*{{{*/
+void createNewNonOidObjectFromTemporaryObject(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
-    if (temporaryObj->oidObject)
+    /*
+     * TODO combine those 2 methods to 1
+     */
+
+    if (temporaryObj->isOidObject())
     {
         SWSS_LOG_THROW("expected non OID object type, got: %s:%s",
                 temporaryObj->str_object_type.c_str(),
@@ -3191,74 +3270,50 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
     currentObj->str_object_id    = temporaryObj->str_object_id;      // non object id
     currentObj->meta_key         = temporaryObj->meta_key;           // non object id
     currentObj->defaultObject    = temporaryObj->defaultObject;
-    currentObj->oidObject        = temporaryObj->oidObject;
+    currentObj->info             = temporaryObj->info;
+
+    /*
+     * Since object contains OID inside struct, this OID may already exist in
+     * current view, so we need to do translation here.
+     */
+
+    for (size_t j = 0; j < currentObj->info->structmemberscount; ++j)
+    {
+        const sai_struct_member_info_t *m = currentObj->info->structmembers[j];
+
+        if (m->membervaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            continue;
+        }
+
+        sai_object_id_t vid = m->getoid(&currentObj->meta_key);
+
+        vid = translateTemporaryVidToCurrentVid(currentView, temporaryView, vid);
+
+        m->setoid(&currentObj->meta_key, vid);
+
+        currentView.bindNewVidReference(vid);
+    }
+
+    /*
+     * Since it's possible that object id may had been changed, we need
+     * to update string as well.
+     */
 
     switch (temporaryObj->getObjectType())
     {
         case SAI_OBJECT_TYPE_ROUTE_ENTRY:
 
-            /*
-             * Since ROUTE object contains OID inside struct, this OID may
-             * already exist in current view, so we need to do translation
-             * here.
-             */
-
-            {
-                sai_object_id_t vid = currentObj->meta_key.objectkey.key.route_entry.vr_id;
-
-                vid = translateTemporaryVidToCurrentVid(currentView, temporaryView, vid);
-
-                /*
-                 * Since it's possible that object id may had been changed, we need
-                 * to update string as well.
-                 */
-
-                currentObj->meta_key.objectkey.key.route_entry.vr_id = vid;
-
-                // TODO this needs to be done in more generic way
-                currentObj->str_object_id = sai_serialize_route_entry(currentObj->meta_key.objectkey.key.route_entry);
-
-                currentView.bindNewVidReference(vid);
-            }
-
+            currentObj->str_object_id = sai_serialize_route_entry(currentObj->meta_key.objectkey.key.route_entry);
             break;
 
         case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
 
-            /*
-             * Since NEIGHBOR object contains OID inside struct, this OID may
-             * already exist in current view, so we need to do translation
-             * here.
-             */
-
-            {
-                sai_object_id_t vid = currentObj->meta_key.objectkey.key.neighbor_entry.rif_id;
-
-                vid = translateTemporaryVidToCurrentVid(currentView, temporaryView, vid);
-
-                /*
-                 * Since it's possible that object id may had been changed, we need
-                 * to update string as well.
-                 */
-
-                currentObj->meta_key.objectkey.key.neighbor_entry.rif_id = vid;
-
-                // TODO this needs to be done in more generic way
-                currentObj->str_object_id = sai_serialize_neighbor_entry(currentObj->meta_key.objectkey.key.neighbor_entry);
-
-                currentView.bindNewVidReference(vid);
-            }
-
+            currentObj->str_object_id = sai_serialize_neighbor_entry(currentObj->meta_key.objectkey.key.neighbor_entry);
             break;
 
         case SAI_OBJECT_TYPE_FDB_ENTRY:
-        case SAI_OBJECT_TYPE_VLAN:
-
-            /*
-             * Objectd FDB and VLAN they don't contain OID values inside
-             * object id struct, so no special translation is required.
-             */
-
+            currentObj->str_object_id = sai_serialize_fdb_entry(currentObj->meta_key.objectkey.key.fdb_entry);
             break;
 
         default:
@@ -3308,7 +3363,7 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
     }
 
     /*
-     * Asic create object inserts new fererence to track inside asic view.
+     * Asic create object inserts new reference to track inside asic view.
      */
 
     currentView.asicCreateNonObjectIdObject(currentObj);
@@ -3320,7 +3375,7 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
 
     currentObj->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
     temporaryObj->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
-}/*}}}*/
+}
 
 /**
  * @brief Create new object from temporary object
@@ -3328,7 +3383,7 @@ void createNewNonOidObjectFromTemporaryObject(/*{{{*/
  * Since best match was not found we need to create a brand new object and put
  * it into current view as well.
  */
-void createNewObjectFromTemporaryObject(/*{{{*/
+void createNewObjectFromTemporaryObject(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> &temporaryObj)
@@ -3349,42 +3404,41 @@ void createNewObjectFromTemporaryObject(/*{{{*/
          * asic view, so if user will query default one, they will
          * be matched by RID.
          *
-         * Default trap group is transfered to view on inif if it don't
+         * Default trap group is transfered to view on init if it don't
          * exist.
          */
 
-        case SAI_OBJECT_TYPE_HOSTIF_TRAP:
-        case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
-        case SAI_OBJECT_TYPE_POLICER:
-        case SAI_OBJECT_TYPE_SCHEDULER:
-        case SAI_OBJECT_TYPE_WRED:
-        case SAI_OBJECT_TYPE_ACL_TABLE:
         case SAI_OBJECT_TYPE_ACL_ENTRY:
-        case SAI_OBJECT_TYPE_QOS_MAP:
-        case SAI_OBJECT_TYPE_ROUTER_INTERFACE:
-        case SAI_OBJECT_TYPE_NEXT_HOP:
-        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
-        case SAI_OBJECT_TYPE_HOSTIF:
+        case SAI_OBJECT_TYPE_ACL_TABLE:
         case SAI_OBJECT_TYPE_BUFFER_POOL:
         case SAI_OBJECT_TYPE_BUFFER_PROFILE:
+        case SAI_OBJECT_TYPE_HOSTIF:
+        case SAI_OBJECT_TYPE_HOSTIF_TRAP:
+        case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
+        case SAI_OBJECT_TYPE_NEXT_HOP:
+        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
+        case SAI_OBJECT_TYPE_POLICER:
+        case SAI_OBJECT_TYPE_QOS_MAP:
+        case SAI_OBJECT_TYPE_ROUTER_INTERFACE:
+        case SAI_OBJECT_TYPE_SCHEDULER:
         case SAI_OBJECT_TYPE_VLAN:  // vlan 1 can't be created since it exist by default
+        case SAI_OBJECT_TYPE_WRED:
 
             createNewOidObjectFromTemporaryObject(currentView, temporaryView, temporaryObj);
             return;
 
+        case SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP:
         case SAI_OBJECT_TYPE_PORT:
+        case SAI_OBJECT_TYPE_QUEUE:
+        case SAI_OBJECT_TYPE_SCHEDULER_GROUP:
+        case SAI_OBJECT_TYPE_STP:
         case SAI_OBJECT_TYPE_SWITCH:
         case SAI_OBJECT_TYPE_VIRTUAL_ROUTER:
-        case SAI_OBJECT_TYPE_STP:
-        case SAI_OBJECT_TYPE_QUEUE:
-        case SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP:
-        case SAI_OBJECT_TYPE_SCHEDULER_GROUP:
             break;
 
-
-        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
         case SAI_OBJECT_TYPE_FDB_ENTRY:
+        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
 
             createNewNonOidObjectFromTemporaryObject(currentView, temporaryView, temporaryObj);
             return;
@@ -3396,9 +3450,9 @@ void createNewObjectFromTemporaryObject(/*{{{*/
     SWSS_LOG_THROW("create new object %s:%s from temporay is not supported yet, FIXME",
             temporaryObj->str_object_type.c_str(),
             temporaryObj->str_object_id.c_str());
-}/*}}}*/
+}
 
-void UpdateObjectStatus(/*{{{*/
+void UpdateObjectStatus(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> currentBestMatch,
@@ -3422,13 +3476,13 @@ void UpdateObjectStatus(/*{{{*/
         temporaryObj->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
         currentBestMatch->setObjectStatus(SAI_OBJECT_STATUS_FINAL);
 
-        if (temporaryObj->oidObject)
+        if (temporaryObj->isOidObject())
         {
             /*
              * When objects are object id type, we need to update map in
              * temporary view for correct VID/RID.
              *
-             * In here RID should alwasy exists, since when objects are MATCHED
+             * In here RID should always exists, since when objects are MATCHED
              * then RID exists and both VID's are the same, and when both
              * objects are not processed, then RID also exists since current
              * object was selected as current best match. Other options are
@@ -3441,13 +3495,16 @@ void UpdateObjectStatus(/*{{{*/
             sai_object_id_t cvid = currentBestMatch->getVid();
             sai_object_id_t rid = currentView.vidToRid.at(cvid);
 
-            SWSS_LOG_INFO("remapped current VID 0x%lx to temp VID 0x%lx using RID 0x%lx", cvid, tvid, rid);
+            SWSS_LOG_INFO("remapped current VID %s to temp VID %s using RID %s",
+                    sai_serialize_object_id(cvid).c_str(),
+                    sai_serialize_object_id(tvid).c_str(),
+                    sai_serialize_object_id(rid).c_str());
 
             temporaryView.ridToVid[rid] = tvid;
             temporaryView.vidToRid[tvid] = rid;
 
             /*
-             * TODO set new VID if it don't exist in current view with NULL RID
+             * TODO: Set new VID if it don't exist in current view with NULL RID
              * that will mean we created new object, this VID will be later
              * used to count references and as a sanity check if we are
              * increasing valid reference.
@@ -3478,8 +3535,8 @@ void UpdateObjectStatus(/*{{{*/
     {
         /*
          * This method should be used only for objects that have status MATCHED
-         * or NON_PROCESSED, other combinations are not suppported since other
-         * actions will be eather create new object from temporary object or
+         * or NON_PROCESSED, other combinations are not supported since other
+         * actions will be either create new object from temporary object or
          * remove existing current object.
          */
 
@@ -3487,9 +3544,9 @@ void UpdateObjectStatus(/*{{{*/
                 currentBestMatch->getObjectStatus(),
                 temporaryObj->getObjectStatus());
     }
-}/*}}}*/
+}
 
-std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(/*{{{*/
+std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
         _In_ const AsicView &currentView,
         _In_ const sai_attr_metadata_t &meta)
 {
@@ -3533,7 +3590,8 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(/*{{{*/
 
                 default:
 
-                    SWSS_LOG_ERROR("serialization type %d is not supported yet, FIXME", meta.attrvaluetype);
+                    SWSS_LOG_ERROR("serialization type %s is not supported yet, FIXME",
+                            sai_serialize_attr_value_type(meta.attrvaluetype).c_str());
                     break;
             }
 
@@ -3546,7 +3604,7 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(/*{{{*/
         case SAI_DEFAULT_VALUE_TYPE_ATTR_VALUE:
 
             /*
-             * TODO normally we need check defaultobject type and value but
+             * TODO normally we need check default object type and value but
              * this is only available in metadata sai 1.0.
              *
              * And all those values we should keep in double map object type
@@ -3595,9 +3653,9 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(/*{{{*/
     }
 
     return nullptr;
-}/*}}}*/
+}
 
-bool performObjectSetTransition(/*{{{*/
+bool performObjectSetTransition(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> currentBestMatch,
@@ -3737,7 +3795,7 @@ bool performObjectSetTransition(/*{{{*/
          * expand this logic in the future.
          */
 
-        bool conditional = meta->conditionslength > 0;
+        bool conditional = meta->isconditional;
 
         /*
          * If attribute is CREATE_AND_SET and not conditional then it's
@@ -3746,8 +3804,8 @@ bool performObjectSetTransition(/*{{{*/
          * XXX previously we had (meta->flags == SAI_ATTR_FLAGS_CREATE_AND_SET)
          * If it's not conditional current HAS_FLAG should not matter. But it
          * can also be mandatory on create but this does not matter since if
-         * it's mandtory on create then current object already exists co we can
-         * stil perform update on this attribute because it was passed during
+         * it's mandatory on create then current object already exists co we can
+         * still perform update on this attribute because it was passed during
          * creation.
          */
 
@@ -3806,7 +3864,7 @@ bool performObjectSetTransition(/*{{{*/
         if (processedAttributes.find(attr.id) != processedAttributes.end())
         {
             /*
-             * This attibute was processed in previous temporary attributes processing so skip it here.
+             * This attribute was processed in previous temporary attributes processing so skip it here.
              */
 
             continue;
@@ -3823,8 +3881,7 @@ bool performObjectSetTransition(/*{{{*/
          * just as sanity check.
          */
 
-        // TODO use isconditional
-        bool conditional = meta->conditionslength > 0;
+        bool conditional = meta->isconditional;
 
         if (conditional || HAS_FLAG_MANDATORY_ON_CREATE(meta->flags))
         {
@@ -3841,7 +3898,7 @@ bool performObjectSetTransition(/*{{{*/
                // default value present after switch creation
 
                 // TODO SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID is mandatory on create but also SET
-                // if attribute is set we and objest is in MATCHED state then that means we are able to
+                // if attribute is set we and object is in MATCHED state then that means we are able to
                 // bring this attribute to default state not for all attributes!
 
                 SWSS_LOG_ERROR("current attribute is mandatory on create, crate and set, and object MATCHED, FIXME %s:%s",
@@ -3966,7 +4023,7 @@ bool performObjectSetTransition(/*{{{*/
      */
 
     return true;
-}/*}}}*/
+}
 
 /**
  * @brief Process SAI object for ASIC view transition
@@ -4000,7 +4057,7 @@ bool performObjectSetTransition(/*{{{*/
  * NOTE: Development is in progress, not all corner cases
  * are supported yet.
  */
-void processObjectForViewTransition(/*{{{*/
+void processObjectForViewTransition(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ std::shared_ptr<SaiObj> temporaryObj)
@@ -4032,11 +4089,11 @@ void processObjectForViewTransition(/*{{{*/
      * attribute like, and some other attribute will be create_only and it will
      * be differerent then we can't just create temporary object because of key
      * will match and we have conflict, so we need first in this case remove
-     * prebious object with key
+     * previous object with key
      *
      * so there are 2 options here:
      *
-     * - eather our finding best match function will always include matching
+     * - either our finding best match function will always include matching
      *   keys (if more keys, they all should (or any?) match should be right
      *   away taken) and this should be only object returned on list possible
      *   candidates as best match then below logic should figure out that we
@@ -4044,7 +4101,7 @@ void processObjectForViewTransition(/*{{{*/
      *   create temporary later this means that finding best logic can return
      *   objects that are not upgradable "cant do set"
      *
-     * - or secnd solution, in this case, finding best match will not include
+     * - or second solution, in this case, finding best match will not include
      *   this object on list, since other create only attribute will be
      *   different which also means we need to destroy and recreate, but in
      *   this case finding best match will figure this out and will destroy
@@ -4060,14 +4117,14 @@ void processObjectForViewTransition(/*{{{*/
      *
      * preferebly this logic could be in both but that duplicates compare
      * actions i would rather want this in finding best match, but that would
-     * modify current view which i dont like much and here it seems like to
+     * modify current view which i don't like much and here it seems like to
      * much hassle since after finding best match here we would have simple
      * operations
      *
      * currently KEY are in: vlan, queue, port, hostif_trap
      * - port - hw lane, we don't need to worry since we match them all
      * - queue - all other attributes can be set
-     * - vlan - all ather attributes can be set
+     * - vlan - all other attributes can be set
      * - hostif_trap - all other attributes can be set
      *
      * We could add a check for that in sanity
@@ -4095,8 +4152,8 @@ void processObjectForViewTransition(/*{{{*/
 
     /*
      * We need to two passes, for not matched parameters since if first
-     * atttribute will modify current object like SET operation, but second
-     * attribute will not be able to do update becasue of CREATE_ONLY etc, then
+     * attribute will modify current object like SET operation, but second
+     * attribute will not be able to do update because of CREATE_ONLY etc, then
      * we will end up with half modified current object and VIEW. So we have
      * two choices here when update is not possible:
      *
@@ -4122,7 +4179,7 @@ void processObjectForViewTransition(/*{{{*/
          * temporary one, probably because of CRATE_ONLY attributes.
          *
          * Our strategy here will be to leave untouched current object (second
-         * strategy will be to remove it and it's childeren if link can't be
+         * strategy will be to remove it and it's children if link can't be
          * broken, Objects with non id like ROUTE FDB NEIGHBOR they need to be
          * removed first anyway, since we got best match, and for those best
          * match is via struct elements so we can't create next route with the
@@ -4137,13 +4194,22 @@ void processObjectForViewTransition(/*{{{*/
             case SAI_OBJECT_TYPE_ROUTE_ENTRY:
             case SAI_OBJECT_TYPE_FDB_ENTRY:
             case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
-            //case SAI_OBJECT_TYPE_VLAN: // may be not possible may have dependencies TODO revisit, have KEY
-            case SAI_OBJECT_TYPE_SWITCH: // switch can't be removed, now it can but it will be special case
 
                 removeExistingObjectFromCurrentView(currentView, temporaryView, currentBestMatch);
                 break;
 
+            case SAI_OBJECT_TYPE_SWITCH:
+
+                SWSS_LOG_THROW("we should not get switch object here, bug?");
+
             default:
+
+                if (!temporaryObj->isOidObject())
+                {
+                    SWSS_LOG_THROW("object %s:%s is non object id, but not handled, FIXME",
+                            temporaryObj->str_object_type.c_str(),
+                            temporaryObj->str_object_id.c_str());
+                }
 
                 /*
                  * Later on if we decide we want to remove objects before
@@ -4163,10 +4229,10 @@ void processObjectForViewTransition(/*{{{*/
      * First pass was successfull, so we can do update on current object, lets do that now!
      */
 
-    if (temporaryObj->oidObject && (temporaryObj->getObjectStatus() != SAI_OBJECT_STATUS_MATCHED))
+    if (temporaryObj->isOidObject() && (temporaryObj->getObjectStatus() != SAI_OBJECT_STATUS_MATCHED))
     {
         /*
-         * We track all oid object references, and since this objest was
+         * We track all oid object references, and since this object was
          * matched we need to insert it's vid to reference map since when we
          * will update attributes in current view from temporary view
          * attributes, then this object must be in reference map. This is
@@ -4176,12 +4242,14 @@ void processObjectForViewTransition(/*{{{*/
          *
          * This object VID will be remapped inside UpdateObjectStatus to
          * rid/vid map since if we are here then we matched one of current
-         * objects to this temporary obejct and update can be performed.
+         * objects to this temporary object and update can be performed.
          */
 
-        // TODO this is temporary VID, it's not available in current view
-        // so we need to remove this code here, since we will translate
-        // this VID in temporary view to current view
+         /*
+          * TODO: This is temporary VID, it's not available in current view so
+          * we need to remove this code here, since we will translate this VID
+          * in temporary view to current view.
+          */
 
         sai_object_id_t vid = temporaryObj->getVid();
 
@@ -4196,9 +4264,9 @@ void processObjectForViewTransition(/*{{{*/
      */
 
     UpdateObjectStatus(currentView, temporaryView, currentBestMatch, temporaryObj);
-}/*}}}*/
+}
 
-void processObjectType(/*{{{*/
+void processObjectType(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ sai_object_type_t object_type)
@@ -4213,16 +4281,16 @@ void processObjectType(/*{{{*/
     }
 
     SWSS_LOG_NOTICE("processed %s", sai_serialize_object_type(object_type).c_str());
-}/*}}}*/
+}
 
-void checkSwitch(/*{{{*/
+void checkSwitch(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView)
 {
     SWSS_LOG_ENTER();
 
-    size_t csize = currentView.soSwitches.size();
-    size_t tsize = temporaryView.soSwitches.size();
+    size_t csize = currentView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size();
+    size_t tsize = temporaryView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size();
 
     if (csize == 0 && tsize == 0)
     {
@@ -4231,10 +4299,16 @@ void checkSwitch(/*{{{*/
 
     if (csize == 1 && tsize == 1)
     {
-        // TODO we should match switches here if they relly match over hardware info
-        // if not, then we should trhwo exception here that hardware infor is different.
-        // we probably could support that scenario by removing previous switch and recreating
-        // existing one, but that is not the case here
+        // TODO we should match switches here if they relly match over hardware
+        // info if not, then we should throw exception here that hardware info
+        // is different.  we probably could support that scenario by removing
+        // previous switch and recreating existing one, but that is not the
+        // case here
+        //
+        // TODO we need tocheck create only attributes, if they differ then
+        // throw since update will not be possible, we can separate this to
+        // different case to remove existing switch and recreate new one
+        // check switches and VID matching if it's the same
 
         return;
     }
@@ -4245,20 +4319,9 @@ void checkSwitch(/*{{{*/
      */
 
     SWSS_LOG_THROW("unsupported number of switches: current %zu, temp %zu", csize, tsize);
+}
 
-    /*
-     * TODO:
-     *
-     * In current SAI 0.9.4 switch is non object id so we don't need to make
-     * VID/RID for it, but in SAI 1.0 it will be object id so we need to change
-     * our strategy here.
-     *
-     * Later on we can support in 0.9.4 case where one or both switches can be
-     * missing since no attributes were set.
-     */
-}/*}}}*/
-
-void bringDefaultTrapGroupToFinalState(/*{{{*/
+void bringDefaultTrapGroupToFinalState(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView)
 {
@@ -4278,7 +4341,7 @@ void bringDefaultTrapGroupToFinalState(/*{{{*/
 
     sai_object_id_t vid = currentView.ridToVid.at(rid);
 
-    auto const &dtgObj = currentView.oOids.at(vid);
+    const auto &dtgObj = currentView.oOids.at(vid);
 
     if (dtgObj->getObjectStatus() != SAI_OBJECT_STATUS_NOT_PROCESSED)
     {
@@ -4295,9 +4358,9 @@ void bringDefaultTrapGroupToFinalState(/*{{{*/
      */
 
     bringNonRemovableObjectToDefaultState(currentView, temporaryView, dtgObj);
-}/*}}}*/
+}
 
-sai_status_t applyViewTransition(/*{{{*/
+void applyViewTransition(
         _In_ AsicView &current,
         _In_ AsicView &temp)
 {
@@ -4359,7 +4422,7 @@ sai_status_t applyViewTransition(/*{{{*/
              * will be the case.
              */
 
-            if (obj->oidObject)
+            if (obj->isOidObject())
             {
                 if (current.getVidReferenceCount(obj->getVid()) == 0)
                 {
@@ -4386,15 +4449,13 @@ sai_status_t applyViewTransition(/*{{{*/
 
         SWSS_LOG_NOTICE("- loop removed (%d)", removed);
     }
-
-    return SAI_STATUS_SUCCESS;
-}/*}}}*/
+}
 
 void executeOperationsOnAsic(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView);
 
-void populateExistingObjects(/*{{{*/
+void populateExistingObjects(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
         _In_ const std::set<sai_object_id_t> rids)
@@ -4428,14 +4489,17 @@ void populateExistingObjects(/*{{{*/
 
         if (it == currentView.ridToVid.end())
         {
-            SWSS_LOG_THROW("unable to find existing object RID 0x%lx in current view", rid);
+            SWSS_LOG_THROW("unable to find existing object RID %s in current view",
+                    sai_serialize_object_id(rid).c_str());
         }
 
         sai_object_id_t vid = it->second;
 
-        temporaryView.createDummy(rid, vid);
+        temporaryView.createDummyExistingObject(rid, vid);
 
-        SWSS_LOG_DEBUG("populate existing RID/VID 0x%lx 0x%lx", rid, vid);
+        SWSS_LOG_DEBUG("populate existing RID %s VID %s",
+                sai_serialize_object_id(rid).c_str(),
+                sai_serialize_object_id(vid).c_str());
 
         /*
          * Move both objects to matched state since match oids was already
@@ -4444,24 +4508,26 @@ void populateExistingObjects(/*{{{*/
 
         for (const auto e: currentView.oOids)
         {
-            SWSS_LOG_NOTICE("e: vid 0x%lx", e.first);
+            // TODO revisit that
+            SWSS_LOG_NOTICE("e: VID %s",
+                    sai_serialize_object_id(e.first).c_str());
         }
 
         currentView.oOids.at(vid)->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
         temporaryView.oOids.at(vid)->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
     }
-}/*}}}*/
+}
 
-void updateRedisDatabase(/*{{{*/
+void updateRedisDatabase(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView)
 {
     SWSS_LOG_ENTER();
 
     /*
-     * TODO we can make lua script for this which will be much faster.
+     * TODO: We can make LUA script for this which will be much faster.
      *
-     * TODO this needs to be updated if we want to support multiple switches.
+     * TODO: This needs to be updated if we want to support multiple switches.
      */
 
     SWSS_LOG_TIMER("redis update");
@@ -4524,9 +4590,9 @@ void updateRedisDatabase(/*{{{*/
 
     /*
      * Remove previous RID2VID maps and apply new map.
+     *
+     * TODO: This needs to be done per switch, we can't remove all maps.
      */
-
-    // TODO this needs to be done per switch, we can't remove all maps
 
     redisClearVidToRidMap();
     redisClearRidToVidMap();
@@ -4541,31 +4607,41 @@ void updateRedisDatabase(/*{{{*/
     }
 
     SWSS_LOG_NOTICE("updated redis database");
-}/*}}}*/
+}
 
-sai_status_t internalSyncdApplyView()/*{{{*/
+sai_status_t internalSyncdApplyView()
 {
     SWSS_LOG_ENTER();
 
-    // TODO consider trivial cases:
-    // switches: 0 0, 1 vs 0, 0 vs 1 and don't support them
-    // and support only 1 to 1 switch
-    // also we need to be aware of create only attributes on switch itself.
-    //
-    // we assume that there will be no case that we will move from 1 to 0
-    // also if at the beggining there is no switch, then when user will send
-    // create it will be actually created! so there should be no case
-    // when we are moving from 0 -> 1
+    /*
+     * We assume that there will be no case that we will move from 1 to 0, also
+     * if at the beginning there is no switch, then when user will send create,
+     * and it will be actually created (real call) so there should be no case
+     * when we are moving from 0 -> 1.
+     */
+
+    /*
+     * This method contains 2 stages.
+     *
+     * First stage is non destructive, when orch agent will build new view, and
+     * there will be bug in comparison logic in first stage, then syncd will
+     * send failure when doing apply view to orch agent but it will still be
+     * running. No asic operations are performed during this stage.
+     *
+     * Second stage is destructive, so if there will be bug in comparison logic
+     * or any asic operation will fail, then syncd will crash, since asic will
+     * be in inconsistent state.
+     */
 
     /*
      * Initialize rand for future candidate object selection if necessary.
      *
-     * NOTE: should this be deterministic? So we could repeat random choice
+     * NOTE: Should this be deterministic? So we could repeat random choice
      * when something bad happen or we hit a bug, so in that case it will be
      * easier for reproduce, we could at least log value returned from time().
      *
-     * TODO: to make it stable, we also need to make stable redisGetAsicView
-     * sinec now order of items is random. Also redis result needs to be
+     * TODO: To make it stable, we also need to make stable redisGetAsicView
+     * since now order of items is random. Also redis result needs to be
      * sorted.
      */
 
@@ -4580,166 +4656,182 @@ sai_status_t internalSyncdApplyView()/*{{{*/
     AsicView temp;
 
     /*
-     * NOTE: Need to be per switch.
+     * We are starting first stage here, it still can throw exceptions but it's
+     * non destructive for ASIC, so just catch and return failure.
      */
 
-    ObjectIdMap vidToRidMap = redisGetVidToRidMap();
-    ObjectIdMap ridToVidMap = redisGetRidToVidMap();
-
-    current.ridToVid = ridToVidMap;
-    current.vidToRid = vidToRidMap;
-
-    /*
-     * Those calls could be calls to SAI, but when this will be separate lib
-     * then we would like to limit sai to minimum or reimplement getting those.
-     */
-
-    current.cpuPortRid              = redisGetCpuId();
-    current.defaultVirtualRouterRid = redisGetDefaultVirtualRouterId();
-    current.defaultTrapGroupRid     = redisGetDefaultTrapGroupId();
-    current.defaultStpInstanceRid   = redisGetDefaultStpInstanceId();
-
-    temp.cpuPortRid                 = current.cpuPortRid;
-    temp.defaultVirtualRouterRid    = current.defaultVirtualRouterRid;
-    temp.defaultTrapGroupRid        = current.defaultTrapGroupRid;
-    temp.defaultStpInstanceRid      = current.defaultStpInstanceRid;
-
-    /*
-     * Read current and temporary view from REDIS.
-     */
-
-    redisGetAsicView(ASIC_STATE_TABLE, current);
-    redisGetAsicView(TEMP_PREFIX ASIC_STATE_TABLE, temp);
-
-    std::set<sai_object_id_t> existingObjects;
-
-    existingObjects.insert(current.cpuPortRid);
-    existingObjects.insert(current.defaultVirtualRouterRid);
-    existingObjects.insert(current.defaultTrapGroupRid);
-    existingObjects.insert(current.defaultStpInstanceRid);
-
-    /*
-     * Match oids before calling populate existing objects since after matching
-     * oids rid and vid maps will be populated.
-     */
-
-    matchOids(current, temp);
-
-    /*
-     * Pupulate existing objects to current and temp view if they don't exist
-     * sinc we are populating them when syncd starts, and when we switch view
-     * we don't wan to loose any of those objects since during syncd rungime is
-     * counting on that that those objects exists.
-     */
-
-    // TODO needs to be done per switch
-
-    populateExistingObjects(current, temp, existingObjects);
-    populateExistingObjects(current, temp, g_defaultQueuesRids);
-    populateExistingObjects(current, temp, g_defaultPriorityGroupsRids);
-    populateExistingObjects(current, temp, g_defaultSchedulerGroupsRids);
-    populateExistingObjects(current, temp, g_defaultPortsRids);
-
-    sai_statis_t status = applyViewTransition(current, temp);
-
-    if (status != SAI_STATUS_SUCCESS)
+    try
     {
-        SWSS_LOG_ERROR("apply view transition failed: %s", sai_serialize_status(status).c_str());
-
-        return status;
-    }
-
-    SWSS_LOG_WARN("asic operations to execute: %zu", current.asicGetOperationsCount());
-
-    status = checkObjectsStatus(temp);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_ERROR("object status failed on temp view: %s", sai_serialize_status(status).c_str());
-
-        return status;
-    }
-
-    SWSS_LOG_NOTICE("all temporary view objects were processed to FINAL state");
-
-    status = checkObjectsStatus(current);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_ERROR("object status failed on current view: %s", sai_serialize_status(status).c_str());
-
-        return status;
-    }
-
-    SWSS_LOG_NOTICE("all current view objects were processed to FINAL state");
-
-    /*
-     * After all operations both views should look the same so number of
-     * rid/vid should look the same.
-     */
-
-    if ((current.ridToVid.size() != temp.ridToVid.size()) ||
-            (current.vidToRid.size() != temp.vidToRid.size()))
-    {
-        // TODO for debug we will need to display differences
-
-        SWSS_LOG_ERROR("wrong number of vid/rid items in map, forgot to translate? R2V: %zu:%zu, V2R: %zu:%zu, display which, FIXME",
-                current.ridToVid.size(),
-                temp.ridToVid.size(),
-                current.vidToRid.size(),
-                temp.vidToRid.size());
-
-        return SAI_STATUS_FAILURE;
-    }
-
-    /*
-     * At the end number of soAll objects must be equal on both view if some on
-     * temporary views are missing, we need to transport empty objects to
-     * temproary view, like queus, scheduler groups, virtual router, trap
-     * groups etc.
-     */
-
-    if (current.soAll.size() != temp.soAll.size())
-    {
-        // TODO for debug we will need to display differences
-
         /*
-         * If this will happen that means non object id values are different
-         * since number of RID/VID maps is identical (previous check).
+         * NOTE: Need to be per switch. Asic view may contain multiple switches.
          *
-         * Unlikely to be routes/neighbors/fdbs, can be traps, switch, vlan.
+         * In our current solution we will deal with only one switch, since
+         * supporting multiple switches will have serious impact on redesign
+         * current implementation.
          */
 
-        SWSS_LOG_ERROR("wrong number of all objects current: %zu vs temp %zu, display which, FIXME", current.soAll.size(), temp.soAll.size());
+        if (switches.size() != 1)
+        {
+            /*
+             * NOTE: In our solution multiple switches are not supported.
+             */
+
+            SWSS_LOG_THROW("only one switch is expected, got: %zu switches", switches.size());
+        }
+
+        auto sw = switches.begin()->second;
+
+        ObjectIdMap vidToRidMap = sw->redisGetVidToRidMap();
+        ObjectIdMap ridToVidMap = sw->redisGetRidToVidMap();
+
+        current.ridToVid = ridToVidMap;
+        current.vidToRid = vidToRidMap;
+
+        /*
+         * Those calls could be calls to SAI, but when this will be separate lib
+         * then we would like to limit sai to minimum or reimplement getting those.
+         *
+         * TODO: This needs to be refactored and solved in other way since asic
+         * view can contain multiple switches.
+         */
+
+        current.cpuPortRid              = sw->redisGetCpuId();
+        current.defaultVirtualRouterRid = sw->redisGetDefaultVirtualRouterId();
+        current.defaultTrapGroupRid     = sw->redisGetDefaultTrapGroupId();
+        current.defaultStpInstanceRid   = sw->redisGetDefaultStpInstanceId();
+        current.defaultVlanRid          = sw->redisGetDefaultVlanId();
+
+        temp.cpuPortRid                 = current.cpuPortRid;
+        temp.defaultVirtualRouterRid    = current.defaultVirtualRouterRid;
+        temp.defaultTrapGroupRid        = current.defaultTrapGroupRid;
+        temp.defaultStpInstanceRid      = current.defaultStpInstanceRid;
+        temp.defaultVlanRid             = current.defaultVlanRid;
+
+        /*
+         * Read current and temporary view from REDIS.
+         */
+
+        redisGetAsicView(ASIC_STATE_TABLE, current);
+        redisGetAsicView(TEMP_PREFIX ASIC_STATE_TABLE, temp);
+
+        /*
+         * Match oids before calling populate existing objects since after
+         * matching oids RID and VID maps will be populated.
+         */
+
+        matchOids(current, temp);
+
+        /*
+         * Pupulate existing objects to current and temp view if they don't
+         * exist since we are populating them when syncd starts, and when we
+         * switch view we don't want to loose any of those objects since during
+         * syncd runtime is counting on that those objects exists.
+         */
+
+        const auto &existingObjects = sw->getExistingObjects();
+
+        populateExistingObjects(current, temp, existingObjects);
+
+        /*
+         * Call main method!
+         */
+
+        applyViewTransition(current, temp);
+
+        SWSS_LOG_NOTICE("ASIC operations to execute: %zu", current.asicGetOperationsCount());
+
+        checkObjectsStatus(temp);
+
+        SWSS_LOG_NOTICE("all temporary view objects were processed to FINAL state");
+
+        checkObjectsStatus(current);
+
+        SWSS_LOG_NOTICE("all current view objects were processed to FINAL state");
+
+        /*
+         * After all operations both views should look the same so number of
+         * rid/vid should look the same.
+         */
+
+        if ((current.ridToVid.size() != temp.ridToVid.size()) ||
+                (current.vidToRid.size() != temp.vidToRid.size()))
+        {
+            /*
+             * TODO for debug we need to display differences
+             */
+
+            SWSS_LOG_THROW("wrong number of vid/rid items in map, forgot to translate? R2V: %zu:%zu, V2R: %zu:%zu, FIXME",
+                    current.ridToVid.size(),
+                    temp.ridToVid.size(),
+                    current.vidToRid.size(),
+                    temp.vidToRid.size());
+        }
+
+        /*
+         * At the end number of soAll objects must be equal on both views. If
+         * some on temporary views are missing, we need to transport empty
+         * objects to temporary view, like queues, scheduler groups, virtual
+         * router, trap groups etc.
+         */
+
+        if (current.soAll.size() != temp.soAll.size())
+        {
+            /*
+             * If this will happen that means non object id values are
+             * different since number of RID/VID maps is identical (previous
+             * check).
+             *
+             * Unlikely to be routes/neighbors/fdbs, can be traps, switch,
+             * vlan.
+             *
+             * TODO: For debug we will need to display differences
+             */
+
+            SWSS_LOG_THROW("wrong number of all objects current: %zu vs temp %zu, FIXME",
+                    current.soAll.size(),
+                    temp.soAll.size());
+        }
+    }
+    catch (const std::exception &e)
+    {
+        /*
+         * Exception was thrown in first stage, those were non destructive
+         * actions so just log exception and let syncd running.
+         */
+
+        SWSS_LOG_ERROR("Exception: %s", e.what());
 
         return SAI_STATUS_FAILURE;
     }
 
     /*
-     * Those operations if any of them fail, then we have inconsistent state.
-     * Everything above is non destructive and can be returned as error code
-     * to orch agent.
-     *
-     * TODO: split this to 2 methods which only one will be under try/catch
+     * This is second stage. Those operations are destructive, if any of them
+     * fail, then we will have inconsistent state in ASIC.
      */
 
     executeOperationsOnAsic(current, temp);
 
     updateRedisDatabase(current, temp);
 
-    return status;
-}/*}}}*/
+    return SAI_STATUS_SUCCESS;
+}
 
-sai_status_t syncdApplyView()/*{{{*/
+sai_status_t syncdApplyView()
 {
     SWSS_LOG_ENTER();
+
+    // TODO: Remove setting logger level here
 
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     sai_status_t status = SAI_STATUS_FAILURE;
 
     {
-        SWSS_LOG_TIMER("apply"); // TODO we need this as notice, we should create timer notice
+        /*
+         * TODO: We need this as notice, we should create timer notice
+         */
+
+        SWSS_LOG_TIMER("apply");
 
         try
         {
@@ -4748,6 +4840,12 @@ sai_status_t syncdApplyView()/*{{{*/
         catch (const std::runtime_error &e)
         {
             SWSS_LOG_ERROR("Exception: %s", e.what());
+
+            /*
+             * Re-throw exception, we just need to log it here.
+             */
+
+            throw;
         }
 
         swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
@@ -4756,7 +4854,7 @@ sai_status_t syncdApplyView()/*{{{*/
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     return status;
-}/*}}}*/
+}
 
 /*
  * Below we will duplicate asic execution logic for asic operations.
@@ -4772,10 +4870,10 @@ sai_status_t syncdApplyView()/*{{{*/
  *
  * NOTE: Also instead of passing views everywhere we could close this in a
  * class that will have 2 members current and temporary view. This could be
- * helpfull when we will have to manage multiple switches at the same time.
+ * helpful when we will have to manage multiple switches at the same time.
  */
 
-sai_object_id_t asic_translate_vid_to_rid(/*{{{*/
+sai_object_id_t asic_translate_vid_to_rid(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _In_ sai_object_id_t vid)
@@ -4801,16 +4899,17 @@ sai_object_id_t asic_translate_vid_to_rid(/*{{{*/
 
         if (currentIt == current.removedVidToRid.end())
         {
-            SWSS_LOG_THROW("unable to find VID 0x%lx in current view", vid);
+            SWSS_LOG_THROW("unable to find VID %s in current view",
+                    sai_serialize_object_id(vid).c_str());
         }
     }
 
     sai_object_id_t rid = currentIt->second;
 
     return rid;
-}/*}}}*/
+}
 
-void asic_translate_list_vid_to_rid(/*{{{*/
+void asic_translate_list_vid_to_rid(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _Inout_ sai_object_list_t &element)
@@ -4819,9 +4918,9 @@ void asic_translate_list_vid_to_rid(/*{{{*/
     {
         element.list[i] = asic_translate_vid_to_rid(current, temporary, element.list[i]);
     }
-}/*}}}*/
+}
 
-void asic_translate_vid_to_rid_list(/*{{{*/
+void asic_translate_vid_to_rid_list(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _In_ sai_object_type_t object_type,
@@ -4830,8 +4929,10 @@ void asic_translate_vid_to_rid_list(/*{{{*/
 {
     SWSS_LOG_ENTER();
 
-    // all id's received from view should be virtual, so
-    // lets translate them to real id's
+    /*
+     * All id's received from view should be virtual, so lets translate them to
+     * real id's.
+     */
 
     for (uint32_t i = 0; i < attr_count; i++)
     {
@@ -4899,12 +5000,18 @@ void asic_translate_vid_to_rid_list(/*{{{*/
                 break;
 
             default:
+
+                if (meta->isoidattribute)
+                {
+                    SWSS_LOG_THROW("attribute %s is oid attribute, but not handled, FIXME", meta->attridname);
+                }
+
                 break;
         }
     }
-}/*}}}*/
+}
 
-sai_status_t asic_handle_generic(/*{{{*/
+sai_status_t asic_handle_generic(
         _In_ AsicView &current,
         _In_ AsicView &temporary,
         _In_ sai_object_type_t object_type,
@@ -4915,10 +5022,12 @@ sai_status_t asic_handle_generic(/*{{{*/
 {
     SWSS_LOG_ENTER();
 
+    SWSS_LOG_DEBUG("generic %s for %s",
+            sai_serialize_common_api(api).c_str(),
+            sai_serialize_object_type(object_type).c_str());
+
     sai_object_id_t object_id;
     sai_deserialize_object_id(str_object_id, object_id);
-
-    SWSS_LOG_DEBUG("common generic api: %d", api);
 
     /*
      * If we will use split for generics we can avoid meta key if we will
@@ -4928,7 +5037,7 @@ sai_status_t asic_handle_generic(/*{{{*/
      * And this needs to be executed in sai_meta_apis_query.
      */
 
-    auto info = sai_all_object_type_infos[object_type];
+    auto info = sai_metadata_get_object_type_info(object_type);
 
     sai_object_meta_key_t meta_key;
 
@@ -4938,12 +5047,18 @@ sai_status_t asic_handle_generic(/*{{{*/
     {
         case SAI_COMMON_API_CREATE:
             {
-                SWSS_LOG_DEBUG("generic create for object type %s", sai_serialize_object_type(object_type).c_str());
+                /*
+                 * We need to get switch ID, but we know we have one switch so
+                 * we could use shortcut here, but let's do this proper way.
+                 */
 
-                // TODO we need switch ID
+                sai_object_id_t switch_vid = redis_sai_switch_id_query(object_id);
 
-                sai_object_id_t real_object_id;
-                sai_status_t status = info->create(&real_object_id, attr_count, attr_list);
+                sai_object_id_t switch_rid = asic_translate_vid_to_rid(current, temporary, switch_vid);
+
+                sai_status_t status = info->create(&meta_key, switch_rid, attr_count, attr_list);
+
+                sai_object_id_t real_object_id = meta_key.objectkey.key.object_id;
 
                 if (status == SAI_STATUS_SUCCESS)
                 {
@@ -4970,8 +5085,6 @@ sai_status_t asic_handle_generic(/*{{{*/
 
         case SAI_COMMON_API_REMOVE:
             {
-                SWSS_LOG_DEBUG("generic remove for object type %s", sai_serialize_object_type(object_type).c_str());
-
                 sai_object_id_t rid = asic_translate_vid_to_rid(current, temporary, object_id);
 
                 meta_key.objectkey.key.object_id = rid;
@@ -4981,7 +5094,7 @@ sai_status_t asic_handle_generic(/*{{{*/
 
                 /*
                  * Since object was removed, then we also need to remove it
-                 * from removedVidToRid map jsut in case if there is some bug.
+                 * from removedVidToRid map just in case if there is some bug.
                  */
 
                 current.removedVidToRid.erase(object_id);
@@ -4991,8 +5104,6 @@ sai_status_t asic_handle_generic(/*{{{*/
 
         case SAI_COMMON_API_SET:
             {
-                SWSS_LOG_DEBUG("generic set for object type %s", sai_serialize_object_type(object_type).c_str());
-
                 sai_object_id_t rid = asic_translate_vid_to_rid(current, temporary, object_id);
 
                 meta_key.objectkey.key.object_id = rid;
@@ -5004,9 +5115,9 @@ sai_status_t asic_handle_generic(/*{{{*/
             SWSS_LOG_ERROR("generic other apis not implemented");
             return SAI_STATUS_FAILURE;
     }
-}/*}}}*/
+}
 
-sai_status_t asic_handle_fdb(/*{{{*/
+sai_status_t asic_handle_fdb(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _In_ const std::string &str_object_id,
@@ -5021,6 +5132,8 @@ sai_status_t asic_handle_fdb(/*{{{*/
 
     fdb_entry.switch_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.switch_id);
     fdb_entry.bvid = asic_translate_vid_to_rid(current, temporary, fdb_entry.bvid);
+
+    SWSS_LOG_DEBUG("fdb: %s", str_object_id.c_str());
 
     switch (api)
     {
@@ -5037,9 +5150,9 @@ sai_status_t asic_handle_fdb(/*{{{*/
             SWSS_LOG_ERROR("fdb other apis not implemented");
             return SAI_STATUS_FAILURE;
     }
-}/*}}}*/
+}
 
-sai_status_t asic_handle_neighbor(/*{{{*/
+sai_status_t asic_handle_neighbor(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _In_ const std::string &str_object_id,
@@ -5072,9 +5185,9 @@ sai_status_t asic_handle_neighbor(/*{{{*/
             SWSS_LOG_ERROR("neighbor other apis not implemented");
             return SAI_STATUS_FAILURE;
     }
-}/*}}}*/
+}
 
-sai_status_t asic_handle_route(/*{{{*/
+sai_status_t asic_handle_route(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
         _In_ const std::string &str_object_id,
@@ -5107,9 +5220,9 @@ sai_status_t asic_handle_route(/*{{{*/
             SWSS_LOG_ERROR("route other apis not implemented");
             return SAI_STATUS_FAILURE;
     }
-}/*}}}*/
+}
 
-sai_status_t asic_process_event(/*{{{*/
+sai_status_t asic_process_event(
         _In_ AsicView &current,
         _In_ AsicView &temporary,
         _In_ const swss::KeyOpFieldsValuesTuple &kco)
@@ -5117,7 +5230,7 @@ sai_status_t asic_process_event(/*{{{*/
     SWSS_LOG_ENTER();
 
     /*
-     * Ssince we have stored our keys in asic view, we can actually keep api
+     * Since we have stored our keys in asic view, we can actually keep api
      * type right away so we don't have to serialize and deserialize everything
      * twice. We can take a look into that if update execution time will not be
      * sufficient.
@@ -5151,7 +5264,7 @@ sai_status_t asic_process_event(/*{{{*/
     }
     else
     {
-        SWSS_LOG_ERROR("api %s is not implemented", op.c_str());
+        SWSS_LOG_ERROR("api %s is not implemented on %s", op.c_str(), key.c_str());
 
         return SAI_STATUS_NOT_SUPPORTED;
     }
@@ -5161,9 +5274,9 @@ sai_status_t asic_process_event(/*{{{*/
     sai_object_type_t object_type;
     sai_deserialize_object_type(str_object_type, object_type);
 
-    if (object_type >= SAI_OBJECT_TYPE_MAX)
+    if (!sai_metadata_is_object_type_valid(object_type))
     {
-        SWSS_LOG_ERROR("undefined object type %d", object_type);
+        SWSS_LOG_ERROR("undefined object type: %d on %s", object_type, key.c_str());
 
         return SAI_STATUS_NOT_SUPPORTED;
     }
@@ -5178,6 +5291,8 @@ sai_status_t asic_process_event(/*{{{*/
     asic_translate_vid_to_rid_list(current, temporary, object_type, attr_count, attr_list);
 
     sai_status_t status;
+
+    auto info = sai_metadata_get_object_type_info(object_type);
 
     switch (object_type)
     {
@@ -5194,7 +5309,12 @@ sai_status_t asic_process_event(/*{{{*/
             break;
 
         default:
-            // TODO check for non id
+
+            if (info->isnonobjectid)
+            {
+                SWSS_LOG_THROW("object %s is non object id, but not handled, FIXME", key.c_str());
+            }
+
             status = asic_handle_generic(current, temporary, object_type, str_object_id, api, attr_count, attr_list);
             break;
     }
@@ -5207,7 +5327,7 @@ sai_status_t asic_process_event(/*{{{*/
         }
 
         /*
-         * Asic here will be in inconsistent state
+         * Asic here will be in inconsistent state, we need to terminate.
          */
 
         SWSS_LOG_THROW("failed to execute api: %s, key: %s, status: %s",
@@ -5217,9 +5337,9 @@ sai_status_t asic_process_event(/*{{{*/
     }
 
     return status;
-}/*}}}*/
+}
 
-void executeOperationsOnAsic(/*{{{*/
+void executeOperationsOnAsic(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView)
 {
@@ -5255,10 +5375,13 @@ void executeOperationsOnAsic(/*{{{*/
         {
             SWSS_LOG_ERROR("Error while executing asic operations, ASIC is in inconsistent state: %s", e.what());
 
-            // TODO change this to throw
-            exit_and_notify(EXIT_FAILURE);
+            /*
+             * Re-throw exception to main loop.
+             */
+
+            throw;
         }
     }
 
     SWSS_LOG_NOTICE("performed all operations on asic succesfully");
-}/*}}}*/
+}

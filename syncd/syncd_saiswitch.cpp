@@ -1297,6 +1297,13 @@ bool SaiSwitch::isNonCreateRid(
     return m_non_create_rids.find(rid) != m_non_create_rids.end();
 }
 
+std::set<sai_object_id_t> SaiSwitch::getExistingObjects() const
+{
+    SWSS_LOG_ENTER();
+
+    return m_non_create_rids;
+}
+
 std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 {
     SWSS_LOG_ENTER();

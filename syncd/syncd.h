@@ -73,6 +73,7 @@ void hardReinit();
 
 //std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap();
 //std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap();
+
 //std::vector<std::string> redisGetAsicStateKeys();
 
 void redisClearVidToRidMap();
@@ -90,6 +91,9 @@ sai_object_id_t redis_create_virtual_object_id(
 
 sai_object_type_t redis_sai_object_type_query(
         _In_ sai_object_id_t object_id);
+
+sai_object_id_t redis_sai_switch_id_query(
+        _In_ sai_object_id_t oid);
 
 sai_object_id_t translate_rid_to_vid(
         _In_ sai_object_id_t rid,

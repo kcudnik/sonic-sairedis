@@ -41,6 +41,13 @@ class SaiSwitch
         static std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetObjectMap(
                 _In_ const std::string &key);
 
+        /**
+         * @brief Gets existing objects on the switch
+         *
+         * @returns Default existing objects on the switch
+         */
+        std::set<sai_object_id_t> getExistingObjects() const;
+
     private:
 
         /*
@@ -91,6 +98,14 @@ class SaiSwitch
         std::set<sai_object_id_t> m_default_scheduler_groups_rids;
         std::set<sai_object_id_t> m_default_ports_rids;
 
+        /**
+         * @brief Objects existing on the switch after creating switch
+         *
+         * Includes CPU port, ports, queues, etc.
+         *
+         * Name is confusing, since "non create rids" means that those are RIDs
+         * that were not created by user.
+         */
         std::set<sai_object_id_t> m_non_create_rids;
 
         /*
@@ -149,6 +164,8 @@ class SaiSwitch
 
         std::unordered_map<sai_uint32_t, sai_object_id_t> redisGetLaneMap();
 
+    public:
+
         std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap();
 
         std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap();
@@ -162,6 +179,8 @@ class SaiSwitch
         sai_object_id_t redisGetDefaultStpInstanceId();
 
         sai_object_id_t redisGetCpuId();
+
+    private:
 
         void redisSaveLaneMap(
                 _In_ const std::unordered_map<sai_uint32_t, sai_object_id_t> &map);
