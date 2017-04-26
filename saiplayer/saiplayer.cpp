@@ -1,8 +1,3 @@
-#include <iostream>
-#include <stdexcept>
-#include <sstream>
-#include <string>
-
 #include <getopt.h>
 #include <unistd.h>
 
@@ -17,9 +12,17 @@ extern "C" {
 #include "swss/tokenize.h"
 #include "sairedis.h"
 
-// TODO special case is needed for switch if it contains oids
-// first it need to be created and then set
-// TODO handle pointers
+#include <iostream>
+#include <stdexcept>
+#include <sstream>
+#include <string>
+
+/*
+ * Since this is player, we record actions from orch agent.  No special case
+ * should be needed for switch in case it contains some oid values (like in
+ * syncd cold restart) since orch agent should never create switch with oid
+ * values set at creation time.
+ */
 
 std::map<std::string, std::string> profile_map;
 
@@ -54,72 +57,16 @@ const service_method_table_t test_services = {
     test_profile_get_next_value
 };
 
-/* // TODO use meta pointers
-sai_acl_api_t                *sai_acl_api;
-sai_buffer_api_t             *sai_buffer_api;
-sai_fdb_api_t                *sai_fdb_api;
-sai_hash_api_t               *sai_hash_api;
-sai_hostif_api_t             *sai_hostif_api;
-sai_lag_api_t                *sai_lag_api;
-sai_mirror_api_t             *sai_mirror_api;
-sai_neighbor_api_t           *sai_neighbor_api;
-sai_next_hop_api_t           *sai_next_hop_api;
-sai_next_hop_group_api_t     *sai_next_hop_group_api;
-sai_policer_api_t            *sai_policer_api;
-sai_port_api_t               *sai_port_api;
-sai_qos_map_api_t            *sai_qos_map_api;
-sai_queue_api_t              *sai_queue_api;
-sai_route_api_t              *sai_route_api;
-sai_router_interface_api_t   *sai_router_interface_api;
-sai_samplepacket_api_t       *sai_samplepacket_api;
-sai_scheduler_api_t          *sai_scheduler_api;
-sai_scheduler_group_api_t    *sai_scheduler_group_api;
-sai_stp_api_t                *sai_stp_api;
-sai_switch_api_t             *sai_switch_api;
-sai_tunnel_api_t             *sai_tunnel_api;
-sai_udf_api_t                *sai_udf_api;
-sai_virtual_router_api_t     *sai_router_api;
-sai_vlan_api_t               *sai_vlan_api;
-sai_wred_api_t               *sai_wred_api;
-
-typedef sai_status_t (*create_fn)(
-        _Out_ sai_object_id_t *stp_id,
-        _In_  uint32_t attr_count,
-        _In_  const sai_attribute_t *attr_list);
-
-typedef sai_status_t (*remove_fn)(
-        _In_ sai_object_id_t stp_id);
-
-typedef sai_status_t (*set_attribute_fn)(
-        _In_ sai_object_id_t object_id,
-        _In_ const sai_attribute_t *attr);
-
-typedef sai_status_t (*get_attribute_fn)(
-        _In_ sai_object_id_t stp_id,
-        _In_ uint32_t attr_count,
-        _Inout_ sai_attribute_t *attr_list);
-
-create_fn           common_create[SAI_OBJECT_TYPE_MAX];
-remove_fn           common_remove[SAI_OBJECT_TYPE_MAX];
-set_attribute_fn    common_set_attribute[SAI_OBJECT_TYPE_MAX];
-get_attribute_fn    common_get_attribute[SAI_OBJECT_TYPE_MAX];
-*/
-void initialize_common_api_pointers()
-{
-    SWSS_LOG_ENTER();
-
-    common_create[SAI_OBJECT_TYPE_PORT] = NULL;
-
-    // TODO use meta pointers
-}
-
 void init_sai_api()
 {
     SWSS_LOG_ENTER();
 
-    sai_api_query(SAI_API_ACL,                  (void**)&sai_acl_api);
+    int failed = sai_metadata_apis_query(sai_api_query);
 
-    // TODO use meta pointers
+    if (failed > 0)
+    {
+        SWSS_LOG_WARN("sai_api_query failed for %d apis", failed);
+    }
 }
 
 void on_switch_state_change(
@@ -165,8 +112,7 @@ void on_packet_event(
     sai_status_t s = (x);\
     if (s != SAI_STATUS_SUCCESS)\
     {\
-        SWSS_LOG_ERROR("fail status %d", s);\
-        exit(EXIT_FAILURE);\
+        SWSS_LOG_THROW("fail status: %s", sai_serialize_status(s).c_str());\
     }\
 }
 
@@ -179,14 +125,15 @@ sai_object_id_t translate_local_to_redis(
 {
     SWSS_LOG_ENTER();
 
-    SWSS_LOG_DEBUG("translating local 0x%lx", rid);
+    SWSS_LOG_DEBUG("translating local RID %s",
+            sai_serialize_object_id(rid).c_str());
 
     auto it = local_to_redis.find(rid);
 
     if (it == local_to_redis.end())
     {
-        SWSS_LOG_ERROR("failed to translate local 0x%lx", rid);
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("failed to translate local RID %s",
+                sai_serialize_object_id(rid).c_str());
     }
 
     return it->second;
@@ -219,11 +166,11 @@ void translate_local_to_redis(
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %x, attribute %x", object_type, attr.id);
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
+                    sai_serialize_object_type(object_type).c_str(),
+                    attr.id);
         }
 
-        // TODO enable flag
         switch (meta->attrvaluetype)
         {
             case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
@@ -235,23 +182,32 @@ void translate_local_to_redis(
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID:
+                if (attr.value.aclfield.enable)
                 attr.value.aclfield.data.oid = translate_local_to_redis(attr.value.aclfield.data.oid);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
+                if (attr.value.aclfield.enable)
                 translate_local_to_redis(attr.value.aclfield.data.objlist);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID:
+                if (attr.value.aclaction.enable)
                 attr.value.aclaction.parameter.oid = translate_local_to_redis(attr.value.aclaction.parameter.oid);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
+                if (attr.value.aclaction.enable)
                 translate_local_to_redis(attr.value.aclaction.parameter.objlist);
                 break;
 
             default:
-                // TODO check for non oid
+
+                if (meta->isoidattribute)
+                {
+                    SWSS_LOG_THROW("attribute %s is oid attribute but not handled, FIXME", meta->attridname);
+                }
+
                 break;
         }
     }
@@ -289,8 +245,7 @@ const std::vector<swss::FieldValueTuple> get_values(const std::vector<std::strin
 }
 
 #define CHECK_LIST(x)\
-    if (attr.x.count != get_attr.x.count)\
-{ SWSS_LOG_ERROR("get response list count not match recording"); exit(EXIT_FAILURE); }
+    if (attr.x.count != get_attr.x.count) { SWSS_LOG_THROW("get response list count not match recording"); }
 
 void match_list_lengths(
         sai_object_type_t object_type,
@@ -303,8 +258,7 @@ void match_list_lengths(
 
     if (get_attr_count != attr_count)
     {
-        SWSS_LOG_ERROR("list number don't match %u != %u", get_attr_count, attr_count);
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("list number don't match %u != %u", get_attr_count, attr_count);
     }
 
     for (uint32_t i = 0; i < attr_count; ++i)
@@ -316,8 +270,9 @@ void match_list_lengths(
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %x, attribute %x", object_type, attr.id);
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
+                    sai_serialize_object_type(object_type).c_str(),
+                    attr.id);
         }
 
         switch (meta->attrvaluetype)
@@ -397,12 +352,10 @@ void match_redis_with_rec(
 
     if (oid != redis_to_local[get_oid])
     {
-        SWSS_LOG_ERROR("match failed, oid order is mismatch :( oid 0x%lx get_oid 0x%lx second 0x%lx",
+        SWSS_LOG_THROW("match failed, oid order is mismatch :( oid 0x%lx get_oid 0x%lx second 0x%lx",
                 oid,
                 get_oid,
                 redis_to_local[get_oid]);
-
-        exit(EXIT_FAILURE);
     }
 
     SWSS_LOG_DEBUG("map size: %zu", local_to_redis.size());
@@ -431,8 +384,7 @@ void match_redis_with_rec(
 
     if (get_attr_count != attr_count)
     {
-        SWSS_LOG_ERROR("list number don't match %u != %u", get_attr_count, attr_count);
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("list number don't match %u != %u", get_attr_count, attr_count);
     }
 
     for (uint32_t i = 0; i < attr_count; ++i)
@@ -444,11 +396,11 @@ void match_redis_with_rec(
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %x, attribute %x", object_type, attr.id);
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
+                    sai_serialize_object_type(object_type).c_str(),
+                    attr.id);
         }
 
-        // enable flag
         switch (meta->attrvaluetype)
         {
             case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
@@ -460,23 +412,32 @@ void match_redis_with_rec(
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID:
+                if (attr.value.aclfield.enable)
                 match_redis_with_rec(get_attr.value.aclfield.data.oid, attr.value.aclfield.data.oid);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
+                if (attr.value.aclfield.enable)
                 match_redis_with_rec(get_attr.value.aclfield.data.objlist, attr.value.aclfield.data.objlist);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID:
+                if (attr.value.aclaction.enable)
                 match_redis_with_rec(get_attr.value.aclaction.parameter.oid, attr.value.aclaction.parameter.oid);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
+                if (attr.value.aclaction.enable)
                 match_redis_with_rec(get_attr.value.aclaction.parameter.objlist, attr.value.aclaction.parameter.objlist);
                 break;
 
             default:
-                // todo check for non oid
+
+                if (meta->isoidattribute)
+                {
+                    SWSS_LOG_THROW("attribute %s is oid attribute but not handled, FIXME", meta->attridname);
+                }
+
                 break;
         }
     }
@@ -493,23 +454,25 @@ sai_status_t handle_fdb(
     sai_fdb_entry_t fdb_entry;
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
+    fdb_entry.switch_id = translate_local_to_redis(fdb_entry.switch_id);
+    fdb_entry.bvid = translate_local_to_redis(fdb_entry.bvid);
+
     switch (api)
     {
         case SAI_COMMON_API_CREATE:
-            return sai_fdb_api->create_fdb_entry(&fdb_entry, attr_count, attr_list);
+            return sai_metadata_sai_fdb_api->create_fdb_entry(&fdb_entry, attr_count, attr_list);
 
         case SAI_COMMON_API_REMOVE:
-            return sai_fdb_api->remove_fdb_entry(&fdb_entry);
+            return sai_metadata_sai_fdb_api->remove_fdb_entry(&fdb_entry);
 
         case SAI_COMMON_API_SET:
-            return sai_fdb_api->set_fdb_entry_attribute(&fdb_entry, attr_list);
+            return sai_metadata_sai_fdb_api->set_fdb_entry_attribute(&fdb_entry, attr_list);
 
         case SAI_COMMON_API_GET:
-            return sai_fdb_api->get_fdb_entry_attribute(&fdb_entry, attr_count, attr_list);
+            return sai_metadata_sai_fdb_api->get_fdb_entry_attribute(&fdb_entry, attr_count, attr_list);
 
         default:
-            SWSS_LOG_ERROR("fdb other apis not implemented");
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("fdb other apis not implemented");
     }
 
     return SAI_STATUS_SUCCESS;
@@ -526,25 +489,25 @@ sai_status_t handle_neighbor(
     sai_neighbor_entry_t neighbor_entry;
     sai_deserialize_neighbor_entry(str_object_id, neighbor_entry);
 
+    neighbor_entry.switch_id = translate_local_to_redis(neighbor_entry.switch_id);
     neighbor_entry.rif_id = translate_local_to_redis(neighbor_entry.rif_id);
 
     switch(api)
     {
         case SAI_COMMON_API_CREATE:
-            return sai_neighbor_api->create_neighbor_entry(&neighbor_entry, attr_count, attr_list);
+            return sai_metadata_sai_neighbor_api->create_neighbor_entry(&neighbor_entry, attr_count, attr_list);
 
         case SAI_COMMON_API_REMOVE:
-            return sai_neighbor_api->remove_neighbor_entry(&neighbor_entry);
+            return sai_metadata_sai_neighbor_api->remove_neighbor_entry(&neighbor_entry);
 
         case SAI_COMMON_API_SET:
-            return sai_neighbor_api->set_neighbor_entry_attribute(&neighbor_entry, attr_list);
+            return sai_metadata_sai_neighbor_api->set_neighbor_entry_attribute(&neighbor_entry, attr_list);
 
         case SAI_COMMON_API_GET:
-            return sai_neighbor_api->get_neighbor_entry_attribute(&neighbor_entry, attr_count, attr_list);
+            return sai_metadata_sai_neighbor_api->get_neighbor_entry_attribute(&neighbor_entry, attr_count, attr_list);
 
         default:
-            SWSS_LOG_ERROR("neighbor other apis not implemented");
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("neighbor other apis not implemented");
     }
 }
 
@@ -559,28 +522,36 @@ sai_status_t handle_route(
     sai_route_entry_t route_entry;
     sai_deserialize_route_entry(str_object_id, route_entry);
 
+    route_entry.switch_id = translate_local_to_redis(route_entry.switch_id);
     route_entry.vr_id = translate_local_to_redis(route_entry.vr_id);
-
-    SWSS_LOG_DEBUG("route: %s", str_object_id.c_str());
 
     switch(api)
     {
         case SAI_COMMON_API_CREATE:
-            return sai_route_api->create_route_entry(&route_entry, attr_count, attr_list);
+            return sai_metadata_sai_route_api->create_route_entry(&route_entry, attr_count, attr_list);
 
         case SAI_COMMON_API_REMOVE:
-            return sai_route_api->remove_route_entry(&route_entry);
+            return sai_metadata_sai_route_api->remove_route_entry(&route_entry);
 
         case SAI_COMMON_API_SET:
-            return sai_route_api->set_route_entry_attribute(&route_entry, attr_list);
+            return sai_metadata_sai_route_api->set_route_entry_attribute(&route_entry, attr_list);
 
         case SAI_COMMON_API_GET:
-            return sai_route_api->get_route_entry_attribute(&route_entry, attr_count, attr_list);
+            return sai_metadata_sai_route_api->get_route_entry_attribute(&route_entry, attr_count, attr_list);
 
         default:
-            SWSS_LOG_ERROR("route other apis not implemented");
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("route other apis not implemented");
     }
+}
+
+void update_notifications_pointers(
+        _In_ uint32_t attr_count,
+        _Inout_ sai_attribute_t *attr_list)
+{
+    SWSS_LOG_ENTER();
+
+    // TODO update notification pointers
+    // anyway right now notifications are skipped
 }
 
 sai_status_t handle_generic(
@@ -595,93 +566,103 @@ sai_status_t handle_generic(
     sai_object_id_t local_id;
     sai_deserialize_object_id(str_object_id, local_id);
 
-    SWSS_LOG_DEBUG("common generic api: %d", api);
+    SWSS_LOG_DEBUG("generic %s for %s:%s",
+            sai_serialize_common_api(api).c_str(),
+            sai_serialize_object_type(object_type).c_str(),
+            str_object_id.c_str());
+
+    auto info = sai_metadata_get_object_type_info(object_type);
+
+    sai_object_meta_key_t meta_key;
+
+    meta_key.objecttype = object_type;
 
     switch (api)
     {
         case SAI_COMMON_API_CREATE:
+
             {
-                SWSS_LOG_DEBUG("generic create for object type %x", object_type);
+                sai_object_id_t switch_id = sai_switch_id_query(local_id);
 
-                create_fn create = common_create[object_type];
-
-                if (create == NULL)
+                if (switch_id == SAI_NULL_OBJECT_ID)
                 {
-                    SWSS_LOG_ERROR("create function is not defined for object type %x", object_type);
-                    exit(EXIT_FAILURE);
+                    SWSS_LOG_THROW("invalid switch_id translated from VID %s",
+                            sai_serialize_object_id(local_id).c_str());
                 }
 
-                sai_object_id_t rid;
-                sai_status_t status = create(&rid, attr_count, attr_list);
-
-                if (status == SAI_STATUS_SUCCESS)
+                if (object_type == SAI_OBJECT_TYPE_SWITCH)
                 {
-                    match_redis_with_rec(rid, local_id);
+                    update_notifications_pointers(attr_count, attr_list);
 
-                    SWSS_LOG_INFO("saved VID 0x%lx to RID 0x%lx", local_id, rid);
+                    /*
+                     * We are creating switch, in both cases local and redis
+                     * switch id is deterministic and should be the same.
+                     */
                 }
                 else
                 {
-                    SWSS_LOG_ERROR("failed to create %d", status);
+                    /*
+                     * When we creating switch, then switch_id parameter is
+                     * ignored, but we can't convert it using vid to rid map,
+                     * since rid don't exist yet, so skip translate for switch,
+                     * but use translate for all other objects.
+                     */
+
+                     switch_id = translate_local_to_redis(switch_id);
+                }
+
+                sai_status_t status = info->create(&meta_key, switch_id, attr_count, attr_list);
+
+                if (status == SAI_STATUS_SUCCESS)
+                {
+                    sai_object_id_t rid = meta_key.objectkey.key.object_id;
+
+                    match_redis_with_rec(rid, local_id);
+
+                    SWSS_LOG_INFO("saved VID %s to RID %s",
+                            sai_serialize_object_id(local_id).c_str(),
+                            sai_serialize_object_id(rid).c_str());
+                }
+                else
+                {
+                    SWSS_LOG_ERROR("failed to create %s",
+                            sai_serialize_status(status).c_str());
                 }
 
                 return status;
             }
 
         case SAI_COMMON_API_REMOVE:
+
             {
-                SWSS_LOG_DEBUG("generic remove for object type %x", object_type);
+                meta_key.objectkey.key.object_id = translate_local_to_redis(local_id);
 
-                remove_fn remove = common_remove[object_type];
-
-                if (remove == NULL)
-                {
-                    SWSS_LOG_ERROR("remove function is not defined for object type %x", object_type);
-                    exit(EXIT_FAILURE);
-                }
-
-                sai_object_id_t rid = translate_local_to_redis(local_id);
-
-                return remove(rid);
+                return info->remove(&meta_key);
             }
 
         case SAI_COMMON_API_SET:
+
             {
-                SWSS_LOG_DEBUG("generic set for object type %x", object_type);
-
-                set_attribute_fn set = common_set_attribute[object_type];
-
-                if (set == NULL)
+                if (object_type == SAI_OBJECT_TYPE_SWITCH)
                 {
-                    SWSS_LOG_ERROR("set function is not defined for object type %x", object_type);
-                    exit(EXIT_FAILURE);
+                    update_notifications_pointers(1, attr_list);
                 }
 
-                sai_object_id_t rid = translate_local_to_redis(local_id);
+                meta_key.objectkey.key.object_id = translate_local_to_redis(local_id);
 
-                return set(rid, attr_list);
+                return info->set(&meta_key, attr_list);
             }
 
         case SAI_COMMON_API_GET:
+
             {
-                SWSS_LOG_DEBUG("generic get for object type %x", object_type);
+                meta_key.objectkey.key.object_id = translate_local_to_redis(local_id);
 
-                get_attribute_fn get = common_get_attribute[object_type];
-
-                if (get == NULL)
-                {
-                    SWSS_LOG_ERROR("get function is not defined for object type %x", object_type);
-                    exit(EXIT_FAILURE);
-                }
-
-                sai_object_id_t rid = translate_local_to_redis(local_id);
-
-                return get(rid, attr_count, attr_list);
+                return info->get(&meta_key, attr_count, attr_list);
             }
 
         default:
-            SWSS_LOG_ERROR("generic other apis not implemented");
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("generic other apis not implemented");
     }
 }
 
@@ -711,7 +692,7 @@ void handle_get_response(
 
     match_redis_with_rec(object_type, get_attr_count, get_attr_list, attr_count, attr_list);
 
-    // TODO primitive values are not matched (recording vs switch/vs), we can add that check
+    // NOTE: Primitive values are not matched (recording vs switch/vs), we can add that check
 }
 
 void performSleep(const std::string& line)
@@ -723,8 +704,7 @@ void performSleep(const std::string& line)
 
     if (v.size() < 3)
     {
-        SWSS_LOG_ERROR("invalid line %s", line.c_str());
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("invalid line %s", line.c_str());
     }
 
     uint32_t useconds;
@@ -751,8 +731,7 @@ void performNotifySyncd(const std::string& request, const std::string response)
 
     if (r[1] != "a" || R[1] != "A")
     {
-        SWSS_LOG_ERROR("invalid syncd notify request/response %s/%s", request.c_str(), response.c_str());
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("invalid syncd notify request/response %s/%s", request.c_str(), response.c_str());
     }
 
     if (g_notifySyncd == false)
@@ -777,15 +756,16 @@ void performNotifySyncd(const std::string& request, const std::string response)
     }
     else
     {
-        SWSS_LOG_ERROR("invalid syncd notify request: %s", request.c_str());
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("invalid syncd notify request: %s", request.c_str());
     }
 
-    // TODO we need to create switch first to set recordings
+    /*
+     * NOTE: We don't need actual switch to set those attributes.
+     */
 
     sai_object_id_t switch_id = SAI_NULL_OBJECT_ID;
 
-    sai_status_t status = sai_switch_api->set_switch_attribute(switch_id, &attr);
+    sai_status_t status = sai_metadata_sai_switch_api->set_switch_attribute(switch_id, &attr);
 
     const std::string& responseStatus = R[2];
 
@@ -794,14 +774,15 @@ void performNotifySyncd(const std::string& request, const std::string response)
 
     if (status != response_status)
     {
-        SWSS_LOG_ERROR("response status %s is different than syncd status %s", responseStatus.c_str(), sai_serialize_status(status).c_str());
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("response status %s is different than syncd status %s",
+                responseStatus.c_str(),
+                sai_serialize_status(status).c_str());
     }
 
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("failed to notify syncd %s", sai_serialize_status(status).c_str());
-        exit(EXIT_FAILURE);
+        SWSS_LOG_THROW("failed to notify syncd %s",
+                sai_serialize_status(status).c_str());
     }
 
     // OK
@@ -855,11 +836,10 @@ int replay(int argc, char **argv)
                         // this line may be notification, we need to skip
                         if (!std::getline(infile, response))
                         {
-                            SWSS_LOG_ERROR("failed to read next file from file, previous: %s", line.c_str());
-                            exit(EXIT_FAILURE);
+                            SWSS_LOG_THROW("failed to read next file from file, previous: %s", line.c_str());
                         }
                     }
-                    while (response[response.find_first_of("|")+1] == 'n');
+                    while (response[response.find_first_of("|") + 1] == 'n');
 
                     performNotifySyncd(line, response);
                 }
@@ -884,8 +864,7 @@ int replay(int argc, char **argv)
                 continue; // skip comment and notification
 
             default:
-                SWSS_LOG_ERROR("unknown op %c", op);
-                exit(EXIT_FAILURE);
+                SWSS_LOG_THROW("unknown op %c on line %s", op, line.c_str());
         }
 
         // timestamp|action|objecttype:objectid|attrid=value,...
@@ -916,6 +895,8 @@ int replay(int argc, char **argv)
 
         sai_status_t status;
 
+        auto info = sai_metadata_get_object_type_info(object_type);
+
         switch (object_type)
         {
             case SAI_OBJECT_TYPE_FDB_ENTRY:
@@ -932,16 +913,20 @@ int replay(int argc, char **argv)
 
             default:
 
-                // TODO check non id
+                if (info->isnonobjectid)
+                {
+                    SWSS_LOG_THROW("object %s:%s is non object id, but not handled, FIXME",
+                            sai_serialize_object_type(object_type).c_str(),
+                            str_object_id.c_str());
+                }
+
                 status = handle_generic(object_type, str_object_id, api, attr_count, attr_list);
                 break;
         }
 
         if (status != SAI_STATUS_SUCCESS)
         {
-            SWSS_LOG_ERROR("failed to execute api: %c: %d", op, status);
-
-            exit(EXIT_FAILURE);
+            SWSS_LOG_THROW("failed to execute api: %c: %d", op, status);
         }
 
         if (api == SAI_COMMON_API_GET)
@@ -953,7 +938,7 @@ int replay(int argc, char **argv)
                 // this line may be notification, we need to skip
                 std::getline(infile, response);
             }
-            while (response[response.find_first_of("|")+1] == 'n');
+            while (response[response.find_first_of("|") + 1] == 'n');
 
             handle_get_response(object_type, attr_count, attr_list, response);
         }
@@ -1047,19 +1032,19 @@ int main(int argc, char **argv)
 
     init_sai_api();
 
-    initialize_common_api_pointers();
-
     sai_attribute_t attr;
 
     attr.id = SAI_REDIS_SWITCH_ATTR_USE_TEMP_VIEW;
     attr.value.booldata = g_useTempView;
 
-    // TODO we need to create switch first
-    // or those attributes can be applied without switch
+    /*
+     * Notice that we use null object id as switch id, which is fine since
+     * those attributes don't need switch.
+     */
 
     sai_object_id_t switch_id = SAI_NULL_OBJECT_ID;
 
-    EXIT_ON_ERROR(sai_switch_api->set_switch_attribute(switch_id, &attr));
+    EXIT_ON_ERROR(sai_metadata_sai_switch_api->set_switch_attribute(switch_id, &attr));
 
     int exitcode = replay(argc, argv);
 
