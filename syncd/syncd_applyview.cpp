@@ -4289,8 +4289,11 @@ void checkSwitch(
 {
     SWSS_LOG_ENTER();
 
-    size_t csize = currentView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size();
-    size_t tsize = temporaryView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size();
+    auto csws = currentView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH);
+    auto tsws = temporaryView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH);
+
+    size_t csize = csws.size();
+    size_t tsize = tsws.size();
 
     if (csize == 0 && tsize == 0)
     {
@@ -4299,16 +4302,26 @@ void checkSwitch(
 
     if (csize == 1 && tsize == 1)
     {
-        // TODO we should match switches here if they relly match over hardware
-        // info if not, then we should throw exception here that hardware info
-        // is different.  we probably could support that scenario by removing
-        // previous switch and recreating existing one, but that is not the
-        // case here
-        //
-        // TODO we need tocheck create only attributes, if they differ then
-        // throw since update will not be possible, we can separate this to
-        // different case to remove existing switch and recreate new one
-        // check switches and VID matching if it's the same
+        /*
+         * VID on both switches must match.
+         */
+
+        auto csw = csws.at(0);
+        auto tsw = tsws.at(0);
+
+        if (csw->getVid() != tsw->getVid())
+        {
+            SWSS_LOG_THROW("Current switch VID %s is different than temporary VID %s",
+                    sai_serialize_object_id(csw->getVid()).c_str(),
+                    sai_serialize_object_id(tsw->getVid()).c_str());
+        }
+
+        /*
+         * TODO: We need tocheck create only attributes (hardware info), if
+         * they differ then throw since update will not be possible, we can
+         * separate this to different case to remove existing switch and
+         * recreate new one check switches and VID matching if it's the same.
+         */
 
         return;
     }
