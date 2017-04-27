@@ -613,7 +613,7 @@ std::string sai_serialize_status(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(status, &sai_metadata_enum_sai_status_t);
+    return sai_serialize_enum(status, &metadata_enum_sai_status_t);
 }
 
 std::string sai_serialize_common_api(
@@ -621,19 +621,19 @@ std::string sai_serialize_common_api(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(common_api, &sai_metadata_enum_sai_common_api_t);
+    return sai_serialize_enum(common_api, &metadata_enum_sai_common_api_t);
 }
 
 std::string sai_serialize_object_type(
         _In_ const sai_object_type_t object_type)
 {
-    return sai_serialize_enum(object_type, &sai_metadata_enum_sai_object_type_t);
+    return sai_serialize_enum(object_type, &metadata_enum_sai_object_type_t);
 }
 
 std::string sai_serialize_attr_value_type(
         _In_ const sai_attr_value_type_t attr_value_type)
 {
-    return sai_serialize_enum(attr_value_type, &sai_metadata_enum_sai_attr_value_type_t);
+    return sai_serialize_enum(attr_value_type, &metadata_enum_sai_attr_value_type_t);
 }
 
 std::string sai_serialize_packet_color(
@@ -641,7 +641,7 @@ std::string sai_serialize_packet_color(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(color, &sai_metadata_enum_sai_packet_color_t);
+    return sai_serialize_enum(color, &metadata_enum_sai_packet_color_t);
 }
 
 std::string sai_serialize_vlan_id(
@@ -691,7 +691,7 @@ std::string sai_serialize_fdb_entry(
     j["mac"] = sai_serialize_mac(fdb_entry.mac_address);
 #if true
     j["vlan"] = sai_serialize_vlan_id(fdb_entry.vlan_id);
-    j["bridge_type"] = sai_serialize_enum(fdb_entry.bridge_type, &sai_metadata_enum_sai_fdb_entry_bridge_type_t);
+    j["bridge_type"] = sai_serialize_enum(fdb_entry.bridge_type, &metadata_enum_sai_fdb_entry_bridge_type_t);
     j["bridge_id"] = sai_serialize_object_id(fdb_entry.bridge_id);
 #else
     j["bvid"] = sai_serialize_object_id(fdb_entry.bvid);
@@ -705,7 +705,7 @@ std::string sai_serialize_port_stat(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(counter, &sai_metadata_enum_sai_port_stat_t);
+    return sai_serialize_enum(counter, &metadata_enum_sai_port_stat_t);
 }
 
 std::string sai_serialize_switch_oper_status(
@@ -717,7 +717,7 @@ std::string sai_serialize_switch_oper_status(
     json j;
 
     j["switch_id"] = sai_serialize_object_id(switch_id);
-    j["status"] = sai_serialize_enum(status, &sai_metadata_enum_sai_switch_oper_status_t);
+    j["status"] = sai_serialize_enum(status, &metadata_enum_sai_switch_oper_status_t);
 
     return j.dump();
 }
@@ -1263,7 +1263,7 @@ std::string sai_serialize_port_oper_status(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(status, &sai_metadata_enum_sai_port_oper_status_t);
+    return sai_serialize_enum(status, &metadata_enum_sai_port_oper_status_t);
 }
 
 std::string sai_serialize_fdb_event(
@@ -1271,7 +1271,7 @@ std::string sai_serialize_fdb_event(
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(event, &sai_metadata_enum_sai_fdb_event_t);
+    return sai_serialize_enum(event, &metadata_enum_sai_fdb_event_t);
 }
 
 json sai_serialize_json_fdb_event_notification_data(
@@ -1378,7 +1378,7 @@ std::string sai_serialize_object_meta_key(
         SWSS_LOG_THROW("invalid object type value %s", sai_serialize_object_type(meta_key.objecttype).c_str());
     }
 
-    const auto& meta = sai_metadata_all_object_type_infos[meta_key.objecttype];
+    const auto& meta = sai_all_object_type_infos[meta_key.objecttype];
 
     switch (meta_key.objecttype)
     {
@@ -1691,7 +1691,7 @@ void sai_deserialize_packet_color(
 {
     SWSS_LOG_ENTER();
 
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_packet_color_t, (int32_t&)color);
+    sai_deserialize_enum(s, &metadata_enum_sai_packet_color_t, (int32_t&)color);
 }
 
 void sai_deserialize_qos_map_params(
@@ -2220,7 +2220,7 @@ void sai_deserialize_status(
 {
     SWSS_LOG_ENTER();
 
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_status_t, status);
+    sai_deserialize_enum(s, &metadata_enum_sai_status_t, status);
 }
 
 void sai_deserialize_port_oper_status(
@@ -2229,7 +2229,7 @@ void sai_deserialize_port_oper_status(
 {
     SWSS_LOG_ENTER();
 
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_port_oper_status_t, (int32_t&)status);
+    sai_deserialize_enum(s, &metadata_enum_sai_port_oper_status_t, (int32_t&)status);
 }
 
 void sai_deserialize_fdb_event(
@@ -2238,7 +2238,7 @@ void sai_deserialize_fdb_event(
 {
     SWSS_LOG_ENTER();
 
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_fdb_event_t, (int32_t&)event);
+    sai_deserialize_enum(s, &metadata_enum_sai_fdb_event_t, (int32_t&)event);
 }
 
 void sai_deserialize_switch_oper_status(
@@ -2251,7 +2251,7 @@ void sai_deserialize_switch_oper_status(
     json j = json::parse(s);
 
     sai_deserialize_object_id(j["switch_id"], switch_id);
-    sai_deserialize_enum(j["status"], &sai_metadata_enum_sai_switch_oper_status_t, (int32_t&)status);
+    sai_deserialize_enum(j["status"], &metadata_enum_sai_switch_oper_status_t, (int32_t&)status);
 }
 
 void sai_deserialize_switch_shutdown_request(
@@ -2269,7 +2269,7 @@ void sai_deserialize_object_type(
         _In_ const std::string& s,
         _Out_ sai_object_type_t& object_type)
 {
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_object_type_t, (int32_t&)object_type);
+    sai_deserialize_enum(s, &metadata_enum_sai_object_type_t, (int32_t&)object_type);
 }
 
 void sai_deserialize_vlan_id(
@@ -2286,7 +2286,7 @@ void sai_deserialize_fdb_entry_bridge_type(
         _In_ const std::string& s,
         _Out_ sai_fdb_entry_bridge_type_t& fdb_entry_bridge_type)
 {
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_fdb_entry_bridge_type_t, (int32_t&)fdb_entry_bridge_type);
+    sai_deserialize_enum(s, &metadata_enum_sai_fdb_entry_bridge_type_t, (int32_t&)fdb_entry_bridge_type);
 }
 #endif
 
@@ -2389,7 +2389,7 @@ void sai_deserialize_object_meta_key(
         SWSS_LOG_THROW("invalid object type value %s", sai_serialize_object_type(meta_key.objecttype).c_str());
     }
 
-    const auto& meta = sai_metadata_all_object_type_infos[meta_key.objecttype];
+    const auto& meta = sai_all_object_type_infos[meta_key.objecttype];
 
     switch (meta_key.objecttype)
     {

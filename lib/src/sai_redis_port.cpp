@@ -122,8 +122,8 @@ sai_status_t redis_get_port_attribute(
  */
 sai_status_t redis_get_port_stats(
         _In_ sai_object_id_t port_id,
-        _In_ uint32_t number_of_counters,
         _In_ const sai_port_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters,
         _Out_ uint64_t* counters)
 {
     SWSS_LOG_ENTER();
@@ -146,8 +146,8 @@ sai_status_t redis_get_port_stats(
  */
 sai_status_t redis_clear_port_stats(
         _In_ sai_object_id_t port_id,
-        _In_ uint32_t number_of_counters,
-        _In_ const sai_port_stat_t *counter_ids)
+        _In_ const sai_port_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters)
 {
     SWSS_LOG_ENTER();
 

@@ -119,8 +119,8 @@ sai_status_t redis_get_queue_attribute(
  */
 sai_status_t redis_get_queue_stats(
         _In_ sai_object_id_t queue_id,
-        _In_ uint32_t number_of_counters,
         _In_ const sai_queue_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters,
         _Out_ uint64_t* counters)
 {
     std::lock_guard<std::mutex> lock(g_apimutex);
@@ -144,8 +144,8 @@ sai_status_t redis_get_queue_stats(
  */
 sai_status_t redis_clear_queue_stats(
         _In_ sai_object_id_t queue_id,
-        _In_ uint32_t number_of_counters,
-        _In_ const sai_queue_stat_t *counter_ids)
+        _In_ const sai_queue_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters)
 {
     SWSS_LOG_ENTER();
 

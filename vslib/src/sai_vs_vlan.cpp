@@ -288,8 +288,8 @@ sai_status_t vs_remove_vlan_members(
 
 sai_status_t vs_get_vlan_stats(
         _In_ sai_object_id_t vlan_id,
-        _In_ uint32_t number_of_counters,
         _In_ const sai_vlan_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters,
         _Out_ uint64_t *counters)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recursive_mutex);
@@ -303,8 +303,8 @@ sai_status_t vs_get_vlan_stats(
 
 sai_status_t vs_clear_vlan_stats(
         _In_ sai_object_id_t vlan_id,
-        _In_ uint32_t number_of_counters,
-        _In_ const sai_vlan_stat_t *counter_ids)
+        _In_ const sai_vlan_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recursive_mutex);
 

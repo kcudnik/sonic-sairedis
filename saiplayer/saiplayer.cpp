@@ -61,7 +61,7 @@ void init_sai_api()
 {
     SWSS_LOG_ENTER();
 
-    int failed = sai_metadata_apis_query(sai_api_query);
+    int failed = sai_meta_apis_query(sai_api_query);
 
     if (failed > 0)
     {
@@ -203,7 +203,8 @@ void translate_local_to_redis(
 
             default:
 
-                if (meta->isoidattribute)
+                // XXX if (meta->isoidattribute)
+                if (meta->allowedobjecttypeslength > 0)
                 {
                     SWSS_LOG_THROW("attribute %s is oid attribute but not handled, FIXME", meta->attridname);
                 }
@@ -433,7 +434,8 @@ void match_redis_with_rec(
 
             default:
 
-                if (meta->isoidattribute)
+                // XXX if (meta->isoidattribute)
+                if (meta->allowedobjecttypeslength > 0)
                 {
                     SWSS_LOG_THROW("attribute %s is oid attribute but not handled, FIXME", meta->attridname);
                 }
@@ -552,6 +554,23 @@ void update_notifications_pointers(
 
     // TODO update notification pointers
     // anyway right now notifications are skipped
+}
+
+bool sai_metadata_is_object_type_valid(
+        _In_ sai_object_type_t object_type)
+{
+    return object_type > SAI_OBJECT_TYPE_NULL && object_type < SAI_OBJECT_TYPE_MAX;
+}
+
+const sai_object_type_info_t* sai_metadata_get_object_type_info(
+        _In_ sai_object_type_t object_type)
+{
+    if (sai_metadata_is_object_type_valid(object_type))
+    {
+        return sai_all_object_type_infos[object_type];
+    }
+
+    return NULL;
 }
 
 sai_status_t handle_generic(

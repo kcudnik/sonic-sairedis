@@ -569,7 +569,7 @@ sai_object_id_t processSingleVid(
         trapGroupWorkaround(vid, rid, createObject, attrCount, attrList);
     }
 
-    auto info = sai_metadata_all_object_type_infos[objectType];
+    auto info = sai_all_object_type_infos[objectType];
 
     if (createObject)
     {
@@ -919,7 +919,7 @@ void hardReinit()
         sai_object_type_t objectType = getObjectTypeFromAsicKey(key);
         const std::string &strObjectId = getObjectIdFromAsicKey(key);
 
-        auto info = sai_metadata_all_object_type_infos[objectType];
+        auto info = sai_all_object_type_infos[objectType];
 
         switch (objectType)
         {

@@ -114,8 +114,8 @@ sai_status_t vs_get_policer_attribute(
  */
 sai_status_t vs_get_policer_stats(
         _In_ sai_object_id_t policer_id,
-        _In_ uint32_t number_of_counters,
         _In_ const sai_policer_stat_t *counter_ids,
+        _In_ uint32_t number_of_counters,
         _Out_ uint64_t* counters)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recursive_mutex);

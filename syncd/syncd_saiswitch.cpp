@@ -1319,13 +1319,13 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 
     std::vector<sai_port_stat_t> supportedCounters;
 
-    for (uint32_t idx = 0; idx < sai_metadata_enum_sai_port_stat_t.valuescount; ++idx)
+    for (uint32_t idx = 0; idx < metadata_enum_sai_port_stat_t.valuescount; ++idx)
     {
-        sai_port_stat_t counter = (sai_port_stat_t)sai_metadata_enum_sai_port_stat_t.values[idx];
+        sai_port_stat_t counter = (sai_port_stat_t)metadata_enum_sai_port_stat_t.values[idx];
 
         uint64_t value;
 
-        sai_status_t status = sai_metadata_sai_port_api->get_port_stats(port_rid, 1, &counter, &value);
+        sai_status_t status = sai_metadata_sai_port_api->get_port_stats(port_rid, &counter, 1, &value);
 
         if (status != SAI_STATUS_SUCCESS)
         {
@@ -1373,8 +1373,8 @@ void SaiSwitch::collectCounters(
     {
         sai_status_t status = sai_metadata_sai_port_api->get_port_stats(
                 port_rid,
-                countersSize,
                 m_supported_counters.data(),
+                countersSize,
                 counters.data());
 
         if (status != SAI_STATUS_SUCCESS)

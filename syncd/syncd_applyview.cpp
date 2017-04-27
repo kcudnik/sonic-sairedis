@@ -120,7 +120,8 @@ class SaiAttr
          */
         bool isObjectIdAttr() const
         {
-            return m_meta->isoidattribute;
+            // XXX return m_meta->isoidattribute;
+            return m_meta->allowedobjecttypeslength > 0;
         }
 
         const std::string& getStrAttrId() const
@@ -227,7 +228,8 @@ class SaiAttr
 
                 default:
 
-                    if (m_meta->isoidattribute)
+                    // XXX if (m_meta->isoidattribute)
+                    if (m_meta->allowedobjecttypeslength > 0)
                     {
                         SWSS_LOG_THROW("attribute %s is oid attrubute but not handled", m_meta->attridname);
                     }
@@ -264,6 +266,23 @@ class SaiAttr
         const sai_attr_metadata_t* m_meta;
         sai_attribute_t m_attr;
 };
+
+bool sai_metadata_is_object_type_valid(
+        _In_ sai_object_type_t object_type)
+{
+    return object_type > SAI_OBJECT_TYPE_NULL && object_type < SAI_OBJECT_TYPE_MAX;
+}
+
+const sai_object_type_info_t* sai_metadata_get_object_type_info(
+        _In_ sai_object_type_t object_type)
+{
+    if (sai_metadata_is_object_type_valid(object_type))
+    {
+        return sai_all_object_type_infos[object_type];
+    }
+
+    return NULL;
+}
 
 /**
  * @brief Class represents SAI object
@@ -307,7 +326,18 @@ class SaiObj
 
         bool isOidObject() const
         {
-            return info->isobjectid;
+            // XXX return info->isobjectid;
+
+            switch (info->objecttype)
+            {
+                case SAI_OBJECT_TYPE_FDB_ENTRY:
+                case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+                case SAI_OBJECT_TYPE_ROUTE_ENTRY:
+                    return false;
+
+                default:
+                    return true;
+            }
         }
 
         const std::unordered_map<sai_attr_id_t, std::shared_ptr<SaiAttr>>& getAllAttributes() const
@@ -2018,9 +2048,17 @@ bool exchangeTemporaryVidToCurrentVid(
 
     auto info = sai_metadata_get_object_type_info(meta_key.objecttype);
 
-    if (info->isobjectid)
+    // XXX if (info->isobjectid)
+
+    switch (info->objecttype)
     {
-        SWSS_LOG_THROW("this method should be used only for non object ids");
+        case SAI_OBJECT_TYPE_FDB_ENTRY:
+        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
+            SWSS_LOG_THROW("this method should be used only for non object ids");
+
+        default:
+            break;
     }
 
     for (size_t j = 0; j < info->structmemberscount; ++j)
@@ -5014,7 +5052,8 @@ void asic_translate_vid_to_rid_list(
 
             default:
 
-                if (meta->isoidattribute)
+                // XXX if (meta->isoidattribute)
+                if (meta->allowedobjecttypeslength > 0)
                 {
                     SWSS_LOG_THROW("attribute %s is oid attribute, but not handled, FIXME", meta->attridname);
                 }
