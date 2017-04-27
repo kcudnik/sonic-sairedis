@@ -2055,9 +2055,10 @@ bool exchangeTemporaryVidToCurrentVid(
         case SAI_OBJECT_TYPE_FDB_ENTRY:
         case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
         case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-            SWSS_LOG_THROW("this method should be used only for non object ids");
+            break;
 
         default:
+            SWSS_LOG_THROW("this method should be used only for non object ids");
             break;
     }
 
