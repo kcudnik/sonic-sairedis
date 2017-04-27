@@ -747,7 +747,8 @@ void test_fdb_entry_create()
     fdb_entry.switch_id = switch_id;
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bvid = bridge_id;
+    //fdb_entry.bvid = bridge_id;
+    fdb_entry.bridge_id = bridge_id;
 
     sai_object_id_t port = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT, switch_id);
     object_reference_insert(port);
@@ -853,7 +854,8 @@ void test_fdb_entry_remove()
     fdb_entry.switch_id = switch_id;
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bvid= bridge_id;
+    //fdb_entry.bvid= bridge_id;
+    fdb_entry.bridge_id = bridge_id;
 
     sai_object_id_t port = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT,switch_id);
     object_reference_insert(port);
@@ -994,7 +996,8 @@ void test_fdb_entry_get()
 
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bvid = bridge_id;
+    //fdb_entry.bvid = bridge_id;
+    fdb_entry.bridge_id = bridge_id;
 
     // TODO we should use CREATE for this
     sai_object_meta_key_t meta_key_fdb = { .objecttype = SAI_OBJECT_TYPE_FDB_ENTRY, .objectkey = { .key = { .fdb_entry = fdb_entry } } };
@@ -1069,7 +1072,8 @@ void test_fdb_entry_flow()
 
     sai_object_id_t bridge_id = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE, switch_id);
     object_reference_insert(bridge_id);
-    fdb_entry.bvid= bridge_id;
+    //fdb_entry.bvid= bridge_id;
+    fdb_entry.bridge_id = bridge_id;
 
     sai_object_id_t lag = create_dummy_object_id(SAI_OBJECT_TYPE_BRIDGE_PORT,switch_id);
     object_reference_insert(lag);

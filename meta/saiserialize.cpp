@@ -689,7 +689,13 @@ std::string sai_serialize_fdb_entry(
 
     j["switch_id"] = sai_serialize_object_id(fdb_entry.switch_id);
     j["mac"] = sai_serialize_mac(fdb_entry.mac_address);
+#if true
+    j["vlan"] = sai_serialize_vlan_id(fdb_entry.vlan_id);
+    j["bridge_type"] = sai_serialize_enum(fdb_entry.bridge_type, &sai_metadata_enum_sai_fdb_entry_bridge_type_t);
+    j["bridge_id"] = sai_serialize_object_id(fdb_entry.bridge_id);
+#else
     j["bvid"] = sai_serialize_object_id(fdb_entry.bvid);
+#endif
 
     return j.dump();
 }
@@ -2275,6 +2281,15 @@ void sai_deserialize_vlan_id(
     sai_deserialize_number(s, vlan_id);
 }
 
+#if true
+void sai_deserialize_fdb_entry_bridge_type(
+        _In_ const std::string& s,
+        _Out_ sai_fdb_entry_bridge_type_t& fdb_entry_bridge_type)
+{
+    sai_deserialize_enum(s, &sai_metadata_enum_sai_fdb_entry_bridge_type_t, (int32_t&)fdb_entry_bridge_type);
+}
+#endif
+
 void sai_deserialize_fdb_entry(
         _In_ const std::string &s,
         _Out_ sai_fdb_entry_t &fdb_entry)
@@ -2285,7 +2300,13 @@ void sai_deserialize_fdb_entry(
 
     sai_deserialize_object_id(j["switch_id"], fdb_entry.switch_id);
     sai_deserialize_mac(j["mac"], fdb_entry.mac_address);
+#if true
+    sai_deserialize_vlan_id(j["vlan"], fdb_entry.vlan_id);
+    sai_deserialize_fdb_entry_bridge_type(j["bridge_type"], fdb_entry.bridge_type);
+    sai_deserialize_object_id(j["bridge_id"], fdb_entry.bridge_id);
+#else
     sai_deserialize_object_id(j["bvid"], fdb_entry.bvid);
+#endif
 }
 
 void sai_deserialize_neighbor_entry(

@@ -455,7 +455,7 @@ sai_status_t handle_fdb(
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
     fdb_entry.switch_id = translate_local_to_redis(fdb_entry.switch_id);
-    fdb_entry.bvid = translate_local_to_redis(fdb_entry.bvid);
+    fdb_entry.bridge_id = translate_local_to_redis(fdb_entry.bridge_id);
 
     switch (api)
     {

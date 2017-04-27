@@ -474,7 +474,7 @@ class AsicView
                         sai_deserialize_fdb_entry(o->str_object_id, o->meta_key.objectkey.key.fdb_entry);
                         soFdbs[o->str_object_id] = o;
 
-                        m_vidReference[o->meta_key.objectkey.key.fdb_entry.bvid] += 1;
+                        m_vidReference[o->meta_key.objectkey.key.fdb_entry.bridge_id] += 1;
                         m_vidReference[o->meta_key.objectkey.key.fdb_entry.switch_id] += 1;
                         break;
 
@@ -962,7 +962,7 @@ class AsicView
                     sai_deserialize_fdb_entry(currentObj->str_object_id, currentObj->meta_key.objectkey.key.fdb_entry);
                     soFdbs[currentObj->str_object_id] = currentObj;
 
-                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bvid] += 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bridge_id] += 1;
                     m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.switch_id] += 1;
                     break;
 
@@ -1054,7 +1054,7 @@ class AsicView
 
                     soFdbs.erase(currentObj->str_object_id);
 
-                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bvid] -= 1;
+                    m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.bridge_id] -= 1;
                     m_vidReference[currentObj->meta_key.objectkey.key.fdb_entry.switch_id] -= 1;
 
                     break;
@@ -5144,7 +5144,7 @@ sai_status_t asic_handle_fdb(
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
     fdb_entry.switch_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.switch_id);
-    fdb_entry.bvid = asic_translate_vid_to_rid(current, temporary, fdb_entry.bvid);
+    fdb_entry.bridge_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.bridge_id);
 
     SWSS_LOG_DEBUG("fdb: %s", str_object_id.c_str());
 
