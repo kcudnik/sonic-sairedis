@@ -55,6 +55,7 @@ extern "C" {
 #define DEFAULT_TRAP_GROUP_ID       "DEFAULT_TRAP_GROUP_ID"
 #define DEFAULT_STP_INSTANCE_ID     "DEFAULT_STP_INSTANCE_ID"
 #define DEFAULT_VLAN_ID             "DEFAULT_VLAN_ID"
+#define DEFAULT_1Q_BRIDGE_ID        "DEFAULT_1Q_BRIDGE_ID"
 #define CPU_PORT_ID                 "CPU_PORT_ID"
 
 #define SAI_COLD_BOOT               0

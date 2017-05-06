@@ -131,6 +131,7 @@ std::string get_attr_info(const sai_attr_metadata_t& md)
     return std::string(md.attridname) + ":" + sai_serialize_attr_value_type(md.attrvaluetype);
 }
 
+#define META_LOG_WARN(md, format, ...) SWSS_LOG_WARN("%s " format, get_attr_info(md).c_str(), ##__VA_ARGS__)
 #define META_LOG_ERROR(md, format, ...) SWSS_LOG_ERROR("%s " format, get_attr_info(md).c_str(), ##__VA_ARGS__)
 #define META_LOG_DEBUG(md, format, ...) SWSS_LOG_DEBUG("%s " format, get_attr_info(md).c_str(), ##__VA_ARGS__)
 #define META_LOG_NOTICE(md, format, ...) SWSS_LOG_NOTICE("%s " format, get_attr_info(md).c_str(), ##__VA_ARGS__)
@@ -1026,6 +1027,7 @@ sai_status_t meta_generic_validation_create(
             case SAI_ATTR_VALUE_TYPE_MAC:
             case SAI_ATTR_VALUE_TYPE_IPV4:
             case SAI_ATTR_VALUE_TYPE_IPV6:
+            case SAI_ATTR_VALUE_TYPE_POINTER:
                 // primitives
                 break;
 
@@ -1338,6 +1340,21 @@ sai_status_t meta_generic_validation_create(
 
         if (it == attrs.end())
         {
+            if ((md.attrid == SAI_ACL_TABLE_ATTR_FIELD_ACL_RANGE_TYPE && md.objecttype == SAI_OBJECT_TYPE_ACL_TABLE) ||
+                (md.attrid == SAI_BUFFER_PROFILE_ATTR_SHARED_DYNAMIC_TH && md.objecttype == SAI_OBJECT_TYPE_BUFFER_PROFILE) ||
+                (md.attrid == SAI_BUFFER_PROFILE_ATTR_SHARED_STATIC_TH && md.objecttype == SAI_OBJECT_TYPE_BUFFER_PROFILE))
+            {
+                /*
+                 * TODO Remove in future. Workaround for range type which in
+                 * headers was marked as mandatory by mistake, and we need to
+                 * wait for next SAI integration to pull this change in.
+                 */
+
+                META_LOG_WARN(md, "Workaround: attribute is mandatory but not passed in attr list, REMOVE ME");
+
+                continue;
+            }
+
             META_LOG_ERROR(md, "attribute is mandatory but not passed in attr list");
 
             return SAI_STATUS_MANDATORY_ATTRIBUTE_MISSING;
@@ -1612,6 +1629,7 @@ sai_status_t meta_generic_validation_set(
         case SAI_ATTR_VALUE_TYPE_MAC:
         case SAI_ATTR_VALUE_TYPE_IPV4:
         case SAI_ATTR_VALUE_TYPE_IPV6:
+        case SAI_ATTR_VALUE_TYPE_POINTER:
             // primitives
             break;
 
@@ -1870,11 +1888,16 @@ sai_status_t meta_generic_validation_set(
     {
         // check if it was set on local DB
         // (this will not respect create_only with default)
+
         if (get_object_previous_attr(meta_key, md) == NULL)
         {
-            META_LOG_ERROR(md, "set for conditional, but not found in local db");
+            std::string key = sai_serialize_object_meta_key(meta_key);
 
-            return SAI_STATUS_INVALID_PARAMETER;
+            META_LOG_WARN(md, "set for conditional, but not found in local db, object %s created on switch ?", key.c_str());
+        }
+        else
+        {
+            META_LOG_DEBUG(md, "conditional attr found in local db");
         }
 
         META_LOG_DEBUG(md, "conditional attr found in local db");
@@ -1977,16 +2000,29 @@ sai_status_t meta_generic_validation_get(
 
         if (md.isconditional)
         {
+            /*
+             * TODO If object was created internally by switch (like bridge
+             * port) then current db will not have previous value of this
+             * attribute (like SAI_BRIDGE_PORT_ATTR_PORT_ID) or even other oid.
+             * This can lead to inconsistency, that we queried one oid, and its
+             * attribute also oid, and then did a "set" on that value, and now
+             * reference is not decreased since previous oid was not snooped.
+             *
+             * TODO This concearn all attributes not only conditionals
+             */
+
             // check if it was set on local DB
             // (this will not respect create_only with default)
             if (get_object_previous_attr(meta_key, md) == NULL)
             {
-                META_LOG_ERROR(md, "request for conditional, but not found in local db");
+                std::string key = sai_serialize_object_meta_key(meta_key);
 
-                return SAI_STATUS_INVALID_PARAMETER;
+                META_LOG_WARN(md, "get for conditional, but not found in local db, object %s created on switch ?", key.c_str());
             }
-
-            META_LOG_DEBUG(md, "conditional attr found in local db");
+            else
+            {
+                META_LOG_DEBUG(md, "conditional attr found in local db");
+            }
         }
 
         switch (md.attrvaluetype)
@@ -2005,6 +2041,7 @@ sai_status_t meta_generic_validation_get(
             case SAI_ATTR_VALUE_TYPE_IPV4:
             case SAI_ATTR_VALUE_TYPE_IPV6:
             case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
+            case SAI_ATTR_VALUE_TYPE_POINTER:
                 // primitives
                 break;
 
@@ -2318,6 +2355,7 @@ void meta_generic_validation_post_create(
             case SAI_ATTR_VALUE_TYPE_IPV4:
             case SAI_ATTR_VALUE_TYPE_IPV6:
             case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
+            case SAI_ATTR_VALUE_TYPE_POINTER:
                 // primitives
                 break;
 
@@ -2457,6 +2495,7 @@ void meta_generic_validation_post_remove(
             case SAI_ATTR_VALUE_TYPE_IPV4:
             case SAI_ATTR_VALUE_TYPE_IPV6:
             case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
+            case SAI_ATTR_VALUE_TYPE_POINTER:
                 // primitives, ok
                 break;
 
@@ -2606,6 +2645,27 @@ void meta_generic_validation_post_set(
 
     const sai_attr_metadata_t& md = *mdp;
 
+    /*
+     * TODO We need to get previous value and make deal with references, check
+     * if there is default value and if it's const.
+     */
+
+    if (!HAS_FLAG_READ_ONLY(md.flags) && md.allowedobjecttypeslength) // md.isoidattribute)
+    {
+        if ((get_object_previous_attr(meta_key, md) == NULL) &&
+                (md.defaultvaluetype != SAI_DEFAULT_VALUE_TYPE_CONST &&
+                 md.defaultvaluetype != SAI_DEFAULT_VALUE_TYPE_EMPTY_LIST))
+        {
+            /*
+             * If default value type will be internal then we should warn.
+             */
+
+            std::string key = sai_serialize_object_meta_key(meta_key);
+
+            META_LOG_WARN(md, "post set, not in local db, FIX snoop!: %s", key.c_str());
+        }
+    }
+
     switch (md.attrvaluetype)
     {
         case SAI_ATTR_VALUE_TYPE_BOOL:
@@ -2621,6 +2681,7 @@ void meta_generic_validation_post_set(
         case SAI_ATTR_VALUE_TYPE_MAC:
         case SAI_ATTR_VALUE_TYPE_IPV4:
         case SAI_ATTR_VALUE_TYPE_IPV6:
+        case SAI_ATTR_VALUE_TYPE_POINTER:
         case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
             // primitives, ok
             break;
@@ -2795,6 +2856,30 @@ void meta_generic_validation_post_get_objlist(
 {
     SWSS_LOG_ENTER();
 
+    /*
+     * TODO This is not good enough when object was created by switch
+     * internally and it have oid attributes, we need to insert them to local
+     * db and increase reference count if object don't exist.
+     *
+     * Also this function maybe not best place to do it since it's not executed
+     * when we doing get on acl field/action. But none of those are created
+     * internally by switch.
+     *
+     * TODO Similar stuff is with SET, when we will set oid obejct on existing
+     * switch object, but we will not have it's previous value.  We can check
+     * whether default value is present and it's const NULL.
+     */
+
+    if (!HAS_FLAG_READ_ONLY(md.flags) && md.allowedobjecttypeslength) // md.isoidattribute)
+    {
+        if (get_object_previous_attr(meta_key, md) == NULL)
+        {
+            std::string key = sai_serialize_object_meta_key(meta_key);
+
+            META_LOG_WARN(md, "post get, not in local db, FIX snoop!: %s", key.c_str());
+        }
+    }
+
     if (count > MAX_LIST_COUNT)
     {
         META_LOG_ERROR(md, "returned get object list count %u is > then max list count %u", count, MAX_LIST_COUNT);
@@ -2895,6 +2980,12 @@ void meta_generic_validation_post_get(
 
     switch_id = meta_extract_switch_id(meta_key, switch_id);
 
+    /*
+     * TODO We should snoop attributes retrived from switch and put them to
+     * local db if they don't exist since if attr is oid it may lead to
+     * inconsistency when counting reference
+     */
+
     for (uint32_t idx = 0; idx < attr_count; ++idx)
     {
         const sai_attribute_t* attr = &attr_list[idx];
@@ -2920,6 +3011,7 @@ void meta_generic_validation_post_get(
             case SAI_ATTR_VALUE_TYPE_MAC:
             case SAI_ATTR_VALUE_TYPE_IPV4:
             case SAI_ATTR_VALUE_TYPE_IPV6:
+            case SAI_ATTR_VALUE_TYPE_POINTER:
             case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
                 // primitives, ok
                 break;

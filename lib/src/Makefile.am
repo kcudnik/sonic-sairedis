@@ -11,6 +11,7 @@ lib_LTLIBRARIES = libsairedis.la
 libsairedis_la_SOURCES = \
 			 sai_redis_acl.cpp \
 			 sai_redis_buffer.cpp \
+			 sai_redis_bridge.cpp \
 			 sai_redis_fdb.cpp \
 			 sai_redis_hash.cpp \
 			 sai_redis_hostintf.cpp \

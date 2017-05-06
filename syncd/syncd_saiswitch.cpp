@@ -54,11 +54,17 @@ std::string SaiSwitch::saiGetHardwareInfo()
 
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_THROW("failed to get switch hardware info: %s",
+        /*
+         * TODO: We should have THROW here, but currently getting hardware info
+         * is not supported, so we just return empty string like it's not set.
+         * Later on basing on this entry we will distinquish whether previous
+         * switch and next switch are the same.
+         */
+        SWSS_LOG_ERROR("failed to get switch hardware info: %s",
                 sai_serialize_status(status).c_str());
     }
 
-    SWSS_LOG_DEBUG("hardware info length: %s", info);
+    SWSS_LOG_DEBUG("hardware info: '%s'", info);
 
     m_hardware_info = std::string(info);
 
@@ -237,6 +243,30 @@ sai_object_id_t SaiSwitch::saiGetDefaultVirtualRouter()
             sai_serialize_object_id(attr.value.oid).c_str());
 
     m_default_virtual_router_rid = attr.value.oid;
+
+    return attr.value.oid;
+}
+
+sai_object_id_t SaiSwitch::saiGetDefault1QBridgeId()
+{
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+
+    attr.id = SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID;
+
+    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_THROW("failed to get switch default 1q bridge id: %s",
+                sai_serialize_status(status).c_str());
+    }
+
+    SWSS_LOG_DEBUG("default 1q bridge RID %s",
+            sai_serialize_object_id(attr.value.oid).c_str());
+
+    m_default_1q_bridge_rid = attr.value.oid;
 
     return attr.value.oid;
 }
@@ -442,6 +472,26 @@ sai_object_id_t SaiSwitch::redisGetDefaultVirtualRouterId()
     return vr_id;
 }
 
+sai_object_id_t SaiSwitch::redisGetDefault1QBridgeId()
+{
+    SWSS_LOG_ENTER();
+
+    auto key = getRedisHiddenKey();
+
+    auto redis1QBridgeId = g_redisClient->hget(key, DEFAULT_1Q_BRIDGE_ID);
+
+    if (redis1QBridgeId == NULL)
+    {
+        return SAI_NULL_OBJECT_ID;
+    }
+
+    sai_object_id_t bridge_1q_id;
+
+    sai_deserialize_object_id(*redis1QBridgeId, bridge_1q_id);
+
+    return bridge_1q_id;
+}
+
 sai_object_id_t SaiSwitch::redisGetDefaultVlanId()
 {
     SWSS_LOG_ENTER();
@@ -568,6 +618,18 @@ void SaiSwitch::redisSetDefaultVlanId(
     auto key = getRedisHiddenKey();
 
     g_redisClient->hset(key, DEFAULT_VLAN_ID, strVlanRid);
+}
+
+void SaiSwitch::redisSetDefault1QBridgeId(
+        _In_ sai_object_id_t bridge_1q_rid)
+{
+    SWSS_LOG_ENTER();
+
+    std::string strVlanRid = sai_serialize_object_id(bridge_1q_rid);
+
+    auto key = getRedisHiddenKey();
+
+    g_redisClient->hset(key, DEFAULT_1Q_BRIDGE_ID, strVlanRid);
 }
 
 void SaiSwitch::redisCreateRidAndVidMapping(
@@ -846,6 +908,34 @@ void SaiSwitch::helperCheckDefaultVlanId()
         SWSS_LOG_THROW("FIXME: default vlan id differs: %s vs %s, ids must be remapped",
                 sai_serialize_object_id(vlanRid).c_str(),
                 sai_serialize_object_id(redisVlanRid).c_str());
+    }
+}
+
+void SaiSwitch::helperCheckDefault1QBridgeId()
+{
+    SWSS_LOG_ENTER();
+
+    sai_object_id_t bridgeRid = saiGetDefault1QBridgeId();
+
+    sai_object_id_t redisBridgeRid = redisGetDefault1QBridgeId();
+
+    if (redisBridgeRid == SAI_NULL_OBJECT_ID)
+    {
+        redisSetDummyAsicStateForRealObjectId(bridgeRid);
+
+        SWSS_LOG_INFO("redis default bridge id is not defined yet");
+
+        redisSetDefault1QBridgeId(bridgeRid);
+
+        redisBridgeRid = bridgeRid;
+    }
+
+    if (bridgeRid != redisBridgeRid)
+    {
+        // if this happens, we need to remap VIDTORID and RIDTOVID
+        SWSS_LOG_THROW("FIXME: default bridge id differs: %s vs %s, ids must be remapped",
+                sai_serialize_object_id(bridgeRid).c_str(),
+                sai_serialize_object_id(redisBridgeRid).c_str());
     }
 }
 
@@ -1282,6 +1372,7 @@ void SaiSwitch::buildNonCreateRids()
     m_non_create_rids.insert(m_default_virtual_router_rid);
     m_non_create_rids.insert(m_default_trap_group_rid);
     m_non_create_rids.insert(m_default_stp_instance_rid);
+    m_non_create_rids.insert(m_default_1q_bridge_rid);
 
     m_non_create_rids.insert(m_default_priority_groups_rids.begin(), m_default_priority_groups_rids.end());
     m_non_create_rids.insert(m_default_queues_rids.begin(), m_default_queues_rids.end());
@@ -1332,8 +1423,8 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
             const std::string &name = sai_serialize_port_stat(counter);
 
             SWSS_LOG_WARN("counter %s is not supported on port RID %s: %s",
-                    name.c_str(), 
-                    sai_serialize_object_id(port_rid).c_str(), 
+                    name.c_str(),
+                    sai_serialize_object_id(port_rid).c_str(),
                     sai_serialize_status(status).c_str());
 
             continue;
@@ -1434,6 +1525,8 @@ SaiSwitch::SaiSwitch(
 
     helperCheckDefaultVlanId();
 
+    helperCheckDefault1QBridgeId();
+
     helperCheckPortIds();
 
     helperCheckQueuesIds();
@@ -1442,11 +1535,22 @@ SaiSwitch::SaiSwitch(
 
     helperCheckSchedulerGroupsIds();
 
-    /*
-     * TODO we will need bridge ports here also.
-     */
+    // TODO we will need bridge ports here also.
+    // TODO when doing hard reinit we need to take care of that (non create)
+    // TODO extra handling needs to be done since they must be matched
+    // by port Id and not by lanes, this will be non trivial
 
     buildNonCreateRids();
 
     m_supported_counters = saiGetSupportedCounters();
+
+    /*
+     * We remove default vlan members to make it easier to reinit since our
+     * orch agent will remove them anyway.
+     *
+     * NOTE: To make this fully functional we need make use of method that
+     * will list all objects after switch creation.
+     */
+
+    removeDefaultVlanMembers();
 }

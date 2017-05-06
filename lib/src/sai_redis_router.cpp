@@ -117,7 +117,7 @@ sai_status_t redis_get_virtual_router_attribute(
 /**
  * @brief Virtual router methods table retrieved with sai_api_query()
  */
-const sai_virtual_router_api_t redis_router_api = {
+const sai_virtual_router_api_t redis_virtual_router_api = {
     redis_create_virtual_router,
     redis_remove_virtual_router,
     redis_set_virtual_router_attribute,

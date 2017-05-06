@@ -68,7 +68,7 @@ std::string getSelectResultAsString(int result)
     return res;
 }
 
-void clearn_oid_values(
+void clear_oid_values(
         _In_ sai_object_type_t object_type,
         _In_ uint32_t attr_count,
         _Out_ sai_attribute_t *attr_list)
@@ -161,7 +161,7 @@ sai_status_t internal_redis_generic_get(
      * syncd.
      */
 
-    clearn_oid_values(object_type, attr_count, attr_list);
+    clear_oid_values(object_type, attr_count, attr_list);
 
     std::vector<swss::FieldValueTuple> entry = SaiAttributeList::serialize_attr_list(
             object_type,

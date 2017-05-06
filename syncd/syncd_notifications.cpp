@@ -239,7 +239,7 @@ void on_packet_event(
 
 sai_switch_state_change_notification_fn     on_switch_state_change_ntf = on_switch_state_change;
 sai_switch_shutdown_request_notification_fn on_switch_shutdown_request_ntf = on_switch_shutdown_request;
-sai_fdb_event_notification_fn               on_fdb_event_ntf = on_fdb_event_ntf;
+sai_fdb_event_notification_fn               on_fdb_event_ntf = on_fdb_event;
 sai_port_state_change_notification_fn       on_port_state_change_ntf = on_port_state_change;
 sai_packet_event_notification_fn            on_packet_event_ntf = on_packet_event;
 
@@ -263,6 +263,15 @@ void check_notifications_pointers(
     for (uint32_t index = 0; index < attr_count; ++index)
     {
         sai_attribute_t &attr = attr_list[index];
+
+        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr.id);
+
+        /*
+         * Does not matter if pointer is valid or not, we just want the
+         * previous value.
+         */
+
+        sai_pointer_t prev = attr.value.ptr;
 
         switch (attr.id)
         {
@@ -294,7 +303,13 @@ void check_notifications_pointers(
                  * new notifications were added in the future.
                  */
 
-                break;
+                continue;
         }
+
+        /*
+         * Here we translated pointer, just log it.
+         */
+
+        SWSS_LOG_NOTICE("%s: %lp (orch) => %lp (syncd)", meta->attridname, prev, attr.value.ptr);
     }
 }

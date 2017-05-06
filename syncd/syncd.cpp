@@ -11,7 +11,16 @@ std::shared_ptr<swss::RedisClient>          g_redisClient;
 std::shared_ptr<swss::ProducerTable>        getResponse;
 std::shared_ptr<swss::NotificationProducer> notifications;
 
-std::map<std::string, std::string> gProfileMap;
+/*
+ * TODO: Those are hard coded values for mlnx integration for v1.0.1 they need
+ * to be updated.
+ *
+ * Also DEVICE_MAC_ADDRESS is not present in saiswitch.h
+ */
+std::map<std::string, std::string> gProfileMap = {
+    { "SAI_INIT_CONFIG_FILE", "/usr/share/sai_2700.xml" },
+    { "DEVICE_MAC_ADDRESS", "7c:fe:90:5e:6a:80" }
+};
 
 /**
  * @brief Contais map of all created switches.
@@ -195,7 +204,7 @@ sai_object_id_t redis_sai_switch_id_query(
         return oid;
     }
 
-    sai_object_type_t object_type = sai_object_type_query(oid);
+    sai_object_type_t object_type = redis_sai_object_type_query(oid);
 
     if (object_type == SAI_OBJECT_TYPE_NULL)
     {
@@ -258,7 +267,11 @@ sai_object_id_t redis_create_virtual_object_id(
 
     sai_object_id_t vid = redis_construct_object_id(object_type, switch_index, virtual_id);
 
-    SWSS_LOG_DEBUG("created virtual object id 0x%lx for object type %d", vid, object_type);
+    auto info = sai_all_object_type_infos[object_type];
+
+    SWSS_LOG_DEBUG("created virtual object id 0x%lx for object type %s",
+            vid,
+            info->objecttypename);
 
     return vid;
 }
@@ -886,6 +899,11 @@ void internal_syncd_get_send(
          */
     }
 
+    for (const auto &e: entry)
+    {
+        SWSS_LOG_DEBUG("attr: %s: %s", fvField(e).c_str(), fvValue(e).c_str());
+    }
+
     std::string str_status = sai_serialize_status(status);
 
     SWSS_LOG_INFO("sending response for GET api with status: %s", str_status.c_str());
@@ -917,11 +935,11 @@ const char* profile_get_value(
 
     if (it == gProfileMap.end())
     {
-        SWSS_LOG_INFO("%s: NULL", variable);
+        SWSS_LOG_NOTICE("%s: NULL", variable);
         return NULL;
     }
 
-    SWSS_LOG_INFO("%s: %s", variable, it->second.c_str());
+    SWSS_LOG_NOTICE("%s: %s", variable, it->second.c_str());
 
     return it->second.c_str();
 }
@@ -1904,6 +1922,11 @@ sai_status_t processEvent(
 
     const std::vector<swss::FieldValueTuple> &values = kfvFieldsValues(kco);
 
+    for (const auto &v: values)
+    {
+        SWSS_LOG_DEBUG("attr: %s: %s", fvField(v).c_str(), fvValue(v).c_str());
+    }
+
     SaiAttributeList list(object_type, values, false);
 
     /*
@@ -2007,7 +2030,7 @@ sai_status_t processEvent(
     {
         for (const auto&v: values)
         {
-            SWSS_LOG_ERROR(" field: %s, value: %s", fvField(v).c_str(), fvValue(v).c_str());
+            SWSS_LOG_ERROR("attr: %s: %s", fvField(v).c_str(), fvValue(v).c_str());
         }
 
         SWSS_LOG_THROW("failed to execute api: %s, key: %s, status: %s",
@@ -2383,7 +2406,11 @@ void set_sai_api_loglevel()
 {
     SWSS_LOG_ENTER();
 
-    for (uint32_t idx = 0; idx < metadata_enum_sai_api_t.valuescount; ++idx)
+    /*
+     * We start from 1 since 0 is SAI_API_UNSPECIFIED.
+     */
+
+    for (uint32_t idx = 1; idx < metadata_enum_sai_api_t.valuescount; ++idx)
     {
         swss::Logger::linkToDb(metadata_enum_sai_api_t.valuesnames[idx], saiLoglevelNotify, "SAI_LOG_LEVEL_NOTICE");
     }
@@ -2490,13 +2517,75 @@ void onSyncdStart(bool warmStart)
     hardReinit();
 }
 
+
+void sai_meta_log_syncd(
+        _In_ sai_log_level_t log_level,
+        _In_ const char *file,
+        _In_ int line,
+        _In_ const char *func,
+        _In_ const char *format,
+        ...)
+    __attribute__ ((format (printf, 5, 6)));
+
+void sai_meta_log_syncd(
+        _In_ sai_log_level_t log_level,
+        _In_ const char *file,
+        _In_ int line,
+        _In_ const char *func,
+        _In_ const char *format,
+        ...)
+{
+    char buffer[0x1000];
+
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buffer, 0x1000, format, ap);
+    va_end(ap);
+
+    swss::Logger::Priority p = swss::Logger::SWSS_NOTICE;
+
+    switch (log_level)
+    {
+        case SAI_LOG_LEVEL_DEBUG:
+            p = swss::Logger::SWSS_DEBUG;
+            break;
+        case SAI_LOG_LEVEL_INFO:
+            p = swss::Logger::SWSS_INFO;
+            break;
+        case SAI_LOG_LEVEL_ERROR:
+            p = swss::Logger::SWSS_ERROR;
+            break;
+        case SAI_LOG_LEVEL_WARN:
+            p = swss::Logger::SWSS_WARN;
+            break;
+        case SAI_LOG_LEVEL_CRITICAL:
+            p = swss::Logger::SWSS_CRIT;
+            break;
+
+        default:
+            p = swss::Logger::SWSS_NOTICE;
+            break;
+    }
+
+    swss::Logger::getInstance().write(p, ":- %s: %s", func, buffer);
+}
+
 int main(int argc, char **argv)
 {
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
+
     SWSS_LOG_ENTER();
+
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
     set_sai_api_loglevel();
 
-    swss::Logger::linkToDbNative("syncd");
+    //swss::Logger::linkToDbNative("syncd");
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
+    sai_meta_log = &sai_meta_log_syncd;
+#pragma GCC diagnostic pop
 
     meta_init_db();
 

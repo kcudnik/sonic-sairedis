@@ -183,6 +183,11 @@ sai_status_t sai_log_set(
     return SAI_STATUS_NOT_IMPLEMENTED;
 }
 
+#define API_CASE(API,api)\
+    case SAI_API_ ## API: {\
+        *(const sai_ ## api ## _api_t**)api_method_table = &redis_ ## api ## _api;\
+        return SAI_STATUS_SUCCESS; }
+
 sai_status_t sai_api_query(
         _In_ sai_api_t sai_api_id,
         _Out_ void** api_method_table)
@@ -205,109 +210,39 @@ sai_status_t sai_api_query(
 
     switch (sai_api_id)
     {
-        case SAI_API_BUFFER:
-            *(const sai_buffer_api_t**)api_method_table = &redis_buffer_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_HASH:
-            *(const sai_hash_api_t**)api_method_table = &redis_hash_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_SWITCH:
-            *(const sai_switch_api_t**)api_method_table = &redis_switch_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_PORT:
-            *(const sai_port_api_t**)api_method_table = &redis_port_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_FDB:
-            *(const sai_fdb_api_t**)api_method_table = &redis_fdb_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_VLAN:
-            *(const sai_vlan_api_t**)api_method_table = &redis_vlan_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_WRED:
-            *(const sai_wred_api_t**)api_method_table = &redis_wred_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_VIRTUAL_ROUTER:
-            *(const sai_virtual_router_api_t**)api_method_table = &redis_router_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_ROUTE:
-            *(const sai_route_api_t**)api_method_table = &redis_route_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_NEXT_HOP:
-            *(const sai_next_hop_api_t**)api_method_table = &redis_next_hop_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_NEXT_HOP_GROUP:
-            *(const sai_next_hop_group_api_t**)api_method_table = &redis_next_hop_group_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_ROUTER_INTERFACE:
-            *(const sai_router_interface_api_t**)api_method_table = &redis_router_interface_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_NEIGHBOR:
-            *(const sai_neighbor_api_t**)api_method_table = &redis_neighbor_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_ACL:
-            *(const sai_acl_api_t**)api_method_table = &redis_acl_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_HOSTIF:
-            *(const sai_hostif_api_t**)api_method_table = &redis_hostif_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_POLICER:
-            *(const sai_policer_api_t**)api_method_table = &redis_policer_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_QOS_MAP:
-            *(const sai_qos_map_api_t**)api_method_table = &redis_qos_map_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_QUEUE:
-            *(const sai_queue_api_t**)api_method_table = &redis_queue_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_SCHEDULER:
-            *(const sai_scheduler_api_t**)api_method_table = &redis_scheduler_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_SCHEDULER_GROUP:
-            *(const sai_scheduler_group_api_t**)api_method_table = &redis_scheduler_group_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_MIRROR:
-            *(const sai_mirror_api_t**)api_method_table = &redis_mirror_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_UDF:
-            *(const sai_udf_api_t**)api_method_table = &redis_udf_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_SAMPLEPACKET:
-            *(const sai_samplepacket_api_t**)api_method_table = &redis_samplepacket_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_STP:
-            *(const sai_stp_api_t**)api_method_table = &redis_stp_api;
-            return SAI_STATUS_NOT_IMPLEMENTED;
-
-        case SAI_API_LAG:
-            *(const sai_lag_api_t**)api_method_table = &redis_lag_api;
-            return SAI_STATUS_SUCCESS;
-
-        case SAI_API_TUNNEL:
-            *(const sai_tunnel_api_t**)api_method_table = &redis_tunnel_api;
-            return SAI_STATUS_SUCCESS;
+        API_CASE(ACL,acl);
+        API_CASE(BRIDGE,bridge);
+        API_CASE(BUFFER,buffer);
+        API_CASE(FDB,fdb);
+        API_CASE(HASH,hash);
+        API_CASE(HOSTIF,hostif);
+        //API_CASE(IPMC,ipmc);
+        //API_CASE(IPMC_GROUP,ipmc_group);
+        //API_CASE(L2MC,l2mc);
+        //API_CASE(L2MC_GROUP,l2mc_group);
+        API_CASE(LAG,lag);
+        //API_CASE(MCAST_FDB,mcast_fdb);
+        API_CASE(MIRROR,mirror);
+        API_CASE(NEIGHBOR,neighbor);
+        API_CASE(NEXT_HOP,next_hop);
+        API_CASE(NEXT_HOP_GROUP,next_hop_group);
+        API_CASE(POLICER,policer);
+        API_CASE(PORT,port);
+        API_CASE(QOS_MAP,qos_map);
+        API_CASE(QUEUE,queue);
+        API_CASE(ROUTE,route);
+        API_CASE(ROUTER_INTERFACE,router_interface);
+        //API_CASE(RPF_GROUP,rpf_group);
+        API_CASE(SAMPLEPACKET,samplepacket);
+        API_CASE(SCHEDULER,scheduler);
+        API_CASE(SCHEDULER_GROUP,scheduler_group);
+        API_CASE(STP,stp);
+        API_CASE(SWITCH,switch);
+        API_CASE(TUNNEL,tunnel);
+        API_CASE(UDF,udf);
+        API_CASE(VIRTUAL_ROUTER,virtual_router);
+        API_CASE(VLAN,vlan);
+        API_CASE(WRED,wred);
 
         default:
             SWSS_LOG_ERROR("Invalid API type %d", sai_api_id);

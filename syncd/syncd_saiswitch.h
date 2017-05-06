@@ -88,6 +88,7 @@ class SaiSwitch
         sai_object_id_t m_default_virtual_router_rid;
         sai_object_id_t m_default_trap_group_rid;
         sai_object_id_t m_default_stp_instance_rid;
+        sai_object_id_t m_default_1q_bridge_rid;
 
         /*
          * NOTE: Later we need to have this in redis with port mapping.
@@ -114,8 +115,6 @@ class SaiSwitch
 
         sai_uint32_t saiGetPortCount();
 
-        sai_object_id_t saiGetDefaultVlanId();
-
         std::string saiGetHardwareInfo();
 
         sai_object_id_t saiGetCpuId();
@@ -124,11 +123,18 @@ class SaiSwitch
 
         std::unordered_map<sai_uint32_t, sai_object_id_t> saiGetHardwareLaneMap();
 
+        // TODO since those are obrained from switch we should be able to
+        // optimize them
+
+        sai_object_id_t saiGetDefaultVlanId();
+
         sai_object_id_t saiGetDefaultTrapGroup();
 
         sai_object_id_t saiGetDefaultStpInstance();
 
         sai_object_id_t saiGetDefaultVirtualRouter();
+
+        sai_object_id_t saiGetDefault1QBridgeId();
 
         sai_uint32_t saiGetPortNumberOfQueues(
                 _In_ sai_object_id_t port_vid);
@@ -178,6 +184,8 @@ class SaiSwitch
 
         sai_object_id_t redisGetDefaultStpInstanceId();
 
+        sai_object_id_t redisGetDefault1QBridgeId();
+
         sai_object_id_t redisGetCpuId();
 
     private:
@@ -189,6 +197,9 @@ class SaiSwitch
 
         void redisSetDefaultVlanId(
                 _In_ sai_object_id_t vlan_rid);
+
+        void redisSetDefault1QBridgeId(
+                _In_ sai_object_id_t bridge_1q_rid);
 
         void redisSetDefaultVirtualRouterId(
                 _In_ sai_object_id_t vr_rid);
@@ -221,6 +232,7 @@ class SaiSwitch
         void helperCheckDefaultTrapGroup();
         void helperCheckDefaultStpInstance();
         void helperCheckDefaultVlanId();
+        void helperCheckDefault1QBridgeId();
         void helperCheckCpuId();
         void helperCheckPortIds();
         void helperCheckQueuesIds();

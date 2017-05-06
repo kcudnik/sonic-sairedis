@@ -754,6 +754,14 @@ std::string sai_serialize_ipv4(
     return buf;
 }
 
+std::string sai_serialize_pointer(
+        _In_ sai_pointer_t ptr)
+{
+    SWSS_LOG_ENTER();
+
+    return sai_serialize_number((uint64_t)ptr, true);
+}
+
 std::string sai_serialize_ipv6(
         _In_ const sai_ip6_t& ip)
 {
@@ -1155,6 +1163,9 @@ std::string sai_serialize_attr_value(
 
         case SAI_ATTR_VALUE_TYPE_IPV6:
             return sai_serialize_ipv6(attr.value.ip6);
+
+        case SAI_ATTR_VALUE_TYPE_POINTER:
+            return sai_serialize_pointer(attr.value.ptr);
 
         case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
             return sai_serialize_ip_address(attr.value.ipaddr);
@@ -1851,6 +1862,15 @@ void sai_deserialize_ipv4(
     }
 }
 
+void sai_deserialize_pointer(
+        _In_ const std::string& s,
+        _Out_ sai_pointer_t& ptr)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_number(s, (uint64_t&)ptr, true);
+}
+
 void sai_deserialize_ip_address(
         _In_ const std::string& s,
         _Out_ sai_ip_address_t& ipaddr)
@@ -2095,6 +2115,9 @@ void sai_deserialize_attr_value(
 
         case SAI_ATTR_VALUE_TYPE_IPV6:
             return sai_deserialize_ipv6(s, attr.value.ip6);
+
+        case SAI_ATTR_VALUE_TYPE_POINTER:
+            return sai_deserialize_pointer(s, attr.value.ptr);
 
         case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
             return sai_deserialize_ip_address(s, attr.value.ipaddr);
@@ -2517,6 +2540,7 @@ void sai_deserialize_free_attribute_value(
         case SAI_ATTR_VALUE_TYPE_MAC:
         case SAI_ATTR_VALUE_TYPE_IPV4:
         case SAI_ATTR_VALUE_TYPE_IPV6:
+        case SAI_ATTR_VALUE_TYPE_POINTER:
         case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
         case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
             break;

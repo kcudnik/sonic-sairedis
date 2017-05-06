@@ -355,14 +355,8 @@ void processSwitches()
         auto sw = switches[switch_vid] = std::make_shared<SaiSwitch>(switch_vid, switch_rid);
 
         /*
-         * We remove default vlan members to make it easier to reinit since our
-         * orch agent will remove them anyway.
-         *
-         * NOTE: To make this fully functional we need make use of method that
-         * will list all objects after switch creation.
+         * VLAN members are removed in switch constructor.
          */
-
-        sw->removeDefaultVlanMembers();
 
         /*
          * Since we have only one switch we can get away with this.
