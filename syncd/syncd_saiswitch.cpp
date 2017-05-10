@@ -920,7 +920,7 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
         {
             const std::string &name = sai_serialize_port_stat(counter);
 
-            SWSS_LOG_WARN("counter %s is not supported on port RID %s: %s",
+            SWSS_LOG_INFO("counter %s is not supported on port RID %s: %s",
                     name.c_str(),
                     sai_serialize_object_id(port_rid).c_str(),
                     sai_serialize_status(status).c_str());
@@ -930,6 +930,10 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 
         supportedCounters.push_back(counter);
     }
+
+    SWSS_LOG_NOTICE("supported %zu of %d",
+            supportedCounters.size(),
+            metadata_enum_sai_port_stat_t.valuescount);
 
     return supportedCounters;
 }
@@ -1116,6 +1120,200 @@ sai_object_id_t SaiSwitch::getSwitchDefaultAttrOid(
     return it->second;
 }
 
+void SaiSwitch::saiDiscover(
+        _In_ sai_object_id_t rid,
+        _Inout_ std::set<sai_object_id_t> &discovered)
+{
+    SWSS_LOG_ENTER();
+
+    /*
+     * NOTE: This method is only good after switch init
+     * since we are making assumptions that tere are no
+     * ACL after initialization.
+     */
+
+    if (rid == SAI_NULL_OBJECT_ID)
+    {
+        return;
+    }
+
+    if (discovered.find(rid) != discovered.end())
+    {
+        return;
+    }
+
+    discovered.insert(rid);
+
+    sai_object_type_t ot = sai_object_type_query(rid);
+
+    SWSS_LOG_DEBUG("processing %s: %s",
+            sai_serialize_object_id(rid).c_str(),
+            sai_serialize_object_type(ot).c_str());
+
+    if (ot == SAI_OBJECT_TYPE_NULL)
+    {
+        SWSS_LOG_ERROR("id %s returned NULL object type",
+                sai_serialize_object_id(rid).c_str());
+
+        return;
+    }
+
+    // TODO later use sai_metadata_get_object_type_info(ot);
+    const sai_object_type_info_t *info =  sai_all_object_type_infos[ot];
+
+    /*
+     * We will query only oid object types
+     * then we don't need meta key, but we need to add to metadata
+     * pointers to only generic functions.
+     */
+
+    sai_object_meta_key_t mk = { .objecttype = ot, .objectkey = { .key = { .object_id = rid } } };
+
+    for (int idx = 0; info->attrmetadata[idx] != NULL; ++idx)
+    {
+        const sai_attr_metadata_t *md = info->attrmetadata[idx];
+
+        /*
+         * Note that we don't care about ACL object id's since
+         * we assume that there are no ACLs on switch after init.
+         */
+
+        sai_attribute_t attr;
+
+        attr.id = md->attrid;
+
+        if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            if (md->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_CONST)
+            {
+                /*
+                 * This means that default value for this object is
+                 * SAI_NULL_OBJECT_ID, since this is discovery after
+                 * create, we don't need to query this attribute.
+                 */
+
+                continue;
+            }
+
+            if (md->objecttype == SAI_OBJECT_TYPE_STP &&
+                    md->attrid == SAI_STP_ATTR_BRIDGE_ID)
+            {
+                SWSS_LOG_ERROR("skipping since it causes crash: %s", md->attridname);
+                continue;
+            }
+
+            if (md->objecttype == SAI_OBJECT_TYPE_BRIDGE_PORT)
+            {
+                if (md->attrid == SAI_BRIDGE_PORT_ATTR_TUNNEL_ID ||
+                        md->attrid == SAI_BRIDGE_PORT_ATTR_RIF_ID)
+                {
+                    /*
+                     * We know that bridge port is binded on PORT, no need
+                     * to query those attributes.
+                     */
+
+                    continue;
+                }
+            }
+
+            SWSS_LOG_DEBUG("getting %s for %s", md->attridname,
+                    sai_serialize_object_id(rid).c_str());
+
+            sai_status_t status = info->get(&mk, 1, &attr);
+
+            if (status != SAI_STATUS_SUCCESS)
+            {
+                /*
+                 * We failed to get value, maybe it's not supported ?
+                 */
+
+                SWSS_LOG_WARN("%s: %s on %s",
+                        md->attridname,
+                        sai_serialize_status(status).c_str(),
+                        sai_serialize_object_id(rid).c_str());
+
+                continue;
+            }
+
+            saiDiscover(attr.value.oid, discovered); // recursion
+        }
+        else if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_LIST)
+        {
+            if (md->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_EMPTY_LIST)
+            {
+                /*
+                 * This means that default value for this object is
+                 * empty list, since this is discovery after
+                 * create, we don't need to query this attribute.
+                 */
+
+                continue;
+            }
+
+            SWSS_LOG_DEBUG("getting %s for %s", md->attridname,
+                    sai_serialize_object_id(rid).c_str());
+
+            sai_object_id_t local[SAI_DISCOVERY_LIST_MAX_ELEMENTS];
+
+            attr.value.objlist.count = SAI_DISCOVERY_LIST_MAX_ELEMENTS;
+            attr.value.objlist.list = local;
+
+            sai_status_t status = info->get(&mk, 1, &attr);
+
+            if (status != SAI_STATUS_SUCCESS)
+            {
+                /*
+                 * We failed to get value, maybe it's not supported ?
+                 */
+
+                SWSS_LOG_WARN("%s: %s on %s",
+                        md->attridname,
+                        sai_serialize_status(status).c_str(),
+                        sai_serialize_object_id(rid).c_str());
+
+                continue;
+            }
+
+            SWSS_LOG_DEBUG("list count %s %u", md->attridname, attr.value.objlist.count);
+
+            for (uint32_t i = 0; i < attr.value.objlist.count; ++i)
+            {
+                saiDiscover(attr.value.objlist.list[i], discovered); // recursion
+            }
+        }
+    }
+}
+
+void SaiSwitch::helperDiscover()
+{
+    SWSS_LOG_ENTER();
+
+    /*
+     * Preform discovery on the switch to obtain ASIC view of
+     * objects that are created internally.
+     */
+
+    m_discovered_rids.clear();
+
+    {
+        SWSS_LOG_TIMER("discover");
+
+        saiDiscover(m_switch_rid, m_discovered_rids);
+    }
+
+    std::map<sai_object_type_t,int> map;
+
+    for (sai_object_id_t rid: m_discovered_rids)
+    {
+        map[sai_object_type_query(rid)]++;
+    }
+
+    for (const auto &p: map)
+    {
+        SWSS_LOG_NOTICE("%s: %d", sai_serialize_object_type(p.first).c_str(), p.second);
+    }
+}
+
 SaiSwitch::SaiSwitch(
         _In_ sai_object_id_t switch_vid,
         _In_ sai_object_id_t switch_rid)
@@ -1139,13 +1337,14 @@ SaiSwitch::SaiSwitch(
 
     helperCheckLaneMap();
 
-    helperCheckPortIds();
-
+    helperDiscover();
     // TODO when veryfirst run, then we can't put them to redis
     // since we would override some objects if some needs to be removed
     // but this only in hard reinit, then we have some objects (probably some
     // removed like vlan members) and then they exists in switch
     // so we can't put them to db, and we will need to remove them
+
+    helperCheckPortIds();
 
     helperCheckQueuesIds();
 

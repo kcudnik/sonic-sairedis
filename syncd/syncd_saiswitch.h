@@ -5,6 +5,18 @@ extern "C" {
 #include "sai.h"
 }
 
+/**
+ * @def SAI_DISCOVERY_LIST_MAX_ELEMENTS
+ *
+ * Defines maximum elements that can be obtained from the OID list when
+ * performing list attribute query (discovery) on the switch.
+ *
+ * This vlaue will be used to allocate memory on the stack for obtaining object
+ * list, and should be big enough to obtain list for all ports on the switch
+ * and vlan members.
+ */
+#define SAI_DISCOVERY_LIST_MAX_ELEMENTS 1024
+
 class SaiSwitch
 {
     public:
@@ -134,8 +146,17 @@ class SaiSwitch
          */
         std::set<sai_object_id_t> m_non_create_rids;
 
+        /**
+         * @brief Discovered objects.
+         *
+         * Set of object IDs discovered after calling saiDiscovery method.
+         * This set will contain all objects present on the switch right after
+         * switch init.
+         */
+        std::set<sai_object_id_t> m_discovered_rids;
+
         /*
-         * Sai Methods.
+         * SAI Methods.
          */
 
         sai_uint32_t saiGetPortCount();
@@ -215,6 +236,30 @@ class SaiSwitch
 
         sai_object_id_t helperGetSwitchAttrOid(
                 _In_ sai_attr_id_t attr_id);
+
+        /**
+         * @brief Discover objects on the swtich.
+         *
+         * Method will query recursivly all OID attributes (oid and list) on
+         * the given object.
+         *
+         * This method should be called only once inside constructor right
+         * after switch has beed breated to obtain actual ASIC view.
+         *
+         * @param rid Object to discover other objects.
+         * @param processed Set of already processed objects. This set will be
+         * updated every time new object ID is discovered.
+         */
+        void saiDiscover(
+                _In_ sai_object_id_t rid,
+                _Inout_ std::set<sai_object_id_t> &processed);
+
+        /**
+         * @brief Discover helper.
+         *
+         * Method will call saiDiscovery and log all discovered objects.
+         */
+        void helperDiscover();
 
         /*
          * Other Methods.
