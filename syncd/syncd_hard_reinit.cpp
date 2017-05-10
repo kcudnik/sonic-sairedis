@@ -315,6 +315,11 @@ void processSwitches()
                  * to select it for switch create method, since it's required
                  * on create or it will not be possible to change it after
                  * create.
+                 *
+                 * Currently switch don't have any conditional attributes but
+                 * we could take this into account. Even if any of those
+                 * conditional attributes will present, it will be not be oid
+                 * attribute.
                  */
 
                 attrs.push_back(attrList[idx]); // struct copy, we will keep the same pointers

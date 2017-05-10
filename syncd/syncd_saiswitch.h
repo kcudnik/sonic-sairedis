@@ -48,6 +48,22 @@ class SaiSwitch
          */
         std::set<sai_object_id_t> getExistingObjects() const;
 
+        /**
+         * @brief Gets default object based on switch attribute.
+         *
+         * NOTE: This method will throw exception if invalid attribute is
+         * specified, since attribute queried by this method are explicitly
+         * declared in SaiSwitch constructor.
+         *
+         * @param attr_id Attrbute to query
+         *
+         * @return Valid RID or specified switch attribute received from
+         * switch.  This value can be also SAI_NULL_OBJECT_ID if switch don't
+         * support this attribute.
+         */
+        sai_object_id_t getSwitchDefaultAttrOid(
+                _In_ sai_object_id_t attr_id) const;
+
     private:
 
         /*
@@ -66,7 +82,14 @@ class SaiSwitch
          * Fields.
          */
 
+        /**
+         * @brief Switch virtual ID assigned by syncd.
+         */
         sai_object_id_t m_switch_vid;
+
+        /**
+         * @brief Swtich real ID assigned by SAI SDK.
+         */
         sai_object_id_t m_switch_rid;
 
         std::string m_hardware_info;
@@ -83,12 +106,14 @@ class SaiSwitch
          * later, when this scenario will happen.
          */
 
-        sai_object_id_t m_cpu_rid;
-        sai_object_id_t m_default_vlan_rid;
-        sai_object_id_t m_default_virtual_router_rid;
-        sai_object_id_t m_default_trap_group_rid;
-        sai_object_id_t m_default_stp_instance_rid;
-        sai_object_id_t m_default_1q_bridge_rid;
+        /**
+         * @brief Map of default RIDs retrived from Switch object.
+         *
+         * It will contain RIDs like CPU port, default virtual router, default
+         * trap group. etc. Those objects here should be considered non
+         * removable.
+         */
+        std::map<sai_attr_id_t,sai_object_id_t> m_default_rid_map;
 
         /*
          * NOTE: Later we need to have this in redis with port mapping.
@@ -117,24 +142,9 @@ class SaiSwitch
 
         std::string saiGetHardwareInfo();
 
-        sai_object_id_t saiGetCpuId();
-
         std::vector<sai_object_id_t> saiGetPortList();
 
         std::unordered_map<sai_uint32_t, sai_object_id_t> saiGetHardwareLaneMap();
-
-        // TODO since those are obrained from switch we should be able to
-        // optimize them
-
-        sai_object_id_t saiGetDefaultVlanId();
-
-        sai_object_id_t saiGetDefaultTrapGroup();
-
-        sai_object_id_t saiGetDefaultStpInstance();
-
-        sai_object_id_t saiGetDefaultVirtualRouter();
-
-        sai_object_id_t saiGetDefault1QBridgeId();
 
         sai_uint32_t saiGetPortNumberOfQueues(
                 _In_ sai_object_id_t port_vid);
@@ -176,18 +186,6 @@ class SaiSwitch
 
         std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap();
 
-        sai_object_id_t redisGetDefaultVlanId();
-
-        sai_object_id_t redisGetDefaultVirtualRouterId();
-
-        sai_object_id_t redisGetDefaultTrapGroupId();
-
-        sai_object_id_t redisGetDefaultStpInstanceId();
-
-        sai_object_id_t redisGetDefault1QBridgeId();
-
-        sai_object_id_t redisGetCpuId();
-
     private:
 
         void redisSaveLaneMap(
@@ -195,30 +193,12 @@ class SaiSwitch
 
         void redisClearLaneMap();
 
-        void redisSetDefaultVlanId(
-                _In_ sai_object_id_t vlan_rid);
-
-        void redisSetDefault1QBridgeId(
-                _In_ sai_object_id_t bridge_1q_rid);
-
-        void redisSetDefaultVirtualRouterId(
-                _In_ sai_object_id_t vr_rid);
-
-        void redisSetDefaultTrapGroup(
-                _In_ sai_object_id_t tg_rid);
-
-        void redisSetDefaultStpInstance(
-                _In_ sai_object_id_t stp_rid);
-
         void redisCreateRidAndVidMapping(
                 _In_ sai_object_id_t rid,
                 _In_ sai_object_id_t vid);
 
         void redisSetDummyAsicStateForRealObjectId(
                 _In_ sai_object_id_t rid);
-
-        void redisSetCpuId(
-                _In_ sai_object_id_t cpu_rid);
 
         void redisCreateDummyEntryInAsicView(
                 _In_ sai_object_id_t objectId);
@@ -228,16 +208,13 @@ class SaiSwitch
          */
 
         void helperCheckLaneMap();
-        void helperCheckDefaultVirtualRouterId();
-        void helperCheckDefaultTrapGroup();
-        void helperCheckDefaultStpInstance();
-        void helperCheckDefaultVlanId();
-        void helperCheckDefault1QBridgeId();
-        void helperCheckCpuId();
         void helperCheckPortIds();
         void helperCheckQueuesIds();
         void helperCheckPriorityGroupsIds();
         void helperCheckSchedulerGroupsIds();
+
+        sai_object_id_t helperGetSwitchAttrOid(
+                _In_ sai_attr_id_t attr_id);
 
         /*
          * Other Methods.

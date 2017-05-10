@@ -71,30 +71,6 @@ std::string SaiSwitch::saiGetHardwareInfo()
     return m_hardware_info;
 }
 
-sai_object_id_t SaiSwitch::saiGetCpuId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_CPU_PORT;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get cpu port: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("cpu port RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_cpu_rid = attr.value.oid;
-
-    return attr.value.oid;
-}
-
 std::vector<sai_object_id_t> SaiSwitch::saiGetPortList()
 {
     SWSS_LOG_ENTER();
@@ -173,102 +149,6 @@ std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::saiGetHardwareLaneM
     }
 
     return map;
-}
-
-sai_object_id_t SaiSwitch::saiGetDefaultTrapGroup()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_DEFAULT_TRAP_GROUP;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get switch default trap group: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("default trap group RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_default_trap_group_rid = attr.value.oid;
-
-    return attr.value.oid;
-}
-
-sai_object_id_t SaiSwitch::saiGetDefaultStpInstance()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get switch default stp instance: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("default stp instance RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_default_stp_instance_rid = attr.value.oid;
-
-    return attr.value.oid;
-}
-
-sai_object_id_t SaiSwitch::saiGetDefaultVirtualRouter()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get switch virtual router id: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("default virtual router RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_default_virtual_router_rid = attr.value.oid;
-
-    return attr.value.oid;
-}
-
-sai_object_id_t SaiSwitch::saiGetDefault1QBridgeId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get switch default 1q bridge id: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("default 1q bridge RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_default_1q_bridge_rid = attr.value.oid;
-
-    return attr.value.oid;
 }
 
 std::string SaiSwitch::getRedisLanesKey()
@@ -452,186 +332,6 @@ std::string SaiSwitch::getRedisHiddenKey()
     return std::string(HIDDEN);
 }
 
-sai_object_id_t SaiSwitch::redisGetDefaultVirtualRouterId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redisVrId = g_redisClient->hget(key, DEFAULT_VIRTUAL_ROUTER_ID);
-
-    if (redisVrId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t vr_id;
-
-    sai_deserialize_object_id(*redisVrId, vr_id);
-
-    return vr_id;
-}
-
-sai_object_id_t SaiSwitch::redisGetDefault1QBridgeId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redis1QBridgeId = g_redisClient->hget(key, DEFAULT_1Q_BRIDGE_ID);
-
-    if (redis1QBridgeId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t bridge_1q_id;
-
-    sai_deserialize_object_id(*redis1QBridgeId, bridge_1q_id);
-
-    return bridge_1q_id;
-}
-
-sai_object_id_t SaiSwitch::redisGetDefaultVlanId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redisVrId = g_redisClient->hget(key, DEFAULT_VLAN_ID);
-
-    if (redisVrId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t vr_id;
-
-    sai_deserialize_object_id(*redisVrId, vr_id);
-
-    return vr_id;
-}
-
-sai_object_id_t SaiSwitch::redisGetDefaultTrapGroupId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redisVrId = g_redisClient->hget(key, DEFAULT_TRAP_GROUP_ID);
-
-    if (redisVrId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t vr_id;
-
-    sai_deserialize_object_id(*redisVrId, vr_id);
-
-    return vr_id;
-}
-
-sai_object_id_t SaiSwitch::redisGetDefaultStpInstanceId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redisStpId = g_redisClient->hget(key, DEFAULT_STP_INSTANCE_ID);
-
-    if (redisStpId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t stp_id;
-
-    sai_deserialize_object_id(*redisStpId, stp_id);
-
-    return stp_id;
-}
-
-sai_object_id_t SaiSwitch::redisGetCpuId()
-{
-    SWSS_LOG_ENTER();
-
-    auto key = getRedisHiddenKey();
-
-    auto redisCpuId = g_redisClient->hget(key, CPU_PORT_ID);
-
-    if (redisCpuId == NULL)
-    {
-        return SAI_NULL_OBJECT_ID;
-    }
-
-    sai_object_id_t cpuId;
-
-    sai_deserialize_object_id(*redisCpuId, cpuId);
-
-    return cpuId;
-}
-
-void SaiSwitch::redisSetDefaultVirtualRouterId(
-        _In_ sai_object_id_t vr_id)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strVrId = sai_serialize_object_id(vr_id);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, DEFAULT_VIRTUAL_ROUTER_ID, strVrId);
-}
-
-void SaiSwitch::redisSetDefaultTrapGroup(
-        _In_ sai_object_id_t vr_id)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strVrId = sai_serialize_object_id(vr_id);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, DEFAULT_TRAP_GROUP_ID, strVrId);
-}
-
-void SaiSwitch::redisSetDefaultStpInstance(
-        _In_ sai_object_id_t stp_id)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strStpId = sai_serialize_object_id(stp_id);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, DEFAULT_STP_INSTANCE_ID, strStpId);
-}
-
-void SaiSwitch::redisSetDefaultVlanId(
-        _In_ sai_object_id_t vlan_rid)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strVlanRid = sai_serialize_object_id(vlan_rid);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, DEFAULT_VLAN_ID, strVlanRid);
-}
-
-void SaiSwitch::redisSetDefault1QBridgeId(
-        _In_ sai_object_id_t bridge_1q_rid)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strVlanRid = sai_serialize_object_id(bridge_1q_rid);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, DEFAULT_1Q_BRIDGE_ID, strVlanRid);
-}
-
 void SaiSwitch::redisCreateRidAndVidMapping(
         _In_ sai_object_id_t rid,
         _In_ sai_object_id_t vid)
@@ -682,130 +382,6 @@ void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
     redisCreateRidAndVidMapping(rid, vid);
 }
 
-void SaiSwitch::helperCheckDefaultVirtualRouterId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t vrId = saiGetDefaultVirtualRouter();
-
-    sai_object_id_t redisVrId = redisGetDefaultVirtualRouterId();
-
-    if (redisVrId == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(vrId);
-
-        SWSS_LOG_INFO("redis default virtual router id is not defined yet");
-
-        redisSetDefaultVirtualRouterId(vrId);
-
-        redisVrId = vrId;
-    }
-
-    if (vrId != redisVrId)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: default virtual router id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(vrId).c_str(),
-                sai_serialize_object_id(redisVrId).c_str());
-    }
-}
-
-void SaiSwitch::helperCheckDefaultTrapGroup()
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t tgId = saiGetDefaultTrapGroup();
-
-    sai_object_id_t redisTgId = redisGetDefaultTrapGroupId();
-
-    if (redisTgId == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(tgId);
-
-        SWSS_LOG_INFO("redis default trap group is not defined yet");
-
-        redisSetDefaultTrapGroup(tgId);
-
-        redisTgId = tgId;
-    }
-
-    if (tgId != redisTgId)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: default trap group id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(tgId).c_str(),
-                sai_serialize_object_id(redisTgId).c_str());
-    }
-}
-
-void SaiSwitch::helperCheckDefaultStpInstance()
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t stpId = saiGetDefaultStpInstance();
-
-    sai_object_id_t redisStpId = redisGetDefaultStpInstanceId();
-
-    if (redisStpId == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(stpId);
-
-        SWSS_LOG_INFO("redis default stp instance id is not defined yet");
-
-        redisSetDefaultStpInstance(stpId);
-
-        redisStpId = stpId;
-    }
-
-    if (stpId != redisStpId)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: default stp instance id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(stpId).c_str(),
-                sai_serialize_object_id(redisStpId).c_str());
-    }
-}
-
-void SaiSwitch::redisSetCpuId(
-        _In_ sai_object_id_t cpuId)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strCpuId = sai_serialize_object_id(cpuId);
-
-    auto key = getRedisHiddenKey();
-
-    g_redisClient->hset(key, CPU_PORT_ID, strCpuId);
-}
-
-void SaiSwitch::helperCheckCpuId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t cpuId = saiGetCpuId();
-
-    sai_object_id_t redisCpuId = redisGetCpuId();
-
-    if (redisCpuId == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(cpuId);
-
-        SWSS_LOG_INFO("redis cpu id is not defined yet");
-
-        redisSetCpuId(cpuId);
-
-        redisCpuId = cpuId;
-    }
-
-    if (cpuId != redisCpuId)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: cpu id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(cpuId).c_str(),
-                sai_serialize_object_id(redisCpuId).c_str());
-    }
-}
-
 void SaiSwitch::redisCreateDummyEntryInAsicView(
         _In_ sai_object_id_t objectId)
 {
@@ -848,94 +424,6 @@ void SaiSwitch::helperCheckPortIds()
         redisCreateDummyEntryInAsicView(port_rid);
 
         m_default_ports_rids.insert(port_rid);
-    }
-}
-
-sai_object_id_t SaiSwitch::saiGetDefaultVlanId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_DEFAULT_VLAN_ID;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get default vlan id: %s",
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("default vlan RID %s",
-            sai_serialize_object_id(attr.value.oid).c_str());
-
-    m_default_vlan_rid = attr.value.oid;
-
-    return attr.value.oid;
-}
-
-void SaiSwitch::helperCheckDefaultVlanId()
-{
-    /*
-     * In SAI v1.0 default vlan is object id.
-     *
-     * We are adding this vlan here to redis db additional care needs to be
-     * taken when reinit since this vlan will be recreated in hard reinit
-     * logic, so we need to add additional case for that.
-     */
-
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t vlanRid = saiGetDefaultVlanId();
-
-    sai_object_id_t redisVlanRid = redisGetDefaultVlanId();
-
-    if (redisVlanRid == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(vlanRid);
-
-        SWSS_LOG_INFO("redis default vlan id is not defined yet");
-
-        redisSetDefaultVlanId(vlanRid);
-
-        redisVlanRid = vlanRid;
-    }
-
-    if (vlanRid != redisVlanRid)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: default vlan id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(vlanRid).c_str(),
-                sai_serialize_object_id(redisVlanRid).c_str());
-    }
-}
-
-void SaiSwitch::helperCheckDefault1QBridgeId()
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t bridgeRid = saiGetDefault1QBridgeId();
-
-    sai_object_id_t redisBridgeRid = redisGetDefault1QBridgeId();
-
-    if (redisBridgeRid == SAI_NULL_OBJECT_ID)
-    {
-        redisSetDummyAsicStateForRealObjectId(bridgeRid);
-
-        SWSS_LOG_INFO("redis default bridge id is not defined yet");
-
-        redisSetDefault1QBridgeId(bridgeRid);
-
-        redisBridgeRid = bridgeRid;
-    }
-
-    if (bridgeRid != redisBridgeRid)
-    {
-        // if this happens, we need to remap VIDTORID and RIDTOVID
-        SWSS_LOG_THROW("FIXME: default bridge id differs: %s vs %s, ids must be remapped",
-                sai_serialize_object_id(bridgeRid).c_str(),
-                sai_serialize_object_id(redisBridgeRid).c_str());
     }
 }
 
@@ -1338,12 +826,15 @@ void SaiSwitch::removeDefaultVlanMembers()
     attr.value.objlist.count = (uint32_t)vlanMemberList.size();
     attr.value.objlist.list = vlanMemberList.data();
 
-    sai_status_t status = sai_metadata_sai_vlan_api->get_vlan_attribute(m_default_vlan_rid, 1, &attr);
+    sai_object_id_t default_vlan_rid =
+        getSwitchDefaultAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
+
+    sai_status_t status = sai_metadata_sai_vlan_api->get_vlan_attribute(default_vlan_rid, 1, &attr);
 
     if (status != SAI_STATUS_SUCCESS)
     {
         SWSS_LOG_THROW("failed to obtain default vlan %s members",
-                sai_serialize_object_id(m_default_vlan_rid).c_str());
+                sai_serialize_object_id(default_vlan_rid).c_str());
     }
 
     vlanMemberList.resize(attr.value.objlist.count);
@@ -1358,7 +849,7 @@ void SaiSwitch::removeDefaultVlanMembers()
         {
             SWSS_LOG_THROW("Failed to remove vlan member RID %s from vlan RID %s",
                     sai_serialize_object_id(vm).c_str(),
-                    sai_serialize_object_id(m_default_vlan_rid).c_str());
+                    sai_serialize_object_id(default_vlan_rid).c_str());
         }
     }
 }
@@ -1367,12 +858,19 @@ void SaiSwitch::buildNonCreateRids()
 {
     SWSS_LOG_ENTER();
 
-    m_non_create_rids.insert(m_cpu_rid);
-    m_non_create_rids.insert(m_default_vlan_rid);
-    m_non_create_rids.insert(m_default_virtual_router_rid);
-    m_non_create_rids.insert(m_default_trap_group_rid);
-    m_non_create_rids.insert(m_default_stp_instance_rid);
-    m_non_create_rids.insert(m_default_1q_bridge_rid);
+    for (const auto &p: m_default_rid_map)
+    {
+        m_non_create_rids.insert(p.second);
+    }
+
+    // TODO we need to use Table to put everything after hard reinit
+    // and we need flag to
+
+    // TODO we need support for remove objects that are no more present
+    // and we need to start removing them basing on references count
+    // we cant remove bridge before bridge port
+
+    // TODO get all this stuff from discovery !
 
     m_non_create_rids.insert(m_default_priority_groups_rids.begin(), m_default_priority_groups_rids.end());
     m_non_create_rids.insert(m_default_queues_rids.begin(), m_default_queues_rids.end());
@@ -1501,6 +999,123 @@ void SaiSwitch::collectCounters(
     }
 }
 
+/**
+ * @brief Helper function to get attribute oid from switch.
+ *
+ * Helper will try to obtain oid value for given attribute id.  On success, it
+ * will try to obtain this value from redis database.  When value is not in
+ * redis yet, it will store it, but when value was already there, it will
+ * compare redis value to current oid and when they are different, it will
+ * throw exception requesting for fix. When oid values are equal, function
+ * returns current value.
+ *
+ * @param attr_id Attribute id to obtain oid from it.
+ *
+ * @return Valid object id (riD) if present, SAI_NULL_OBJECT_ID on failure.
+ */
+sai_object_id_t SaiSwitch::helperGetSwitchAttrOid(
+        _In_ sai_attr_id_t attr_id)
+{
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+
+    /*
+     * Get original value from the ASIC.
+     */
+
+    auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr_id);
+
+    attr.id = attr_id;
+
+    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("failed to get %s: %s",
+                meta->attridname,
+                sai_serialize_status(status).c_str());
+
+        m_default_rid_map[attr_id] = SAI_NULL_OBJECT_ID;
+
+        return SAI_NULL_OBJECT_ID;
+    }
+
+    SWSS_LOG_DEBUG("%s RID %s",
+            meta->attridname,
+            sai_serialize_object_id(attr.value.oid).c_str());
+
+    sai_object_id_t rid = attr.value.oid;
+
+    sai_object_id_t redis_rid = SAI_NULL_OBJECT_ID;
+
+    /*
+     * Get value value of the same attribute from redis.
+     */
+
+    auto key = getRedisHiddenKey();
+
+    auto ptr_redis_rid_str = g_redisClient->hget(key, meta->attridname);
+
+    if (ptr_redis_rid_str == NULL)
+    {
+        /*
+         * Redis value of this attribute is not present yet, save it!
+         */
+
+        redisSetDummyAsicStateForRealObjectId(rid);
+
+        SWSS_LOG_INFO("redis %s id is not defined yet in redis", meta->attridname);
+
+        std::string rid_str = sai_serialize_object_id(rid);
+
+        g_redisClient->hset(key, meta->attridname, rid_str);
+
+        m_default_rid_map[attr_id] = rid;
+
+        return rid;
+    }
+
+    sai_deserialize_object_id(*ptr_redis_rid_str, redis_rid);
+
+    if (rid != redis_rid)
+    {
+        /*
+         * In that case we need to remap VIDTORID and RIDTOVID. This is
+         * required since if previous value will be used in redis maps, and it
+         * will be invalid when that value will be used to call SAI api.
+         */
+
+        SWSS_LOG_THROW("FIXME: %s RID differs: %s (asic) vs %s (redis), ids must be remapped v2r/r2v",
+                meta->attridname,
+                sai_serialize_object_id(rid).c_str(),
+                sai_serialize_object_id(redis_rid).c_str());
+    }
+
+    m_default_rid_map[attr_id] = rid;
+
+    return rid;
+}
+
+sai_object_id_t SaiSwitch::getSwitchDefaultAttrOid(
+        _In_ sai_object_id_t attr_id) const
+{
+    SWSS_LOG_ENTER();
+
+    auto it = m_default_rid_map.find(attr_id);
+
+    if (it == m_default_rid_map.end())
+    {
+        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr_id);
+
+        const char* name = (meta) ? meta->attridname : "UNKNOWN";
+
+        SWSS_LOG_THROW("attribute %s (%d) not found in default RID map", name, attr_id);
+    }
+
+    return it->second;
+}
+
 SaiSwitch::SaiSwitch(
         _In_ sai_object_id_t switch_vid,
         _In_ sai_object_id_t switch_rid)
@@ -1512,22 +1127,25 @@ SaiSwitch::SaiSwitch(
 
     m_hardware_info = saiGetHardwareInfo();
 
+    // TODO this can be also automated based on metadata
+    // to get attributes read-only and with value "internal"
+
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_CPU_PORT);
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID);
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_TRAP_GROUP);
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID);
+    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID);
+
     helperCheckLaneMap();
 
-    helperCheckCpuId();
-
-    helperCheckDefaultVirtualRouterId();
-
-    helperCheckDefaultTrapGroup();
-
-    // currently STP is disabled since not all vendors supports that
-    //helperCheckDefaultStpInstance();
-
-    helperCheckDefaultVlanId();
-
-    helperCheckDefault1QBridgeId();
-
     helperCheckPortIds();
+
+    // TODO when veryfirst run, then we can't put them to redis
+    // since we would override some objects if some needs to be removed
+    // but this only in hard reinit, then we have some objects (probably some
+    // removed like vlan members) and then they exists in switch
+    // so we can't put them to db, and we will need to remove them
 
     helperCheckQueuesIds();
 
@@ -1539,6 +1157,9 @@ SaiSwitch::SaiSwitch(
     // TODO when doing hard reinit we need to take care of that (non create)
     // TODO extra handling needs to be done since they must be matched
     // by port Id and not by lanes, this will be non trivial
+    //
+    // matching oid's should be based on dependency tree, so it's not enough
+    // just to keep oids, but we need to keep map and check vs asic view
 
     buildNonCreateRids();
 

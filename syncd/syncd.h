@@ -50,14 +50,6 @@ extern "C" {
 #define LANES                       "LANES"
 #define HIDDEN                      "HIDDEN"
 
-// TODO should we use sai_switch_attr_t enums ?
-#define DEFAULT_VIRTUAL_ROUTER_ID   "DEFAULT_VIRTUAL_ROUTER_ID"
-#define DEFAULT_TRAP_GROUP_ID       "DEFAULT_TRAP_GROUP_ID"
-#define DEFAULT_STP_INSTANCE_ID     "DEFAULT_STP_INSTANCE_ID"
-#define DEFAULT_VLAN_ID             "DEFAULT_VLAN_ID"
-#define DEFAULT_1Q_BRIDGE_ID        "DEFAULT_1Q_BRIDGE_ID"
-#define CPU_PORT_ID                 "CPU_PORT_ID"
-
 #define SAI_COLD_BOOT               0
 #define SAI_WARM_BOOT               1
 #define SAI_FAST_BOOT               2

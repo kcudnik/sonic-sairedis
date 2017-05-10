@@ -714,10 +714,8 @@ class AsicView
 
         std::map<sai_object_type_t, std::unordered_map<std::string,std::string>> nonObjectIdMap;
 
-        sai_object_id_t cpuPortRid;
         sai_object_id_t defaultVirtualRouterRid;
         sai_object_id_t defaultTrapGroupRid;
-        sai_object_id_t defaultStpInstanceRid;
         sai_object_id_t defaultVlanRid;
 
         std::vector<std::shared_ptr<SaiObj>> getObjectsByObjectType(
@@ -4745,18 +4743,17 @@ sai_status_t internalSyncdApplyView()
          *
          * TODO: This needs to be refactored and solved in other way since asic
          * view can contain multiple switches.
+         *
+         * TODO: This also can be optimised using metadata.
+         * We need to add access to SaiSwitch in AsicView.
          */
 
-        current.cpuPortRid              = sw->redisGetCpuId();
-        current.defaultVirtualRouterRid = sw->redisGetDefaultVirtualRouterId();
-        current.defaultTrapGroupRid     = sw->redisGetDefaultTrapGroupId();
-        current.defaultStpInstanceRid   = sw->redisGetDefaultStpInstanceId();
-        current.defaultVlanRid          = sw->redisGetDefaultVlanId();
+        current.defaultVirtualRouterRid = sw->getSwitchDefaultAttrOid(SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID);
+        current.defaultTrapGroupRid     = sw->getSwitchDefaultAttrOid(SAI_SWITCH_ATTR_DEFAULT_TRAP_GROUP);
+        current.defaultVlanRid          = sw->getSwitchDefaultAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
 
-        temp.cpuPortRid                 = current.cpuPortRid;
         temp.defaultVirtualRouterRid    = current.defaultVirtualRouterRid;
         temp.defaultTrapGroupRid        = current.defaultTrapGroupRid;
-        temp.defaultStpInstanceRid      = current.defaultStpInstanceRid;
         temp.defaultVlanRid             = current.defaultVlanRid;
 
         /*
