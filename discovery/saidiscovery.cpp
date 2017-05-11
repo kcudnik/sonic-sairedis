@@ -103,8 +103,6 @@ size_t discover(
 
         if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID)
         {
-            SWSS_LOG_INFO("getting %s for 0x%lx", md->attridname, id);
-
             if (md->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_CONST)
             {
                 /*
@@ -137,6 +135,8 @@ size_t discover(
                 }
             }
 
+            SWSS_LOG_INFO("getting %s for 0x%lx", md->attridname, id);
+
             sai_status_t status = info->get(&mk, 1, &attr);
 
             callCount++;
@@ -158,8 +158,6 @@ size_t discover(
         }
         else if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_LIST)
         {
-            SWSS_LOG_INFO("getting %s for 0x%lx", md->attridname, id);
-
             if (md->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_EMPTY_LIST)
             {
                 /*
@@ -170,6 +168,8 @@ size_t discover(
 
                 continue;
             }
+
+            SWSS_LOG_INFO("getting %s for 0x%lx", md->attridname, id);
 
             attr.value.objlist.count = MAX_ELEMENTS;
             attr.value.objlist.list = (sai_object_id_t*)alloca(sizeof(sai_object_id_t) * MAX_ELEMENTS);
@@ -283,8 +283,26 @@ int main(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    if (argc == 1)
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
+    bool debug = false;
+    bool init = true;
+
+    for (int i = 0 ; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "-I") == 0)
+        {
+            init = false;
+        }
+
+        if (strcmp(argv[i], "-d") == 0)
+        {
+            debug = true;
+        }
+    }
+
+    if (!debug)
+    {
+        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
+    }
 
     sai_status_t status = sai_api_initialize(0, (service_method_table_t*)&test_services);
 
@@ -301,7 +319,9 @@ int main(int argc, char **argv)
     sai_attribute_t attr;
 
     attr.id = SAI_SWITCH_ATTR_INIT_SWITCH;
-    attr.value.booldata = true;
+    attr.value.booldata = init;
+
+    // TODO in the future there may be more mandatory attributes when creating switch
 
     status = sai_metadata_sai_switch_api->create_switch(&switch_rid, 1, &attr);
 
