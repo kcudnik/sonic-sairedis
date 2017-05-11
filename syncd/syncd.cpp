@@ -351,7 +351,7 @@ sai_object_id_t translate_rid_to_vid(
         return vid;
     }
 
-    SWSS_LOG_INFO("spotted new RID 0x%lx", rid);
+    SWSS_LOG_DEBUG("spotted new RID 0x%lx", rid);
 
     sai_object_type_t object_type = sai_object_type_query(rid);
 
@@ -2395,7 +2395,8 @@ void saiLoglevelNotify(std::string apiStr, std::string prioStr)
 
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to set SAI loglevel %s %s", apiStr.c_str(), prioStr.c_str());
+        SWSS_LOG_INFO("Failed to set %s on %s: %s", prioStr.c_str(), apiStr.c_str(),
+                sai_serialize_status(status).c_str());
         return;
     }
 
@@ -2516,7 +2517,6 @@ void onSyncdStart(bool warmStart)
 
     hardReinit();
 }
-
 
 void sai_meta_log_syncd(
         _In_ sai_log_level_t log_level,

@@ -356,6 +356,8 @@ void SaiSwitch::redisCreateRidAndVidMapping(
     SWSS_LOG_DEBUG("set VID 0x%lx and RID 0x%lx", vid, rid);
 }
 
+// TODO this is problem: we need to combine those into 2 methods
+
 void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
         _In_ sai_object_id_t rid)
 {
@@ -412,7 +414,7 @@ void SaiSwitch::helperCheckPortIds()
 
     auto laneMap = saiGetHardwareLaneMap();
 
-    for (auto kv: laneMap)
+    for (const auto &kv: laneMap)
     {
         sai_object_id_t port_rid = kv.second;
 
@@ -422,352 +424,6 @@ void SaiSwitch::helperCheckPortIds()
          */
 
         redisCreateDummyEntryInAsicView(port_rid);
-
-        m_default_ports_rids.insert(port_rid);
-    }
-}
-
-sai_uint32_t SaiSwitch::saiGetPortNumberOfQueues(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES;
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get port RID %s number of queues: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("port RID %s queues number: %u",
-            sai_serialize_object_id(port_rid).c_str(),
-            attr.value.u32);
-
-    return attr.value.u32;
-}
-
-std::vector<sai_object_id_t> SaiSwitch::saiGetPortQueues(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    uint32_t queueCount = saiGetPortNumberOfQueues(port_rid);
-
-    std::vector<sai_object_id_t> queueList;
-
-    if (queueCount == 0)
-    {
-        return queueList;
-    }
-
-    queueList.resize(queueCount);
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_QOS_QUEUE_LIST;
-    attr.value.objlist.count = queueCount;
-    attr.value.objlist.list = queueList.data();
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get port RID %s queue list: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    queueList.resize(attr.value.objlist.count);
-
-    return queueList;
-}
-
-void SaiSwitch::helperCheckQueuesIds()
-{
-    SWSS_LOG_ENTER();
-
-    std::vector<sai_object_id_t> ports = saiGetPortList();
-
-    for (const auto& port_rid: ports)
-    {
-        SWSS_LOG_DEBUG("getting queues for port RID: %s",
-                sai_serialize_object_id(port_rid).c_str());
-
-        std::vector<sai_object_id_t> queues = saiGetPortQueues(port_rid);
-
-        /*
-         * We have queues.
-         */
-
-        for (const auto& queue_rid: queues)
-        {
-            /*
-             * NOTE: Create entry in asic view if missing we assume here that
-             * queue numbers will not be changed during restarts.
-             */
-
-            redisCreateDummyEntryInAsicView(queue_rid);
-
-            m_default_queues_rids.insert(queue_rid);
-        }
-    }
-}
-
-sai_uint32_t SaiSwitch::saiGetPortNumberOfPriorityGroups(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_NUMBER_OF_INGRESS_PRIORITY_GROUPS;
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get port RID %s number of priority groups: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    SWSS_LOG_DEBUG("port RID %s priority groups number: %u",
-            sai_serialize_object_id(port_rid).c_str(),
-            attr.value.u32);
-
-    return attr.value.u32;
-}
-
-std::vector<sai_object_id_t> SaiSwitch::saiGetPortPriorityGroups(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    uint32_t pgCount = saiGetPortNumberOfPriorityGroups(port_rid);
-
-    std::vector<sai_object_id_t> pgList;
-
-    if (pgCount == 0)
-    {
-        return pgList;
-    }
-
-    pgList.resize(pgCount);
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_INGRESS_PRIORITY_GROUP_LIST;
-    attr.value.objlist.count = pgCount;
-    attr.value.objlist.list = pgList.data();
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to get port RID %s priority groups list: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    pgList.resize(attr.value.objlist.count);
-
-    return pgList;
-}
-
-void SaiSwitch::helperCheckPriorityGroupsIds()
-{
-    SWSS_LOG_ENTER();
-
-    std::vector<sai_object_id_t> ports = saiGetPortList();
-
-    for (const auto& port_rid: ports)
-    {
-        SWSS_LOG_DEBUG("getting priority groups for port RID: %s",
-                sai_serialize_object_id(port_rid).c_str());
-
-        std::vector<sai_object_id_t> pgs = saiGetPortPriorityGroups(port_rid);
-
-        for (const auto& pg_rid: pgs)
-        {
-            /*
-             * NOTE: Create entry in asic view if missing we assume here that
-             * PG numbers will not be changed during restarts.
-             */
-
-            redisCreateDummyEntryInAsicView(pg_rid);
-
-            m_default_priority_groups_rids.insert(pg_rid);
-        }
-    }
-}
-
-uint32_t SaiSwitch::saiGetMaxNumberOfChildsPerSchedulerGroup()
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_CHILDS_PER_SCHEDULER_GROUP;
-
-    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("faled to obtain SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_CHILDS_PER_SCHEDULER_GROUP for switch RID %s: %s",
-                sai_serialize_object_id(m_switch_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    return attr.value.u32;
-}
-
-uint32_t SaiSwitch::saiGetQosNumberOfSchedulerGroups(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_QOS_NUMBER_OF_SCHEDULER_GROUPS;
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("Failed to get number of scheduler groups for port RID %s: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    /*
-     * Total groups list on the port.
-     */
-
-    return attr.value.u32;
-}
-
-std::vector<sai_object_id_t> SaiSwitch::saiGetSchedulerGroupList(
-        _In_ sai_object_id_t port_rid)
-{
-    SWSS_LOG_ENTER();
-
-    uint32_t groupsCount = saiGetQosNumberOfSchedulerGroups(port_rid);
-
-    std::vector<sai_object_id_t> groups;
-
-    groups.resize(groupsCount);
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_PORT_ATTR_QOS_SCHEDULER_GROUP_LIST;
-    attr.value.objlist.list = groups.data();
-    attr.value.objlist.count = (uint32_t)groups.size();
-
-    sai_status_t status = sai_metadata_sai_port_api->get_port_attribute(port_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("Failed to get scheduler group list for port RID %s: %s",
-                sai_serialize_object_id(port_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    groups.resize(attr.value.objlist.count);
-
-    SWSS_LOG_DEBUG("got %zu scheduler groups on port RID %s",
-            groups.size(),
-            sai_serialize_object_id(port_rid).c_str());
-
-    return groups;
-}
-
-uint32_t SaiSwitch::saiGetSchedulerGroupChildCount(
-        _In_ sai_object_id_t sg_rid)
-{
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT; // queues + sched groups
-
-    sai_status_t status = sai_metadata_sai_scheduler_group_api->get_scheduler_group_attribute(sg_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("Failed to get child count for scheduler group RID %s: %s",
-                sai_serialize_object_id(sg_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    return attr.value.u32;
-}
-
-std::vector<sai_object_id_t> SaiSwitch::saiGetSchedulerGroupChildList(
-        _In_ sai_object_id_t sg_rid)
-{
-    SWSS_LOG_ENTER();
-
-    uint32_t childCount = saiGetSchedulerGroupChildCount(sg_rid);
-
-    SWSS_LOG_DEBUG("child count for SG RID %s is %u",
-            sai_serialize_object_id(sg_rid).c_str(),
-            childCount);
-
-    std::vector<sai_object_id_t> childs;
-
-    childs.resize(childCount);
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_SCHEDULER_GROUP_ATTR_CHILD_LIST;
-    attr.value.objlist.list = childs.data();
-    attr.value.objlist.count = (uint32_t)childs.size();
-
-    sai_status_t status = sai_metadata_sai_scheduler_group_api->get_scheduler_group_attribute(sg_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("Failed to get child list for scheduler group RID %s: %s",
-                sai_serialize_object_id(sg_rid).c_str(),
-                sai_serialize_status(status).c_str());
-    }
-
-    childs.resize(attr.value.objlist.count);
-
-    SWSS_LOG_DEBUG("got %zu childs on scheduler group RID %s",
-            childs.size(),
-            sai_serialize_object_id(sg_rid).c_str());
-
-    return childs; // scheduler groups + queues
-}
-
-void SaiSwitch::helperCheckSchedulerGroupsIds()
-{
-    SWSS_LOG_ENTER();
-
-    for (const auto& port_rid: saiGetPortList())
-    {
-        /*
-         * Each group can contain next scheduler group or queue.
-         */
-
-        for (const auto& sg_rid: saiGetSchedulerGroupList(port_rid))
-        {
-            /*
-             * NOTE: Create entry in asic view if missing we assume here that
-             * SchedulerGroups numbers will not be changed during restarts.
-             */
-
-            redisCreateDummyEntryInAsicView(sg_rid);
-
-            m_default_scheduler_groups_rids.insert(sg_rid);
-        }
     }
 }
 
@@ -797,100 +453,19 @@ std::string SaiSwitch::getHardwareInfo() const
     return m_hardware_info;
 }
 
-#define MAX_VLAN_MEMBERS 0x10000
-
-void SaiSwitch::removeDefaultVlanMembers()
-{
-    SWSS_LOG_ENTER();
-
-    /*
-     * In sai v1.0 vlan members are not by port but
-     * by bridge port id.
-     */
-
-    /*
-     * TODO: This method needs to be revisited after asic init in v1.0, all
-     * bridge ports are vlan 1 members, we will remove them to not complicate
-     * reinit if user want to add bridge ports to vlan 1, then it needs to be
-     * done explicitly.
-     */
-
-    std::vector<sai_object_id_t> vlanMemberList;
-
-    vlanMemberList.resize(MAX_VLAN_MEMBERS);
-
-    sai_attribute_t attr;
-
-    attr.id = SAI_VLAN_ATTR_MEMBER_LIST;
-
-    attr.value.objlist.count = (uint32_t)vlanMemberList.size();
-    attr.value.objlist.list = vlanMemberList.data();
-
-    sai_object_id_t default_vlan_rid =
-        getSwitchDefaultAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
-
-    sai_status_t status = sai_metadata_sai_vlan_api->get_vlan_attribute(default_vlan_rid, 1, &attr);
-
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        SWSS_LOG_THROW("failed to obtain default vlan %s members",
-                sai_serialize_object_id(default_vlan_rid).c_str());
-    }
-
-    vlanMemberList.resize(attr.value.objlist.count);
-
-    SWSS_LOG_DEBUG("obtained %zu vlan members", vlanMemberList.size());
-
-    for (auto &vm: vlanMemberList)
-    {
-        status = sai_metadata_sai_vlan_api->remove_vlan_member(vm);
-
-        if (status != SAI_STATUS_SUCCESS)
-        {
-            SWSS_LOG_THROW("Failed to remove vlan member RID %s from vlan RID %s",
-                    sai_serialize_object_id(vm).c_str(),
-                    sai_serialize_object_id(default_vlan_rid).c_str());
-        }
-    }
-}
-
-void SaiSwitch::buildNonCreateRids()
-{
-    SWSS_LOG_ENTER();
-
-    for (const auto &p: m_default_rid_map)
-    {
-        m_non_create_rids.insert(p.second);
-    }
-
-    // TODO we need to use Table to put everything after hard reinit
-    // and we need flag to
-
-    // TODO we need support for remove objects that are no more present
-    // and we need to start removing them basing on references count
-    // we cant remove bridge before bridge port
-
-    // TODO get all this stuff from discovery !
-
-    m_non_create_rids.insert(m_default_priority_groups_rids.begin(), m_default_priority_groups_rids.end());
-    m_non_create_rids.insert(m_default_queues_rids.begin(), m_default_queues_rids.end());
-    m_non_create_rids.insert(m_default_scheduler_groups_rids.begin(), m_default_scheduler_groups_rids.end());
-    m_non_create_rids.insert(m_default_ports_rids.begin(), m_default_ports_rids.end());
-}
-
-bool SaiSwitch::isNonCreateRid(
+bool SaiSwitch::isDefaultCreatedRid(
         _In_ sai_object_id_t rid)
 {
     SWSS_LOG_ENTER();
 
-    return m_non_create_rids.find(rid) != m_non_create_rids.end();
+    return m_discovered_rids.find(rid) != m_discovered_rids.end();
 }
 
 std::set<sai_object_id_t> SaiSwitch::getExistingObjects() const
 {
     SWSS_LOG_ENTER();
 
-    return m_non_create_rids;
+    return m_discovered_rids;
 }
 
 std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
@@ -1030,6 +605,16 @@ sai_object_id_t SaiSwitch::helperGetSwitchAttrOid(
 
     auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr_id);
 
+    if (meta == NULL)
+    {
+        SWSS_LOG_THROW("can't get switch attribute %d metadata", attr_id);
+    }
+
+    if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+    {
+        SWSS_LOG_THROW("atribute %s is not OID attribute", meta->attridname);
+    }
+
     attr.id = attr_id;
 
     sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
@@ -1127,9 +712,11 @@ void SaiSwitch::saiDiscover(
     SWSS_LOG_ENTER();
 
     /*
-     * NOTE: This method is only good after switch init
-     * since we are making assumptions that tere are no
-     * ACL after initialization.
+     * NOTE: This method is only good after switch init since we are making
+     * assumptions that tere are no ACL after initialization.
+     *
+     * NOTE: Input set could be a map of sets, this way we will also have
+     * dependency on each oid.
      */
 
     if (rid == SAI_NULL_OBJECT_ID)
@@ -1301,6 +888,8 @@ void SaiSwitch::helperDiscover()
         saiDiscover(m_switch_rid, m_discovered_rids);
     }
 
+    SWSS_LOG_NOTICE("discovered objects count: %zu", m_discovered_rids.size());
+
     std::map<sai_object_type_t,int> map;
 
     for (sai_object_id_t rid: m_discovered_rids)
@@ -1314,19 +903,105 @@ void SaiSwitch::helperDiscover()
     }
 }
 
+void SaiSwitch::helperPutDiscoveredRidsToRedis()
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_TIMER("put discovered objects to redis");
+
+    /*
+     * There is a problem:
+     *
+     * After switch creation, on the switch objects are created internally like
+     * VLAN members, queys, SGs etc.  Some of those obejct's are removable.
+     * User can decide that he don't want VLAN members and he will remove them.
+     * Those obejcts will be removed from ASIC view in redis as well.
+     *
+     * Now after hard reinit, syncd will picku up what is in the db and it will
+     * try to recreate ASIC state.  First it will create switch, and this
+     * switch will create those VLAN members again inside ASIC and it will try
+     * to put them back to the DB, since we need to keep track of all default
+     * objects.
+     *
+     * We need a way to decide whether we need to put those objects to DB or
+     * not. Since we are performing syncd hard reinit and recreating switch
+     * that there was something in the DB already. And basing on that we can
+     * deduce that we don't need to put again all our discovered objects to the
+     * DB, since some of thsoe obects could be removed as statet at the
+     * beginning.
+     *
+     * Hard reinit is performed before taking any action from the redis queue.
+     * But when user will decide to create switch, table consumer will put that
+     * switch to the DB right away before calling SaiSwitch constructor.  But
+     * that switch will be the only object in the ASIC table, so out simple
+     * deduction here could be checking if there is more than object in the db.
+     * If there are at least 2, then we don't need to save discovered oids.
+     *
+     * We will use at least number 32, since that should be at least number of
+     * ports that previously discovered. We could also query for PORTs.  We can
+     * also deduce this using HIDDEN key objects, if they are defined then that
+     * would mean we already put objects to db at the first place.
+     *
+     * PS. This is not the best way to solve this problem, but works.
+     */
+
+    auto keys = g_redisClient->keys(ASIC_STATE_TABLE ":*");
+
+    const int ObjectsTreshold = 32;
+
+    bool manyObjectsPresent = keys.size() > ObjectsTreshold;
+
+    SWSS_LOG_NOTICE("objects in ASIC state table present: %zu", keys.size());
+
+    if (manyObjectsPresent)
+    {
+        SWSS_LOG_NOTICE("will NOT put discovered objects into db");
+        return;
+    }
+
+    SWSS_LOG_NOTICE("putting ALL discovered objects to redis");
+
+    for (sai_object_id_t rid: m_discovered_rids)
+    {
+        /*
+         * We also could thing of optimizing this since it's one call to redis
+         * per rid, and probably this should be ATOMIC.
+         *
+         * NOTE: We are also storing read only object's here, like default
+         * virtual router, CPU, default trap group, etc.
+         */
+
+        redisCreateDummyEntryInAsicView(rid);
+    }
+}
+
 SaiSwitch::SaiSwitch(
         _In_ sai_object_id_t switch_vid,
         _In_ sai_object_id_t switch_rid)
 {
     SWSS_LOG_ENTER();
 
+    SWSS_LOG_TIMER("constructor");
+
     m_switch_rid = switch_rid;
     m_switch_vid = switch_vid;
 
     m_hardware_info = saiGetHardwareInfo();
 
-    // TODO this can be also automated based on metadata
-    // to get attributes read-only and with value "internal"
+    /*
+     * Discover put objects to redis needs to be called before checking lane
+     * map and ports, since it will deduce whether put discoverd objects to
+     * redis to not interfere with possible user created objects previously.
+     */
+
+    helperDiscover();
+
+    helperPutDiscoveredRidsToRedis();
+
+    /*
+     * TODO This can be also automated based on metadata to get attributes
+     * read-only and with default value type internal.
+     */
 
     helperGetSwitchAttrOid(SAI_SWITCH_ATTR_CPU_PORT);
     helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
@@ -1337,40 +1012,7 @@ SaiSwitch::SaiSwitch(
 
     helperCheckLaneMap();
 
-    helperDiscover();
-    // TODO when veryfirst run, then we can't put them to redis
-    // since we would override some objects if some needs to be removed
-    // but this only in hard reinit, then we have some objects (probably some
-    // removed like vlan members) and then they exists in switch
-    // so we can't put them to db, and we will need to remove them
-
     helperCheckPortIds();
 
-    helperCheckQueuesIds();
-
-    helperCheckPriorityGroupsIds();
-
-    helperCheckSchedulerGroupsIds();
-
-    // TODO we will need bridge ports here also.
-    // TODO when doing hard reinit we need to take care of that (non create)
-    // TODO extra handling needs to be done since they must be matched
-    // by port Id and not by lanes, this will be non trivial
-    //
-    // matching oid's should be based on dependency tree, so it's not enough
-    // just to keep oids, but we need to keep map and check vs asic view
-
-    buildNonCreateRids();
-
     m_supported_counters = saiGetSupportedCounters();
-
-    /*
-     * We remove default vlan members to make it easier to reinit since our
-     * orch agent will remove them anyway.
-     *
-     * NOTE: To make this fully functional we need make use of method that
-     * will list all objects after switch creation.
-     */
-
-    removeDefaultVlanMembers();
 }

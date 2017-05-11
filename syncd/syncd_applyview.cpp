@@ -4775,6 +4775,9 @@ sai_status_t internalSyncdApplyView()
          * exist since we are populating them when syncd starts, and when we
          * switch view we don't want to loose any of those objects since during
          * syncd runtime is counting on that those objects exists.
+         *
+         * TODO: If some object's will be removed like VLAN members then this
+         * existing objects needs to be updated in the switch!
          */
 
         const auto &existingObjects = sw->getExistingObjects();

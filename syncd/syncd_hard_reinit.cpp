@@ -16,7 +16,8 @@ typedef std::unordered_map<sai_object_id_t, sai_object_id_t> ObjectIdMap;
 
 static std::unordered_map<std::string, std::shared_ptr<SaiAttributeList>> g_attributesLists;
 
-static ObjectIdMap g_translated;
+static ObjectIdMap g_translatedV2R;
+static ObjectIdMap g_translatedR2V;
 static ObjectIdMap g_vidToRidMap;
 static ObjectIdMap g_ridToVidMap;
 
@@ -31,6 +32,7 @@ static StringHash g_neighbors;
  * can get away with this, but later on we need to convert this to a class like
  * SaiSwitch.
  */
+
 static sai_object_id_t g_switch_rid = SAI_NULL_OBJECT_ID;
 static sai_object_id_t g_switch_vid = SAI_NULL_OBJECT_ID;
 
@@ -51,6 +53,7 @@ sai_object_type_t getObjectTypeFromVid(
 
     sai_object_type_t objectType = redis_sai_object_type_query(object_vid);
 
+    // TODO metadata is valid oobject type
     if (objectType >= SAI_OBJECT_TYPE_MAX ||
             objectType == SAI_OBJECT_TYPE_NULL)
     {
@@ -99,6 +102,7 @@ sai_object_type_t getObjectTypeFromAsicKey(
     sai_object_type_t objectType;
     sai_deserialize_object_type(strObjectType, objectType);
 
+    // TODO metadata utils is valid object<F3>:t
     if (objectType >= SAI_OBJECT_TYPE_MAX ||
             objectType == SAI_OBJECT_TYPE_NULL)
     {
@@ -150,7 +154,7 @@ void redisSetVidAndRidMap(
 
     /*
      * TODO clear can be done after recreating all switches unless vid/rid map
-     * will be per switch.
+     * will be per switch. An all this must be ATOMIC.
      *
      * This needs to be addressed when we want to support multiple switches.
      */
@@ -172,7 +176,7 @@ void checkAllIds()
 {
     SWSS_LOG_ENTER();
 
-    for (auto &kv: g_translated)
+    for (auto &kv: g_translatedV2R)
     {
         auto it = g_vidToRidMap.find(kv.first);
 
@@ -201,7 +205,65 @@ void checkAllIds()
         SWSS_LOG_THROW("vid to rid map is not empty (%zu) after translation", size);
     }
 
-    redisSetVidAndRidMap(g_translated);
+    redisSetVidAndRidMap(g_translatedV2R);
+
+    /*
+     * Now we must check whether we need to remove some objects like VLAN
+     * members etc.
+     *
+     * TODO: Should this be done at start, before other oprations?
+     * We are able to determine which objets are missing from rid map
+     * as long as id's between restart don't change.
+     */
+
+    if (g_sw == nullptr)
+    {
+        /*
+         * No switch was created.
+         */
+
+        return;
+    }
+
+    /*
+     * Order matters here, we can't remove bridge before removing all bridge
+     * ports etc.
+     */
+
+    for (sai_object_id_t rid: g_sw->getExistingObjects())
+    {
+        if (g_translatedR2V.find(rid) != g_translatedR2V.end())
+        {
+            continue;
+        }
+
+        sai_object_type_t ot = sai_object_type_query(rid);
+
+        SWSS_LOG_ERROR("we need to remove RID %s:%s",
+                sai_serialize_object_type(ot).c_str(),
+                sai_serialize_object_id(rid).c_str());
+
+        // TODO use meta key and object info to remove
+    }
+
+    /*
+     * TODO: we can have situation here, that some obects were removed but they
+     * still exists in default map, like vlan members, and this will introduce
+     * inconsistency redis vs defaults. This will be ok since switch will not
+     * hold all id's, it only will hold defaults.
+     *
+     * But this swill mean, that we need to remove those VLAN members from
+     * ASIC.
+     *
+     * Get all defaults rids, and check if they exists in the rid2vid map
+     * if not, then remove!
+     *
+     * we could just call discover again, but thats too long, we just
+     * needto remove removed objects since we need Existing objects
+     * for ApplyView.
+     *
+     * TODO we would need to track all removes
+     */
 }
 
 std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap()
@@ -352,16 +414,13 @@ void processSwitches()
         }
 
         /*
-         * Save this switch as translated.
+         * Save this switch ids as translated.
          */
 
-        g_translated[switch_vid] = switch_rid;
+        g_translatedV2R[switch_vid] = switch_rid;
+        g_translatedR2V[switch_rid] = switch_vid;
 
         auto sw = switches[switch_vid] = std::make_shared<SaiSwitch>(switch_vid, switch_rid);
-
-        /*
-         * VLAN members are removed in switch constructor.
-         */
 
         /*
          * Since we have only one switch we can get away with this.
@@ -423,7 +482,7 @@ void trapGroupWorkaround(
     }
     else
     {
-        // default trap group
+        // default trap group or existing trap group
         return;
     }
 
@@ -490,9 +549,9 @@ sai_object_id_t processSingleVid(
         return SAI_NULL_OBJECT_ID;
     }
 
-    auto it = g_translated.find(vid);
+    auto it = g_translatedV2R.find(vid);
 
-    if (it != g_translated.end())
+    if (it != g_translatedV2R.end())
     {
         /*
          * This object was already processed, just return real object id.
@@ -531,15 +590,15 @@ sai_object_id_t processSingleVid(
     /*
      * Now let's determine whether this object need to be created.  Default
      * obejcts like default virtual router, queues or cpu can't be created.
-     *
-     * TODO: Should we include vlan members here ?
+     * When object exists on the switch (even VLAN member) it will not be
+     * created, but matched. We just need to watch for RO/CO attributes.
      *
      * NOTE: this also should be per switch.
      */
 
-    auto vrmapit = g_vidToRidMap.find(vid);
+    auto v2rMapIt = g_vidToRidMap.find(vid);
 
-    if (vrmapit == g_vidToRidMap.end())
+    if (v2rMapIt == g_vidToRidMap.end())
     {
         SWSS_LOG_THROW("failed to find VID %s in VIDTORID map",
                 sai_serialize_object_id(vid).c_str());
@@ -547,13 +606,13 @@ sai_object_id_t processSingleVid(
 
     sai_object_id_t rid;
 
-    if (g_sw->isNonCreateRid(vrmapit->second))
+    if (g_sw->isDefaultCreatedRid(v2rMapIt->second))
     {
-        rid = vrmapit->second;
+        rid = v2rMapIt->second;
 
         createObject = false;
 
-        SWSS_LOG_INFO("object %s will not be created, processed VID %s to RID %s",
+        SWSS_LOG_DEBUG("object %s will not be created, processed VID %s to RID %s",
                 sai_serialize_object_type(objectType).c_str(),
                 sai_serialize_object_id(vid).c_str(),
                 sai_serialize_object_id(rid).c_str());
@@ -633,7 +692,8 @@ sai_object_id_t processSingleVid(
         }
     }
 
-    g_translated[vid] = rid;
+    g_translatedV2R[vid] = rid;
+    g_translatedR2V[rid] = vid;
 
     return rid;
 }
@@ -752,6 +812,42 @@ void processOids()
     }
 }
 
+void processStructNonObjectIds(
+        _In_ sai_object_meta_key_t &meta_key)
+{
+    SWSS_LOG_ENTER();
+
+    auto info = sai_all_object_type_infos[meta_key.objecttype];
+
+    /*
+     * Call processSingleVid method for each oid in non object id (struct
+     * entry) in generic way.
+     */
+
+    if (info->isnonobjectid)
+    {
+        for (size_t j = 0; j < info->structmemberscount; ++j)
+        {
+            const sai_struct_member_info_t *m = info->structmembers[j];
+
+            if (m->membervaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+            {
+                continue;
+            }
+
+            sai_object_id_t vid = m->getoid(&meta_key);
+
+            sai_object_id_t rid = processSingleVid(vid);
+
+            m->setoid(&meta_key, rid);
+
+            SWSS_LOG_DEBUG("processed vid 0x%lx to rid 0x%lx in %s:%s", vid, rid, 
+                    info->objecttypename,
+                    m->membername);
+        }
+    }
+}
+
 void processFdbs()
 {
     SWSS_LOG_ENTER();
@@ -761,13 +857,13 @@ void processFdbs()
         const std::string &strFdbEntry = kv.first;
         const std::string &asicKey = kv.second;
 
-        sai_fdb_entry_t fdbEntry;
-        sai_deserialize_fdb_entry(strFdbEntry, fdbEntry);
+        sai_object_meta_key_t meta_key;
 
-        // we could use metadata generic to process
+        meta_key.objecttype = SAI_OBJECT_TYPE_FDB_ENTRY;
 
-        fdbEntry.switch_id = processSingleVid(fdbEntry.switch_id);
-        fdbEntry.bridge_id = processSingleVid(fdbEntry.bridge_id);
+        sai_deserialize_fdb_entry(strFdbEntry, meta_key.objectkey.key.fdb_entry);
+
+        processStructNonObjectIds(meta_key);
 
         std::shared_ptr<SaiAttributeList> list = g_attributesLists[asicKey];
 
@@ -777,7 +873,8 @@ void processFdbs()
 
         processAttributesForOids(SAI_OBJECT_TYPE_FDB_ENTRY, attrCount, attrList);
 
-        sai_status_t status = sai_metadata_sai_fdb_api->create_fdb_entry(&fdbEntry, attrCount, attrList);
+        sai_status_t status = sai_metadata_sai_fdb_api->
+            create_fdb_entry(&meta_key.objectkey.key.fdb_entry, attrCount, attrList);
 
         if (status != SAI_STATUS_SUCCESS)
         {
@@ -799,13 +896,13 @@ void processNeighbors()
         const std::string &strNeighborEntry = kv.first;
         const std::string &asicKey = kv.second;
 
-        sai_neighbor_entry_t neighborEntry;
-        sai_deserialize_neighbor_entry(strNeighborEntry, neighborEntry);
+        sai_object_meta_key_t meta_key;
 
-        // we could use metadata generic to process
+        meta_key.objecttype = SAI_OBJECT_TYPE_NEIGHBOR_ENTRY;
 
-        neighborEntry.switch_id = processSingleVid(neighborEntry.switch_id);
-        neighborEntry.rif_id = processSingleVid(neighborEntry.rif_id);
+        sai_deserialize_neighbor_entry(strNeighborEntry, meta_key.objectkey.key.neighbor_entry);
+
+        processStructNonObjectIds(meta_key);
 
         std::shared_ptr<SaiAttributeList> list = g_attributesLists[asicKey];
 
@@ -815,7 +912,8 @@ void processNeighbors()
 
         processAttributesForOids(SAI_OBJECT_TYPE_NEIGHBOR_ENTRY, attrCount, attrList);
 
-        sai_status_t status = sai_metadata_sai_neighbor_api->create_neighbor_entry(&neighborEntry, attrCount, attrList);
+        sai_status_t status = sai_metadata_sai_neighbor_api->
+            create_neighbor_entry(&meta_key.objectkey.key.neighbor_entry, attrCount, attrList);
 
         if (status != SAI_STATUS_SUCCESS)
         {
@@ -852,13 +950,13 @@ void processRoutes(bool defaultOnly)
             continue;
         }
 
-        sai_route_entry_t routeEntry;
-        sai_deserialize_route_entry(strRouteEntry, routeEntry);
+        sai_object_meta_key_t meta_key;
 
-        // we could use metadata generic to process
+        meta_key.objecttype = SAI_OBJECT_TYPE_ROUTE_ENTRY;
 
-        routeEntry.switch_id = processSingleVid(routeEntry.switch_id);
-        routeEntry.vr_id = processSingleVid(routeEntry.vr_id);
+        sai_deserialize_route_entry(strRouteEntry, meta_key.objectkey.key.route_entry);
+
+        processStructNonObjectIds(meta_key);
 
         std::shared_ptr<SaiAttributeList> list = g_attributesLists[asicKey];
 
@@ -868,11 +966,15 @@ void processRoutes(bool defaultOnly)
 
         processAttributesForOids(SAI_OBJECT_TYPE_ROUTE_ENTRY, attrCount, attrList);
 
-        sai_status_t status = sai_metadata_sai_route_api->create_route_entry(&routeEntry, attrCount, attrList);
+        sai_status_t status = sai_metadata_sai_route_api->
+            create_route_entry(&meta_key.objectkey.key.route_entry, attrCount, attrList);
 
         if (status != SAI_STATUS_SUCCESS)
         {
             listFailedAttributes(SAI_OBJECT_TYPE_ROUTE_ENTRY, attrCount, attrList);
+
+            SWSS_LOG_ERROR("translated route: %s",
+                    sai_serialize_route_entry(meta_key.objectkey.key.route_entry).c_str());
 
             SWSS_LOG_THROW(
                     "failed to create ROUTE %s: %s",
@@ -936,6 +1038,7 @@ void hardReinit()
 
             case SAI_OBJECT_TYPE_SWITCH:
                 g_switches[strObjectId] = key;
+                g_oids[strObjectId] = key;
                 break;
 
             default:
