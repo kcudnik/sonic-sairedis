@@ -77,6 +77,16 @@ class SaiSwitch
         sai_object_id_t getSwitchDefaultAttrOid(
                 _In_ sai_object_id_t attr_id) const;
 
+        /**
+         * @brief Remove existing object from the switch.
+         *
+         * Function throws when object can't be removed.
+         *
+         * @param rid Real object ID.
+         */
+        void removeExistingObject(
+                _In_ sai_object_id_t rid);
+
     private:
 
         /*
@@ -170,22 +180,14 @@ class SaiSwitch
 
         void redisClearLaneMap();
 
-        void redisCreateRidAndVidMapping(
-                _In_ sai_object_id_t rid,
-                _In_ sai_object_id_t vid);
-
         void redisSetDummyAsicStateForRealObjectId(
                 _In_ sai_object_id_t rid);
-
-        void redisCreateDummyEntryInAsicView(
-                _In_ sai_object_id_t objectId);
 
         /*
          * Helper Methods.
          */
 
         void helperCheckLaneMap();
-        void helperCheckPortIds();
 
         sai_object_id_t helperGetSwitchAttrOid(
                 _In_ sai_attr_id_t attr_id);

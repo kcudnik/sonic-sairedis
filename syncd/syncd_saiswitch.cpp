@@ -60,7 +60,7 @@ std::string SaiSwitch::saiGetHardwareInfo()
          * Later on basing on this entry we will distinquish whether previous
          * switch and next switch are the same.
          */
-        SWSS_LOG_ERROR("failed to get switch hardware info: %s",
+        SWSS_LOG_WARN("failed to get switch hardware info: %s",
                 sai_serialize_status(status).c_str());
     }
 
@@ -332,36 +332,12 @@ std::string SaiSwitch::getRedisHiddenKey()
     return std::string(HIDDEN);
 }
 
-void SaiSwitch::redisCreateRidAndVidMapping(
-        _In_ sai_object_id_t rid,
-        _In_ sai_object_id_t vid)
-{
-    SWSS_LOG_ENTER();
-
-    std::string strRid = sai_serialize_object_id(rid);
-    std::string strVid = sai_serialize_object_id(vid);
-
-    /*
-     * TODO: this must be ATOMIC.
-     */
-
-    /*
-     * NOTE: To support multiple switches VIDTORID and RIDTOVID must be per
-     * switch.
-     */
-
-    g_redisClient->hset(VIDTORID, strVid, strRid);
-    g_redisClient->hset(RIDTOVID, strRid, strVid);
-
-    SWSS_LOG_DEBUG("set VID 0x%lx and RID 0x%lx", vid, rid);
-}
-
-// TODO this is problem: we need to combine those into 2 methods
-
 void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
         _In_ sai_object_id_t rid)
 {
     SWSS_LOG_ENTER();
+
+    sai_object_id_t vid = translate_rid_to_vid(rid, m_switch_vid);
 
     sai_object_type_t objectType = sai_object_type_query(rid);
 
@@ -373,58 +349,11 @@ void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
 
     std::string strObjectType = sai_serialize_object_type(objectType);
 
-    sai_object_id_t vid = redis_create_virtual_object_id(m_switch_vid, objectType);
-
     std::string strVid = sai_serialize_object_id(vid);
 
     std::string strKey = ASIC_STATE_TABLE + (":" + strObjectType + ":" + strVid);
 
     g_redisClient->hset(strKey, "NULL", "NULL");
-
-    redisCreateRidAndVidMapping(rid, vid);
-}
-
-void SaiSwitch::redisCreateDummyEntryInAsicView(
-        _In_ sai_object_id_t objectId)
-{
-    SWSS_LOG_ENTER();
-
-    sai_object_id_t vid = translate_rid_to_vid(objectId, m_switch_vid);
-
-    sai_object_type_t objectType = sai_object_type_query(objectId);
-
-    if (objectType == SAI_OBJECT_TYPE_NULL)
-    {
-        SWSS_LOG_THROW("sai_object_type_query returned NULL type for RID: %s",
-                sai_serialize_object_id(objectId).c_str());
-    }
-
-    std::string strObjectType = sai_serialize_object_type(objectType);
-
-    std::string strVid = sai_serialize_object_id(vid);
-
-    std::string strKey = ASIC_STATE_TABLE + (":" + strObjectType + ":" + strVid);
-
-    g_redisClient->hset(strKey, "NULL", "NULL");
-}
-
-void SaiSwitch::helperCheckPortIds()
-{
-    SWSS_LOG_ENTER();
-
-    auto laneMap = saiGetHardwareLaneMap();
-
-    for (const auto &kv: laneMap)
-    {
-        sai_object_id_t port_rid = kv.second;
-
-        /*
-         * NOTE: Translate will create entry if missing, we assume here that
-         * port numbers didn't changed during restarts.
-         */
-
-        redisCreateDummyEntryInAsicView(port_rid);
-    }
 }
 
 sai_object_id_t SaiSwitch::getVid() const
@@ -468,6 +397,42 @@ std::set<sai_object_id_t> SaiSwitch::getExistingObjects() const
     return m_discovered_rids;
 }
 
+void SaiSwitch::removeExistingObject(
+        _In_ sai_object_id_t rid)
+{
+    SWSS_LOG_ENTER();
+
+    auto it = m_discovered_rids.find(rid);
+
+    if (it == m_discovered_rids.end())
+    {
+        SWSS_LOG_THROW("unable to find existing RID %s",
+                sai_serialize_object_id(rid).c_str());
+    }
+
+    sai_object_type_t ot = sai_object_type_query(rid);
+
+    auto info = sai_all_object_type_infos[ot];
+
+    sai_object_meta_key_t meta_key = { .objecttype = ot, .objectkey = {.key = { .object_id = rid } } };
+
+    SWSS_LOG_DEBUG("removing %s", sai_serialize_object_meta_key(meta_key).c_str());
+
+    sai_status_t status = info->remove(&meta_key);
+
+    if (status == SAI_STATUS_SUCCESS)
+    {
+        m_discovered_rids.erase(it);
+    }
+    else
+    {
+        SWSS_LOG_ERROR("failed to remove %s RID %s: %s",
+                info->objecttypename,
+                sai_serialize_object_id(rid).c_str(),
+                sai_serialize_status(status).c_str());
+    }
+}
+
 std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 {
     SWSS_LOG_ENTER();
@@ -495,7 +460,7 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
         {
             const std::string &name = sai_serialize_port_stat(counter);
 
-            SWSS_LOG_INFO("counter %s is not supported on port RID %s: %s",
+            SWSS_LOG_DEBUG("counter %s is not supported on port RID %s: %s",
                     name.c_str(),
                     sai_serialize_object_id(port_rid).c_str(),
                     sai_serialize_status(status).c_str());
@@ -729,8 +694,6 @@ void SaiSwitch::saiDiscover(
         return;
     }
 
-    discovered.insert(rid);
-
     sai_object_type_t ot = sai_object_type_query(rid);
 
     SWSS_LOG_DEBUG("processing %s: %s",
@@ -739,10 +702,25 @@ void SaiSwitch::saiDiscover(
 
     if (ot == SAI_OBJECT_TYPE_NULL)
     {
-        SWSS_LOG_ERROR("id %s returned NULL object type",
+        SWSS_LOG_THROW("rid %s returned NULL object type",
                 sai_serialize_object_id(rid).c_str());
 
         return;
+    }
+
+    /*
+     * We will ignore STP ports by now, since when removing bridge port, then
+     * associated stp port is automatically removed, and we don't use STP in
+     * out solution.  This causing inconsestincy with redis ASIC view vs
+     * actual ASIC asic state.
+     *
+     * TODO: This needs to be solved by sending discovered state to sairedis
+     * metadata db for reference count.
+     */
+
+    if (ot != SAI_OBJECT_TYPE_STP_PORT)
+    {
+        discovered.insert(rid);
     }
 
     // TODO later use sai_metadata_get_object_type_info(ot);
@@ -785,7 +763,7 @@ void SaiSwitch::saiDiscover(
             if (md->objecttype == SAI_OBJECT_TYPE_STP &&
                     md->attrid == SAI_STP_ATTR_BRIDGE_ID)
             {
-                SWSS_LOG_ERROR("skipping since it causes crash: %s", md->attridname);
+                SWSS_LOG_WARN("skipping since it causes crash: %s", md->attridname);
                 continue;
             }
 
@@ -814,7 +792,7 @@ void SaiSwitch::saiDiscover(
                  * We failed to get value, maybe it's not supported ?
                  */
 
-                SWSS_LOG_WARN("%s: %s on %s",
+                SWSS_LOG_INFO("%s: %s on %s",
                         md->attridname,
                         sai_serialize_status(status).c_str(),
                         sai_serialize_object_id(rid).c_str());
@@ -853,7 +831,7 @@ void SaiSwitch::saiDiscover(
                  * We failed to get value, maybe it's not supported ?
                  */
 
-                SWSS_LOG_WARN("%s: %s on %s",
+                SWSS_LOG_INFO("%s: %s on %s",
                         md->attridname,
                         sai_serialize_status(status).c_str(),
                         sai_serialize_object_id(rid).c_str());
@@ -956,6 +934,8 @@ void SaiSwitch::helperPutDiscoveredRidsToRedis()
     if (manyObjectsPresent)
     {
         SWSS_LOG_NOTICE("will NOT put discovered objects into db");
+
+        // TODO or just check here and remove directly form ASIC_VIEW ?
         return;
     }
 
@@ -971,7 +951,7 @@ void SaiSwitch::helperPutDiscoveredRidsToRedis()
          * virtual router, CPU, default trap group, etc.
          */
 
-        redisCreateDummyEntryInAsicView(rid);
+        redisSetDummyAsicStateForRealObjectId(rid);
     }
 }
 
@@ -992,6 +972,10 @@ SaiSwitch::SaiSwitch(
      * Discover put objects to redis needs to be called before checking lane
      * map and ports, since it will deduce whether put discoverd objects to
      * redis to not interfere with possible user created objects previously.
+     *
+     * TODO: When user will use sairedis we need to send discovered view
+     * with all objects dependencies to sairedis so metadata db could
+     * be populated, and all references could be increased.
      */
 
     helperDiscover();
@@ -1011,8 +995,6 @@ SaiSwitch::SaiSwitch(
     helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID);
 
     helperCheckLaneMap();
-
-    helperCheckPortIds();
 
     m_supported_counters = saiGetSupportedCounters();
 }

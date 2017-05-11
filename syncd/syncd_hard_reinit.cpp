@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <tuple>
 
 /*
  * To support multiple switches here we need to refactor this to a class
@@ -26,6 +27,14 @@ static StringHash g_switches;
 static StringHash g_fdbs;
 static StringHash g_routes;
 static StringHash g_neighbors;
+
+//#define ENABLE_PERF
+
+#ifdef ENABLE_PERF
+static std::map<sai_object_type_t, std::tuple<int,double>> g_perf_create;
+static std::map<sai_object_type_t, std::tuple<int,double>> g_perf_set;
+#endif
+
 
 /*
  * Since we are only supporting 1 switch we can declare this as global, and we
@@ -226,44 +235,42 @@ void checkAllIds()
     }
 
     /*
-     * Order matters here, we can't remove bridge before removing all bridge
-     * ports etc.
-     */
-
-    for (sai_object_id_t rid: g_sw->getExistingObjects())
-    {
-        if (g_translatedR2V.find(rid) != g_translatedR2V.end())
-        {
-            continue;
-        }
-
-        sai_object_type_t ot = sai_object_type_query(rid);
-
-        SWSS_LOG_ERROR("we need to remove RID %s:%s",
-                sai_serialize_object_type(ot).c_str(),
-                sai_serialize_object_id(rid).c_str());
-
-        // TODO use meta key and object info to remove
-    }
-
-    /*
-     * TODO: we can have situation here, that some obects were removed but they
+     * We can have situation here, that some objects were removed but they
      * still exists in default map, like vlan members, and this will introduce
      * inconsistency redis vs defaults. This will be ok since switch will not
-     * hold all id's, it only will hold defaults.
+     * hold all id's, it only will hold defaults. But this swill mean, that we
+     * need to remove those VLAN members from ASIC.
      *
-     * But this swill mean, that we need to remove those VLAN members from
-     * ASIC.
+     * We could just call discover again, but thats too long, we just needto
+     * remove removed objects since we need Existing objects for ApplyView.
      *
-     * Get all defaults rids, and check if they exists in the rid2vid map
-     * if not, then remove!
-     *
-     * we could just call discover again, but thats too long, we just
-     * needto remove removed objects since we need Existing objects
-     * for ApplyView.
-     *
-     * TODO we would need to track all removes
+     * Order matters here, we can't remove bridge before removing all bridge
+     * ports etc. We would need to use dependency tree to do it in order.
+     * But since we will only remove default objects we can try
      */
+
+    std::vector<sai_object_type_t> removeOrder = {
+        SAI_OBJECT_TYPE_VLAN_MEMBER,
+        SAI_OBJECT_TYPE_STP_PORT,
+        SAI_OBJECT_TYPE_BRIDGE_PORT,
+        SAI_OBJECT_TYPE_NULL };
+
+    for (sai_object_type_t ot: removeOrder)
+    {
+        for (sai_object_id_t rid: g_sw->getExistingObjects())
+        {
+            if (g_translatedR2V.find(rid) != g_translatedR2V.end())
+            {
+                continue;
+            }
+
+            if (ot == sai_object_type_query(rid) ||
+                    ot == SAI_OBJECT_TYPE_NULL)
+            {
+                g_sw->removeExistingObject(rid);
+            }
+        }
+    }
 }
 
 std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap()
@@ -404,6 +411,9 @@ void processSwitches()
 
         sai_object_id_t switch_rid;
 
+        SWSS_LOG_NOTICE("creating switch VID: %s",
+                sai_serialize_object_id(switch_vid).c_str());
+
         sai_status_t status = sai_metadata_sai_switch_api->create_switch(&switch_rid, attr_count, attr_list);
 
         if (status != SAI_STATUS_SUCCESS)
@@ -413,6 +423,8 @@ void processSwitches()
                     sai_serialize_status(status).c_str());
         }
 
+        SWSS_LOG_NOTICE("created switch RID: %s",
+                sai_serialize_object_id(switch_rid).c_str());
         /*
          * Save this switch ids as translated.
          */
@@ -639,7 +651,22 @@ sai_object_id_t processSingleVid(
          * Since we have only one switch, we can get away using g_switch_rid here.
          */
 
+#ifdef ENABLE_PERF
+        auto start = std::chrono::high_resolution_clock::now();
+#endif
+
         sai_status_t status = info->create(&meta_key, g_switch_rid, attrCount, attrList);
+
+#ifdef ENABLE_PERF
+        auto end = std::chrono::high_resolution_clock::now();
+
+        typedef std::chrono::duration<double, std::ratio<1>> second_t;
+
+        double duration = std::chrono::duration_cast<second_t>(end - start).count();
+
+        std::get<0>(g_perf_create[objectType])++;
+        std::get<1>(g_perf_create[objectType]) += duration;
+#endif
 
         if (status != SAI_STATUS_SUCCESS)
         {
@@ -670,7 +697,22 @@ sai_object_id_t processSingleVid(
             meta_key.objecttype = objectType;
             meta_key.objectkey.key.object_id = rid;
 
+#ifdef ENABLE_PERF
+            auto start = std::chrono::high_resolution_clock::now();
+#endif
+
             sai_status_t status = info->set(&meta_key, attr);
+
+#ifdef ENABLE_PERF
+            auto end = std::chrono::high_resolution_clock::now();
+
+            typedef std::chrono::duration<double, std::ratio<1>> second_t;
+
+            double duration = std::chrono::duration_cast<second_t>(end - start).count();
+
+            std::get<0>(g_perf_set[objectType])++;
+            std::get<1>(g_perf_set[objectType]) += duration;
+#endif
 
             if (status != SAI_STATUS_SUCCESS)
             {
@@ -841,7 +883,7 @@ void processStructNonObjectIds(
 
             m->setoid(&meta_key, rid);
 
-            SWSS_LOG_DEBUG("processed vid 0x%lx to rid 0x%lx in %s:%s", vid, rid, 
+            SWSS_LOG_DEBUG("processed vid 0x%lx to rid 0x%lx in %s:%s", vid, rid,
                     info->objecttypename,
                     m->membername);
         }
@@ -1056,11 +1098,46 @@ void hardReinit()
     }
 
     processSwitches();
-    processFdbs();
-    processNeighbors();
-    processOids();
-    processRoutes(true);
-    processRoutes(false);
+
+    {
+        SWSS_LOG_TIMER("processing objects after switch create");
+
+        processFdbs();
+        processNeighbors();
+        processOids();
+        processRoutes(true);
+        processRoutes(false);
+    }
+
+#ifdef ENABLE_PERF
+
+    double total_create = 0;
+    double total_set = 0;
+
+    for (const auto &p: g_perf_create)
+    {
+        SWSS_LOG_NOTICE("create %s: %d: %f -> %f",
+                sai_serialize_object_type(p.first).c_str(),
+                std::get<0>(p.second),
+                std::get<1>(p.second),
+                std::get<1>(p.second)/std::get<0>(p.second));
+
+        total_create += std::get<1>(p.second);
+    }
+
+    for (const auto &p: g_perf_set)
+    {
+        SWSS_LOG_NOTICE("set %s: %d: %f -> %f",
+                sai_serialize_object_type(p.first).c_str(),
+                std::get<0>(p.second),
+                std::get<1>(p.second),
+                std::get<1>(p.second)/std::get<0>(p.second));
+
+        total_set += std::get<1>(p.second);
+    }
+
+    SWSS_LOG_NOTICE("create %lf, set: %lf", total_create, total_set);
+#endif
 
     checkAllIds();
 }
