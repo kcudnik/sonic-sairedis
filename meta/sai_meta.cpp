@@ -2247,15 +2247,7 @@ void meta_generic_validation_post_create(
                 continue;
             }
 
-            for (size_t k = 0 ; k < m->allowedobjecttypeslength; k++)
-            {
-                sai_object_type_t ot = m->allowedobjecttypes[k];
-
-                if (ot == SAI_OBJECT_TYPE_SWITCH)
-                {
-                    object_reference_inc(m->getoid(&meta_key));
-                }
-            }
+            object_reference_inc(m->getoid(&meta_key));
         }
     }
     else
@@ -2605,15 +2597,7 @@ void meta_generic_validation_post_remove(
                 continue;
             }
 
-            for (size_t k = 0 ; k < m->allowedobjecttypeslength; k++)
-            {
-                sai_object_type_t ot = m->allowedobjecttypes[k];
-
-                if (ot == SAI_OBJECT_TYPE_SWITCH)
-                {
-                    object_reference_dec(m->getoid(&meta_key));
-                }
-            }
+            object_reference_dec(m->getoid(&meta_key));
         }
     }
     else
