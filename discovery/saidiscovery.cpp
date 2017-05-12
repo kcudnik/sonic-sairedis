@@ -109,6 +109,8 @@ size_t discover(
                  * This means that default value for this object is
                  * SAI_NULL_OBJECT_ID, since this is discovery after
                  * create, we don't need to query this attribute.
+                 *
+                 * But vendor could change or assign its value.
                  */
 
                 continue;
@@ -164,6 +166,8 @@ size_t discover(
                  * This means that default value for this object is
                  * empty list, since this is discovery after
                  * create, we don't need to query this attribute.
+                 *
+                 * But vendor could change or assign its value.
                  */
 
                 continue;
@@ -328,6 +332,12 @@ int main(int argc, char **argv)
     if (status != SAI_STATUS_SUCCESS)
     {
         SWSS_LOG_ERROR("Failed to create a switch: %s", sai_serialize_status(status).c_str());
+        exit(EXIT_FAILURE);
+    }
+
+    if (sai_object_type_query(switch_rid) != SAI_OBJECT_TYPE_SWITCH)
+    {
+        SWSS_LOG_ERROR("create switch returned invalid oid: 0x%lx", switch_rid);
         exit(EXIT_FAILURE);
     }
 

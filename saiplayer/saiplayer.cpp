@@ -89,8 +89,11 @@ void on_port_state_change(
     SWSS_LOG_ENTER();
 }
 
-void on_switch_shutdown_request() __attribute__ ((noreturn));
-void on_switch_shutdown_request()
+void on_switch_shutdown_request_notification(
+        _In_ sai_object_id_t switch_id) __attribute__ ((noreturn));
+
+void on_switch_shutdown_request_notification(
+        _In_ sai_object_id_t switch_id)
 {
     SWSS_LOG_ENTER();
 
@@ -552,8 +555,53 @@ void update_notifications_pointers(
 {
     SWSS_LOG_ENTER();
 
-    // TODO update notification pointers
-    // anyway right now notifications are skipped
+    /*
+     * Sairedis is updating notifications pointers based on attribute, so when
+     * we will do replay it will have invalid pointers from orchagent, so we
+     * need to override them after create, and after set.
+     *
+     * NOTE: This needs to be updated every time new pointer will be added.
+     */
+
+    for (uint32_t index = 0; index < attr_count; ++index)
+    {
+        sai_attribute_t &attr = attr_list[index];
+
+        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr.id);
+
+        if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_POINTER)
+        {
+            continue;
+        }
+
+
+        switch (attr.id)
+        {
+            case SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY:
+                attr.value.ptr = (void*)&on_switch_state_change;
+                break;
+
+            case SAI_SWITCH_ATTR_SHUTDOWN_REQUEST_NOTIFY:
+                attr.value.ptr = (void*)&on_switch_shutdown_request_notification;
+                break;
+
+            case SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY:
+                attr.value.ptr = (void*)&on_fdb_event;
+                break;
+
+            case SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY:
+                attr.value.ptr = (void*)&on_port_state_change;
+                break;
+
+            case SAI_SWITCH_ATTR_PACKET_EVENT_NOTIFY:
+                attr.value.ptr = (void*)&on_packet_event;
+                break;
+
+            default:
+                SWSS_LOG_ERROR("pointer for %s is not handled, FIXME!", meta->attridname);
+                break;
+        }
+    }
 }
 
 bool sai_metadata_is_object_type_valid(

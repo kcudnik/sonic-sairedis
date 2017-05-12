@@ -39,6 +39,19 @@ void check_notifications_pointers(
     {
         const sai_attribute_t &attr = attr_list[index];
 
+        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr.id);
+
+        if (meta == NULL)
+        {
+            SWSS_LOG_ERROR("failed to find metadata for switch attr %d", attr.id);
+            continue;
+        }
+
+        if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_POINTER)
+        {
+            continue;
+        }
+
         switch (attr.id)
         {
             case SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY:
@@ -62,6 +75,7 @@ void check_notifications_pointers(
                 break;
 
             default:
+                SWSS_LOG_ERROR("pointer for %s is not handled, FIXME!", meta->attridname);
                 break;
         }
     }

@@ -2576,7 +2576,7 @@ int main(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     set_sai_api_loglevel();
 

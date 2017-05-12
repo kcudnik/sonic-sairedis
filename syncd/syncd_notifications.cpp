@@ -266,6 +266,11 @@ void check_notifications_pointers(
 
         auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr.id);
 
+        if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_POINTER)
+        {
+            continue;
+        }
+
         /*
          * Does not matter if pointer is valid or not, we just want the
          * previous value.
@@ -297,12 +302,7 @@ void check_notifications_pointers(
 
             default:
 
-                /*
-                 * TODO: We should get metadata for attribute and check if it's
-                 * pointer type, and then warn if pointer is not supported, if
-                 * new notifications were added in the future.
-                 */
-
+                SWSS_LOG_ERROR("pointer for %s is not handled, FIXME!", meta->attridname);
                 continue;
         }
 
