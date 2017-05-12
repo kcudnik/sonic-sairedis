@@ -801,6 +801,11 @@ sai_status_t meta_generic_validate_non_object_on_create(
 
         sai_object_type_t ot = sai_object_type_query(oid);
 
+        /*
+         * No need for checking null here, since metadata don't allow
+         * NULL in allowed objects list.
+         */
+
         bool allowed = false;
 
         for (size_t k = 0 ; k < m->allowedobjecttypeslength; k++)
@@ -2903,9 +2908,9 @@ void meta_generic_validation_post_get_objlist(
 
         sai_object_type_t ot = sai_object_type_query(oid);
 
-        if (ot == SAI_NULL_OBJECT_ID)
+        if (ot == SAI_OBJECT_TYPE_NULL)
         {
-            META_LOG_ERROR(md, "returned get object on list [%u] oid 0x%lx is not valid, returned null object id", i, oid);
+            META_LOG_ERROR(md, "returned get object on list [%u] oid 0x%lx is not valid, returned null object type", i, oid);
             continue;
         }
 
@@ -3478,9 +3483,9 @@ sai_status_t meta_sai_validate_neighbor_entry(
 
     sai_object_type_t object_type = sai_object_type_query(rif);
 
-    if (object_type == SAI_NULL_OBJECT_ID)
+    if (object_type == SAI_OBJECT_TYPE_NULL)
     {
-        SWSS_LOG_ERROR("router interface oid 0x%lx is not valid object type, returned null object id", rif);
+        SWSS_LOG_ERROR("router interface oid 0x%lx is not valid object type, returned null object type", rif);
 
         return SAI_STATUS_INVALID_PARAMETER;
     }
@@ -3785,9 +3790,9 @@ sai_status_t meta_sai_validate_route_entry(
 
     sai_object_type_t object_type = sai_object_type_query(vr);
 
-    if (object_type == SAI_NULL_OBJECT_ID)
+    if (object_type == SAI_OBJECT_TYPE_NULL)
     {
-        SWSS_LOG_ERROR("virtual router oid 0x%lx is not valid object type, returned null object id", vr);
+        SWSS_LOG_ERROR("virtual router oid 0x%lx is not valid object type, returned null object type", vr);
 
         return SAI_STATUS_INVALID_PARAMETER;
     }
@@ -4092,9 +4097,9 @@ sai_status_t meta_sai_validate_oid(
 
     sai_object_type_t ot = sai_object_type_query(oid);
 
-    if (ot == SAI_NULL_OBJECT_ID)
+    if (ot == SAI_OBJECT_TYPE_NULL)
     {
-        SWSS_LOG_ERROR("%s oid 0x%lx is not valid object type, returned null object id", otname, oid);
+        SWSS_LOG_ERROR("%s oid 0x%lx is not valid object type, returned null object type", otname, oid);
 
         return SAI_STATUS_INVALID_PARAMETER;
     }

@@ -412,6 +412,12 @@ void SaiSwitch::removeExistingObject(
 
     sai_object_type_t ot = sai_object_type_query(rid);
 
+    if (ot == SAI_OBJECT_TYPE_NULL)
+    {
+        SWSS_LOG_THROW("sai_object_type_query returned NULL on RID %s",
+                sai_serialize_object_id(rid).c_str());
+    }
+
     auto info = sai_all_object_type_infos[ot];
 
     sai_object_meta_key_t meta_key = { .objecttype = ot, .objectkey = {.key = { .object_id = rid } } };
@@ -696,17 +702,15 @@ void SaiSwitch::saiDiscover(
 
     sai_object_type_t ot = sai_object_type_query(rid);
 
+    if (ot == SAI_OBJECT_TYPE_NULL)
+    {
+        SWSS_LOG_THROW("sai_object_type_query: rid %s returned NULL object type",
+                sai_serialize_object_id(rid).c_str());
+    }
+
     SWSS_LOG_DEBUG("processing %s: %s",
             sai_serialize_object_id(rid).c_str(),
             sai_serialize_object_type(ot).c_str());
-
-    if (ot == SAI_OBJECT_TYPE_NULL)
-    {
-        SWSS_LOG_THROW("rid %s returned NULL object type",
-                sai_serialize_object_id(rid).c_str());
-
-        return;
-    }
 
     /*
      * We will ignore STP ports by now, since when removing bridge port, then
@@ -872,6 +876,11 @@ void SaiSwitch::helperDiscover()
 
     for (sai_object_id_t rid: m_discovered_rids)
     {
+        /*
+         * We don't need to check for null since saiDiscovery already checked
+         * that.
+         */
+
         map[sai_object_type_query(rid)]++;
     }
 

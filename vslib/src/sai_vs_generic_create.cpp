@@ -109,7 +109,14 @@ sai_object_type_t sai_object_type_query(
 
     if (ot == SAI_OBJECT_TYPE_NULL || ot >= SAI_OBJECT_TYPE_MAX)
     {
-        SWSS_LOG_THROW("invalid object id 0x%lx", object_id);
+        SWSS_LOG_ERROR("invalid object id 0x%lx", object_id);
+
+        /*
+         * We can't throw here since it would not give meaningfull message.
+         * Tthrowing at one level up is better.
+         */
+
+        return SAI_OBJECT_TYPE_NULL;
     }
 
     return ot;
