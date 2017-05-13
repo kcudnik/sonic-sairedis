@@ -397,6 +397,22 @@ std::set<sai_object_id_t> SaiSwitch::getExistingObjects() const
     return m_discovered_rids;
 }
 
+void SaiSwitch::removeExistingObjectReference(
+        _In_ sai_object_id_t rid)
+{
+    SWSS_LOG_ENTER();
+
+    auto it = m_discovered_rids.find(rid);
+
+    if (it == m_discovered_rids.end())
+    {
+        SWSS_LOG_THROW("unable to find existing RID %s",
+                sai_serialize_object_id(rid).c_str());
+    }
+
+    m_discovered_rids.erase(it);
+}
+
 void SaiSwitch::removeExistingObject(
         _In_ sai_object_id_t rid)
 {
@@ -930,6 +946,13 @@ void SaiSwitch::helperPutDiscoveredRidsToRedis()
      * would mean we already put objects to db at the first place.
      *
      * PS. This is not the best way to solve this problem, but works.
+     *
+     * TODO: Some of those objects could be removed, like vlan members etc, we
+     * could actually put those objects back, but only those obejcts which we
+     * would consider non removable, and this is hard to determine now. A
+     * method getNonRemovableObjects would be nice, then we could put those
+     * objects to the view every time, and not put only discovered objects that
+     * reflect removable obejcts liek vlan member.
      */
 
     auto keys = g_redisClient->keys(ASIC_STATE_TABLE ":*");

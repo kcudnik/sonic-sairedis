@@ -1177,6 +1177,33 @@ sai_status_t handle_generic(
                     {
                         on_switch_remove(object_id);
                     }
+                    else
+                    {
+                        /*
+                         * Removing some object succeeded. Let's check if that
+                         * object was default created object, eg. vlan member.
+                         * Then we need to update default created object map in
+                         * SaiSwitch to be in sync, and be prepared for apply
+                         * view to transfer those synced default created
+                         * objects to temporary view when it will be created,
+                         * since that will be out basic switch state.
+                         *
+                         * TODO: there can be some issues with reference count
+                         * like for schedulers on scheduler groups since they
+                         * should have internal references, and we still need
+                         * to create dependency tree from saiDiscovery and
+                         * update those references to track them, this is
+                         * printed in metadata sanitycheck as "default value
+                         * needs to be stored".
+                         */
+
+                        sai_object_id_t switch_vid = redis_sai_switch_id_query(object_id);
+
+                        if (switches.at(switch_vid)->isDefaultCreatedRid(rid))
+                        {
+                            switches.at(switch_vid)->removeExistingObjectReference(rid);
+                        }
+                    }
                 }
 
                 return status;
@@ -1580,7 +1607,7 @@ void on_switch_create_in_init_view(
          * since it's deterministic created.
          */
 
-        auto sw = switches.at(0);
+        auto sw = switches.begin()->second;
 
         /*
          * Switches VID must match, since it's deterministic.
@@ -1774,7 +1801,7 @@ sai_status_t processEventInInitViewMode(
                      * inside metadata to get meta key.
                      */
 
-                    switch_id = switches.at(0)->getVid();
+                    switch_id = switches.begin()->second->getVid();
                 }
                 else
                 {
@@ -2576,7 +2603,7 @@ int main(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
     set_sai_api_loglevel();
 

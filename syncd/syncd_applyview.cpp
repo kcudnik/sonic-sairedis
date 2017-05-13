@@ -4349,6 +4349,22 @@ void executeOperationsOnAsic(
 // ALSO note that existing obejcts reflect only those that are on the switch
 // after beginning, if we create more scheduler groups or queue, it will not
 // reflect that, but that expectedted?
+//
+// We will need a sophisticated check at the end of comparison logic to make
+// sure current redis asic state, reflects current asic state.
+
+// TODO bring non removable object to default should put
+// also this object to temporary View if it's missing !
+// since temporary view snapshot will be put into DB !
+// basically we need to put non removalbe objects to temporary view at start
+// so call isNonRemovableObject on discovered objects
+// this will be the best scenario to translate to empty switch
+//
+// ok so normal flow (remove) must be corelated with saiswitch, so if user
+// will remove existing obejct (because maybe its possible liek vlan member)
+// we need to take that object off in syncd.cpp after remove, then we will
+// be in sync and when apply view will come, we will have all needed objects
+// currently we are doing this only when doing hard reinit
 
 void populateExistingObjects(
         _In_ AsicView &currentView,

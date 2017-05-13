@@ -80,11 +80,23 @@ class SaiSwitch
         /**
          * @brief Remove existing object from the switch.
          *
+         * An ASIC remove operation is performed.
          * Function throws when object can't be removed.
          *
          * @param rid Real object ID.
          */
         void removeExistingObject(
+                _In_ sai_object_id_t rid);
+
+        /**
+         * @brief Remove existing object reference only from discovery map.
+         *
+         * No ASIC operation is performed.
+         * Function throws when object was not found.
+         *
+         * @param rid Real object ID.
+         */
+        void removeExistingObjectReference(
                 _In_ sai_object_id_t rid);
 
     private:
