@@ -28,7 +28,7 @@ static StringHash g_fdbs;
 static StringHash g_routes;
 static StringHash g_neighbors;
 
-//#define ENABLE_PERF
+#define ENABLE_PERF
 
 #ifdef ENABLE_PERF
 static std::map<sai_object_type_t, std::tuple<int,double>> g_perf_create;
@@ -62,7 +62,7 @@ sai_object_type_t getObjectTypeFromVid(
 
     sai_object_type_t objectType = redis_sai_object_type_query(object_vid);
 
-    // TODO metadata is valid oobject type
+    // TODO metadata is valid object type
     if (objectType >= SAI_OBJECT_TYPE_MAX ||
             objectType == SAI_OBJECT_TYPE_NULL)
     {
