@@ -777,7 +777,7 @@ void SaiSwitch::saiDiscover(
                  * create, we don't need to query this attribute.
                  */
 
-                continue;
+                //continue;
             }
 
             if (md->objecttype == SAI_OBJECT_TYPE_STP &&
@@ -832,7 +832,7 @@ void SaiSwitch::saiDiscover(
                  * create, we don't need to query this attribute.
                  */
 
-                continue;
+                //continue;
             }
 
             SWSS_LOG_DEBUG("getting %s for %s", md->attridname,

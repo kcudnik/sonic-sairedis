@@ -1195,6 +1195,10 @@ sai_status_t handle_generic(
                          * update those references to track them, this is
                          * printed in metadata sanitycheck as "default value
                          * needs to be stored".
+                         *
+                         * TODO lets add SAI metadata flag for that this will
+                         * also needs to be of internal/vendor default but we
+                         * can already deduce that.
                          */
 
                         sai_object_id_t switch_vid = redis_sai_switch_id_query(object_id);

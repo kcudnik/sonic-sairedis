@@ -3404,6 +3404,18 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
     SWSS_LOG_ENTER();
 
     /*
+     * Worth notice, that this is only helper, since metadata on attributes
+     * tell default value for example for oid object as SAI_NULL_OBJECT_ID but
+     * maybe on the switch vendor actually assigned some value, so default
+     * value will not be NULL after creation.
+     *
+     * We can check that by using SAI discovery.
+     *
+     * TODO default value also must depend on dependency tree !
+     * This will be tricky
+     */
+
+    /*
      * Move this method to asicview class.
      */
 
@@ -3727,6 +3739,43 @@ bool performObjectSetTransition(
         SWSS_LOG_INFO("first pass (curr): attr %s", currentAttr->getStrAttrId().c_str());
 
         /*
+         * Check if we are bringing one of the default created objects to
+         * default value, since for that we will need dependency TREE.  Most of
+         * the time user should just query configuration and just set new
+         * values based on get results, so this will not be needed.
+         *
+         * And even if we will have dependency tree, those values may not be
+         * synced becasue of remove etc, so we will need to check if default
+         * values actually exists.
+         */
+
+        if (currentBestMatch->isOidObject())
+        {
+            sai_object_id_t vid = currentBestMatch->getVid();
+
+            /*
+             * Current best match may be created, check if vid exist.
+             */
+
+            if (currentView.hasVid(vid))
+            {
+                sai_object_id_t rid = currentView.vidToRid.at(vid);
+
+                auto sw = switches.begin()->second;
+
+                if (sw->isDefaultCreatedRid(rid))
+                {
+                    SWSS_LOG_ERROR("performing default on existing object VID %s: %s: %s, we need default dependency TREE, FIXME",
+                            sai_serialize_object_id(vid).c_str(),
+                            meta->attridname,
+                            currentAttr->getStrAttrValue().c_str());
+
+                    return false;
+                }
+            }
+        }
+
+        /*
          * We should not have MANDATORY_ON_CREATE attributes here since all
          * mandatory on create (even conditional) should be present in in
          * previous loop and they are matching, so we should get here
@@ -3791,6 +3840,8 @@ bool performObjectSetTransition(
 
         if (meta->flags == SAI_ATTR_FLAGS_CREATE_AND_SET || meta->flags == SAI_ATTR_FLAGS_CREATE_ONLY)
         {
+            // TODO default value for existing objects needs dependency tree
+
             const auto defaultValueAttr = getSaiAttrFromDefaultValue(currentView, *meta);
 
             if (defaultValueAttr == nullptr)
