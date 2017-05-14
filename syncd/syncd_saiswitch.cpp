@@ -12,7 +12,7 @@
  * we could skip using switch_id in params and even they could be public then.
  */
 
-sai_uint32_t SaiSwitch::saiGetPortCount()
+sai_uint32_t SaiSwitch::saiGetPortCount() const
 {
     SWSS_LOG_ENTER();
 
@@ -35,7 +35,7 @@ sai_uint32_t SaiSwitch::saiGetPortCount()
 
 #define MAX_HARDWARE_INFO_LENGTH 0x1000
 
-std::string SaiSwitch::saiGetHardwareInfo()
+std::string SaiSwitch::saiGetHardwareInfo() const
 {
     SWSS_LOG_ENTER();
 
@@ -66,12 +66,10 @@ std::string SaiSwitch::saiGetHardwareInfo()
 
     SWSS_LOG_DEBUG("hardware info: '%s'", info);
 
-    m_hardware_info = std::string(info);
-
-    return m_hardware_info;
+    return std::string(info);
 }
 
-std::vector<sai_object_id_t> SaiSwitch::saiGetPortList()
+std::vector<sai_object_id_t> SaiSwitch::saiGetPortList() const
 {
     SWSS_LOG_ENTER();
 
@@ -106,7 +104,7 @@ std::vector<sai_object_id_t> SaiSwitch::saiGetPortList()
     return portList;
 }
 
-std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::saiGetHardwareLaneMap()
+std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::saiGetHardwareLaneMap() const
 {
     SWSS_LOG_ENTER();
 
@@ -151,7 +149,7 @@ std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::saiGetHardwareLaneM
     return map;
 }
 
-std::string SaiSwitch::getRedisLanesKey()
+std::string SaiSwitch::getRedisLanesKey() const
 {
     SWSS_LOG_ENTER();
 
@@ -166,7 +164,7 @@ std::string SaiSwitch::getRedisLanesKey()
     return std::string(LANES);
 }
 
-void SaiSwitch::redisClearLaneMap()
+void SaiSwitch::redisClearLaneMap() const
 {
     SWSS_LOG_ENTER();
 
@@ -175,7 +173,7 @@ void SaiSwitch::redisClearLaneMap()
     g_redisClient->del(key);
 }
 
-std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::redisGetLaneMap()
+std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::redisGetLaneMap() const
 {
     SWSS_LOG_ENTER();
 
@@ -206,7 +204,7 @@ std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::redisGetLaneMap()
 }
 
 void SaiSwitch::redisSaveLaneMap(
-        _In_ const std::unordered_map<sai_uint32_t, sai_object_id_t> &map)
+        _In_ const std::unordered_map<sai_uint32_t, sai_object_id_t> &map) const
 {
     SWSS_LOG_ENTER();
 
@@ -253,7 +251,7 @@ std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetObjectMa
     return map;
 }
 
-std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetVidToRidMap()
+std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetVidToRidMap() const
 {
     SWSS_LOG_ENTER();
 
@@ -264,7 +262,7 @@ std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetVidToRid
     return redisGetObjectMap(VIDTORID);
 }
 
-std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetRidToVidMap()
+std::unordered_map<sai_object_id_t, sai_object_id_t> SaiSwitch::redisGetRidToVidMap() const
 {
     SWSS_LOG_ENTER();
 
@@ -317,7 +315,7 @@ void SaiSwitch::helperCheckLaneMap()
     }
 }
 
-std::string SaiSwitch::getRedisHiddenKey()
+std::string SaiSwitch::getRedisHiddenKey() const
 {
     SWSS_LOG_ENTER();
 
@@ -333,7 +331,7 @@ std::string SaiSwitch::getRedisHiddenKey()
 }
 
 void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
-        _In_ sai_object_id_t rid)
+        _In_ sai_object_id_t rid) const
 {
     SWSS_LOG_ENTER();
 
@@ -383,7 +381,7 @@ std::string SaiSwitch::getHardwareInfo() const
 }
 
 bool SaiSwitch::isDefaultCreatedRid(
-        _In_ sai_object_id_t rid)
+        _In_ sai_object_id_t rid) const
 {
     SWSS_LOG_ENTER();
 
@@ -409,6 +407,9 @@ void SaiSwitch::removeExistingObjectReference(
         SWSS_LOG_THROW("unable to find existing RID %s",
                 sai_serialize_object_id(rid).c_str());
     }
+
+    SWSS_LOG_INFO("removing ref RID %s",
+            sai_serialize_object_id(rid).c_str());
 
     m_discovered_rids.erase(it);
 }
@@ -455,7 +456,7 @@ void SaiSwitch::removeExistingObject(
     }
 }
 
-std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
+std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters() const
 {
     SWSS_LOG_ENTER();
 
@@ -501,7 +502,7 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters()
 }
 
 void SaiSwitch::collectCounters(
-        _In_ swss::Table &countersTable)
+        _In_ swss::Table &countersTable) const
 {
     SWSS_LOG_ENTER();
 
@@ -608,22 +609,25 @@ sai_object_id_t SaiSwitch::helperGetSwitchAttrOid(
 
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("failed to get %s: %s",
+        SWSS_LOG_WARN("failed to get %s: %s",
                 meta->attridname,
                 sai_serialize_status(status).c_str());
-
-        m_default_rid_map[attr_id] = SAI_NULL_OBJECT_ID;
 
         return SAI_NULL_OBJECT_ID;
     }
 
-    SWSS_LOG_DEBUG("%s RID %s",
+    SWSS_LOG_INFO("%s RID %s",
             meta->attridname,
             sai_serialize_object_id(attr.value.oid).c_str());
 
     sai_object_id_t rid = attr.value.oid;
 
     sai_object_id_t redis_rid = SAI_NULL_OBJECT_ID;
+
+    if (rid == SAI_NULL_OBJECT_ID)
+    {
+        return rid;
+    }
 
     /*
      * Get value value of the same attribute from redis.
@@ -674,7 +678,7 @@ sai_object_id_t SaiSwitch::helperGetSwitchAttrOid(
 }
 
 sai_object_id_t SaiSwitch::getSwitchDefaultAttrOid(
-        _In_ sai_object_id_t attr_id) const
+        _In_ sai_attr_id_t attr_id) const
 {
     SWSS_LOG_ENTER();
 
@@ -690,6 +694,86 @@ sai_object_id_t SaiSwitch::getSwitchDefaultAttrOid(
     }
 
     return it->second;
+}
+
+bool SaiSwitch::isNonRemovableRid(
+        _In_ sai_object_id_t rid) const
+{
+    SWSS_LOG_ENTER();
+
+    if (rid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_THROW("NULL rid passed");
+    }
+
+    if (!isDefaultCreatedRid(rid))
+    {
+        /*
+         * Non discovered obejct, it can be removed.
+         */
+
+        return false;
+    }
+
+    for (const auto &p: m_default_rid_map)
+    {
+        if (p.second == rid)
+        {
+            return true;
+        }
+    }
+
+    sai_object_type_t ot = sai_object_type_query(rid);
+
+    /*
+     * List of objects after init (mlnx 2700):
+     *
+     * PORT: 33                     // prevent
+     * VIRTUAL_ROUTER: 1            // default
+     * STP: 1                       // default
+     * HOSTIF_TRAP_GROUP: 1         // default
+     * QUEUE: 528                   // prevent
+     * SCHEDULER_GROUP: 512         // prevent
+     * INGRESS_PRIORITY_GROUP: 256  // prevent
+     * HASH: 2                      // prevent
+     * SWITCH: 1                    // prevent
+     * VLAN: 1                      // default
+     * VLAN_MEMBER: 32              // can be removed
+     * STP_PORT: 32                 // can be removed (cpu don't belong to stp)
+     * BRIDGE: 1                    // default
+     * BRIDGE_PORT: 33              // can be removed but cpu bridge port can't
+     */
+
+    switch (ot)
+    {
+        case SAI_OBJECT_TYPE_VLAN_MEMBER:
+        case SAI_OBJECT_TYPE_STP:
+        case SAI_OBJECT_TYPE_BRIDGE_PORT:
+            return false;
+
+        case SAI_OBJECT_TYPE_PORT:
+        case SAI_OBJECT_TYPE_QUEUE:
+        case SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP:
+        case SAI_OBJECT_TYPE_SCHEDULER_GROUP:
+        case SAI_OBJECT_TYPE_HASH:
+
+            /*
+             * TODO: Some vendors support removing of those objects then we
+             * need to came up with different approach. Probably SaiSwitch
+             * will need to decide whether it's possible to remove object.
+             */
+
+            return true;
+
+        default:
+            break;
+    }
+
+    SWSS_LOG_WARN("can't determine wheter object %s RID %s can be removed, FIXME",
+            sai_serialize_object_type(ot).c_str(),
+            sai_serialize_object_id(rid).c_str());
+
+    return true;
 }
 
 void SaiSwitch::saiDiscover(
@@ -818,6 +902,11 @@ void SaiSwitch::saiDiscover(
                         sai_serialize_object_id(rid).c_str());
 
                 continue;
+            }
+
+            if (!md->allownullobjectid && attr.value.oid == SAI_NULL_OBJECT_ID)
+            {
+                // SWSS_LOG_WARN("got null on %s, but not allowed", md->attridname);
             }
 
             saiDiscover(attr.value.oid, discovered); // recursion
@@ -987,6 +1076,24 @@ void SaiSwitch::helperPutDiscoveredRidsToRedis()
     }
 }
 
+void SaiSwitch::helperInternalOids()
+{
+    SWSS_LOG_ENTER();
+
+    auto info = sai_all_object_type_infos[SAI_OBJECT_TYPE_SWITCH];
+
+    for (int idx = 0; info->attrmetadata[idx] != NULL; ++idx)
+    {
+        const sai_attr_metadata_t *md = info->attrmetadata[idx];
+
+        if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID &&
+                md->defaultvaluetype == SAI_DEFAULT_VALUE_TYPE_SWITCH_INTERNAL)
+        {
+            helperGetSwitchAttrOid(md->attrid);
+        }
+    }
+}
+
 /*
  * NOTE: If real ID will change during hard restarts, then we need to remap all
  * VID/RID, but we can only do that if we will save entire tree with all
@@ -1020,17 +1127,7 @@ SaiSwitch::SaiSwitch(
 
     helperPutDiscoveredRidsToRedis();
 
-    /*
-     * TODO This can be also automated based on metadata to get attributes
-     * read-only and with default value type internal.
-     */
-
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_CPU_PORT);
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_VLAN_ID);
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID);
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_TRAP_GROUP);
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID);
-    helperGetSwitchAttrOid(SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID);
+    helperInternalOids();
 
     helperCheckLaneMap();
 

@@ -1239,108 +1239,57 @@ sai_status_t handle_generic(
     }
 }
 
-/*
- * TODO: If we add deserialize auto generated from metadata then we can have
- * one function for non object id objects that will iterate through structures
- * automatically.
- */
-
-sai_status_t handle_fdb(
-        _In_ const std::string &str_object_id,
-        _In_ sai_common_api_t api,
-        _In_ uint32_t attr_count,
-        _In_ sai_attribute_t *attr_list)
+void translate_vid_to_rid_non_object_id(
+        _In_ sai_object_meta_key_t &meta_key)
 {
     SWSS_LOG_ENTER();
 
-    sai_fdb_entry_t fdb_entry;
-    sai_deserialize_fdb_entry(str_object_id, fdb_entry);
+    // TODO use metadat utils
+    auto info = sai_all_object_type_infos[meta_key.objecttype];
 
-    fdb_entry.switch_id = translate_vid_to_rid(fdb_entry.switch_id);
-    fdb_entry.bridge_id = translate_vid_to_rid(fdb_entry.bridge_id);
-
-    switch (api)
+    for (size_t j = 0; j < info->structmemberscount; ++j)
     {
-        case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_fdb_api->create_fdb_entry(&fdb_entry, attr_count, attr_list);
+        const sai_struct_member_info_t *m = info->structmembers[j];
 
-        case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_fdb_api->remove_fdb_entry(&fdb_entry);
+        if (m->membervaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            sai_object_id_t vid = m->getoid(&meta_key);
 
-        case SAI_COMMON_API_SET:
-            return sai_metadata_sai_fdb_api->set_fdb_entry_attribute(&fdb_entry, attr_list);
+            sai_object_id_t rid = translate_vid_to_rid(vid);
 
-        case SAI_COMMON_API_GET:
-            return sai_metadata_sai_fdb_api->get_fdb_entry_attribute(&fdb_entry, attr_count, attr_list);
-
-        default:
-            SWSS_LOG_THROW("fdb other apis not implemented");
+            m->setoid(&meta_key, rid);
+        }
     }
 }
 
-sai_status_t handle_neighbor(
-        _In_ const std::string &str_object_id,
+sai_status_t handle_non_object_id(
+        _In_ sai_object_meta_key_t &meta_key,
         _In_ sai_common_api_t api,
         _In_ uint32_t attr_count,
         _In_ sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
 
-    sai_neighbor_entry_t neighbor_entry;
-    sai_deserialize_neighbor_entry(str_object_id, neighbor_entry);
+    translate_vid_to_rid_non_object_id(meta_key);
 
-    neighbor_entry.switch_id = translate_vid_to_rid(neighbor_entry.switch_id);
-    neighbor_entry.rif_id = translate_vid_to_rid(neighbor_entry.rif_id);
+    auto info = sai_all_object_type_infos[meta_key.objecttype];
 
     switch (api)
     {
         case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_neighbor_api->create_neighbor_entry(&neighbor_entry, attr_count, attr_list);
+            return info->create(&meta_key, SAI_NULL_OBJECT_ID, attr_count, attr_list);
 
         case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_neighbor_api->remove_neighbor_entry(&neighbor_entry);
+            return info->remove(&meta_key);
 
         case SAI_COMMON_API_SET:
-            return sai_metadata_sai_neighbor_api->set_neighbor_entry_attribute(&neighbor_entry, attr_list);
+            return info->set(&meta_key, attr_list);
 
         case SAI_COMMON_API_GET:
-            return sai_metadata_sai_neighbor_api->get_neighbor_entry_attribute(&neighbor_entry, attr_count, attr_list);
+            return info->get(&meta_key, attr_count, attr_list);
 
         default:
-            SWSS_LOG_THROW("neighbor other apis not implemented");
-    }
-}
-
-sai_status_t handle_route(
-        _In_ const std::string &str_object_id,
-        _In_ sai_common_api_t api,
-        _In_ uint32_t attr_count,
-        _In_ sai_attribute_t *attr_list)
-{
-    SWSS_LOG_ENTER();
-
-    sai_route_entry_t route_entry;
-    sai_deserialize_route_entry(str_object_id, route_entry);
-
-    route_entry.switch_id = translate_vid_to_rid(route_entry.switch_id);
-    route_entry.vr_id = translate_vid_to_rid(route_entry.vr_id);
-
-    switch (api)
-    {
-        case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_route_api->create_route_entry(&route_entry, attr_count, attr_list);
-
-        case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_route_api->remove_route_entry(&route_entry);
-
-        case SAI_COMMON_API_SET:
-            return sai_metadata_sai_route_api->set_route_entry_attribute(&route_entry, attr_list);
-
-        case SAI_COMMON_API_GET:
-            return sai_metadata_sai_route_api->get_route_entry_attribute(&route_entry, attr_count, attr_list);
-
-        default:
-            SWSS_LOG_THROW("route other apis not implemented");
+            SWSS_LOG_THROW("other apis not implemented");
     }
 }
 
@@ -1584,6 +1533,8 @@ void on_switch_create_in_init_view(
         std::string str_vid = sai_serialize_object_id(switch_vid);
         std::string str_rid = sai_serialize_object_id(switch_rid);
 
+        SWSS_LOG_NOTICE("created real switch VID %s to RID %s in init view mode", str_vid.c_str(), str_rid.c_str());
+
         /*
          * TODO: This must be ATOMIC.
          *
@@ -1600,8 +1551,6 @@ void on_switch_create_in_init_view(
          */
 
         switches[switch_vid] = std::make_shared<SaiSwitch>(switch_vid, switch_rid);
-
-        SWSS_LOG_NOTICE("created real switch VID %s to RID %s in init view mode", str_vid.c_str(), str_rid.c_str());
     }
     else if (switches.size() == 1)
     {
@@ -1943,7 +1892,7 @@ sai_status_t processEvent(
     sai_deserialize_object_type(str_object_type, object_type);
 
     /*
-     * TODO: use metadata utils
+     * TODO: use metadata utils is object type valid.
      */
 
     if (object_type == SAI_OBJECT_TYPE_NULL || object_type >= SAI_OBJECT_TYPE_MAX)
@@ -2005,37 +1954,45 @@ sai_status_t processEvent(
         translate_vid_to_rid_list(object_type, attr_count, attr_list);
     }
 
+    // TODO use metadata utils
     auto info = sai_all_object_type_infos[object_type];
 
     sai_status_t status;
 
     /*
-     * TODO we can combine this to 1 method if we have serialize/deserialize meta key.
+     * TODO use sai meta key deserialize
      */
 
-    switch (object_type)
+    if (info->isnonobjectid)
     {
-        case SAI_OBJECT_TYPE_FDB_ENTRY:
-            status = handle_fdb(str_object_id, api, attr_count, attr_list);
-            break;
+        sai_object_meta_key_t meta_key;
 
-        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
-            status = handle_neighbor(str_object_id, api, attr_count, attr_list);
-            break;
+        meta_key.objecttype = object_type;
 
-        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-            status = handle_route(str_object_id, api, attr_count, attr_list);
-            break;
+        switch (object_type)
+        {
+            case SAI_OBJECT_TYPE_FDB_ENTRY:
+                sai_deserialize_fdb_entry(str_object_id, meta_key.objectkey.key.fdb_entry);
+                break;
 
-        default:
+            case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+                sai_deserialize_neighbor_entry(str_object_id, meta_key.objectkey.key.neighbor_entry);
+                break;
 
-            if (info->isnonobjectid)
-            {
-                SWSS_LOG_THROW("passing non object id %s as generic object", info->objecttypename);
-            }
+            case SAI_OBJECT_TYPE_ROUTE_ENTRY:
+                sai_deserialize_route_entry(str_object_id, meta_key.objectkey.key.route_entry);
+                break;
 
-            status = handle_generic(object_type, str_object_id, api, attr_count, attr_list);
-            break;
+            default:
+
+                SWSS_LOG_THROW("non object id %s is not supported yet, FIXME", info->objecttypename);
+        }
+
+        status = handle_non_object_id(meta_key, api, attr_count, attr_list);
+    }
+    else
+    {
+        status = handle_generic(object_type, str_object_id, api, attr_count, attr_list);
     }
 
     if (api == SAI_COMMON_API_GET)
@@ -2059,7 +2016,7 @@ sai_status_t processEvent(
     }
     else if (status != SAI_STATUS_SUCCESS)
     {
-        for (const auto&v: values)
+        for (const auto &v: values)
         {
             SWSS_LOG_ERROR("attr: %s: %s", fvField(v).c_str(), fvValue(v).c_str());
         }
@@ -2536,6 +2493,14 @@ void onSyncdStart(bool warmStart)
         performWarmRestart();
 
         SWSS_LOG_NOTICE("skipping hard reinit since WARM start was performed");
+
+        // TODO issue here can be that in hard start there was 8 queues then
+        // user added 2, and we have 10, after warm restart, switch will
+        // discover 10 queus, and mark them as "non removable" but 2 of them
+        // can be removed. We would probably need to store all objects after
+        // hard reinit and treat that as base.
+
+        SWSS_LOG_THROW("warm restart is not yet fully supported and needs to be revisited");
         return;
     }
 
@@ -2607,7 +2572,7 @@ int main(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     set_sai_api_loglevel();
 

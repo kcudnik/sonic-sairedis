@@ -38,11 +38,47 @@ class SaiSwitch
 
         std::string getHardwareInfo() const;
 
+        /**
+         * @brief Indicates whether RID was discovered on switch init.
+         *
+         * During switch operation some RIDs are removable, like vlan member.
+         * If user will remove such RID, then this function will no longer
+         * return true for that RID.
+         *
+         * @param rid Real ID to be examined.
+         *
+         * @return True if RID was discovered during init.
+         */
         bool isDefaultCreatedRid(
-                _In_ sai_object_id_t rid);
+                _In_ sai_object_id_t rid) const;
 
+        /**
+         * @brief Indicates whether object can't be removed.
+         *
+         * Checks whether object can be removed. All non discovered obejcts can
+         * be removed. All objects from internal attribute can't be removed.
+         *
+         * Currently there are some hard coded object types that can't be
+         * removed like queues, ingress PG, ports. This may not be true for
+         * some vendors.
+         *
+         * @param rid Real obejct ID to be examined.
+         *
+         * @return True if object can't be removed from switch.
+         */
+        bool isNonRemovableRid(
+                _In_ sai_object_id_t rid) const;
+
+        /**
+         * @brief Collect switch counters.
+         *
+         * Collects supported counters from each port and put them to specified
+         * table.
+         *
+         * @param countersTable Counters table to be used.
+         */
         void collectCounters(
-                _In_ swss::Table &countersTable);
+                _In_ swss::Table &countersTable) const;
 
         /*
          * Redis Static Methods.
@@ -54,8 +90,10 @@ class SaiSwitch
         /**
          * @brief Gets existing objects on the switch.
          *
-         * This value can be corrected, when for example default VLAN members
-         * will be removed.
+         * This set can be different from discovered objects after switch init
+         * when for example default VLAN members will be removed.
+         *
+         * This set can't grow, but it can be reduced.
          *
          * @returns Default existing objects on the switch.
          */
@@ -75,7 +113,7 @@ class SaiSwitch
          * support this attribute.
          */
         sai_object_id_t getSwitchDefaultAttrOid(
-                _In_ sai_object_id_t attr_id) const;
+                _In_ sai_attr_id_t attr_id) const;
 
         /**
          * @brief Remove existing object from the switch.
@@ -163,37 +201,37 @@ class SaiSwitch
          * SAI Methods.
          */
 
-        sai_uint32_t saiGetPortCount();
+        sai_uint32_t saiGetPortCount() const;
 
-        std::string saiGetHardwareInfo();
+        std::string saiGetHardwareInfo() const;
 
-        std::vector<sai_object_id_t> saiGetPortList();
+        std::vector<sai_object_id_t> saiGetPortList() const;
 
-        std::unordered_map<sai_uint32_t, sai_object_id_t> saiGetHardwareLaneMap();
+        std::unordered_map<sai_uint32_t, sai_object_id_t> saiGetHardwareLaneMap() const;
 
-        std::vector<sai_port_stat_t> saiGetSupportedCounters();
+        std::vector<sai_port_stat_t> saiGetSupportedCounters() const;
 
         /*
          * Redis Methods.
          */
 
-        std::unordered_map<sai_uint32_t, sai_object_id_t> redisGetLaneMap();
+        std::unordered_map<sai_uint32_t, sai_object_id_t> redisGetLaneMap() const;
 
     public:
 
-        std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap();
+        std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap() const;
 
-        std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap();
+        std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap() const;
 
     private:
 
         void redisSaveLaneMap(
-                _In_ const std::unordered_map<sai_uint32_t, sai_object_id_t> &map);
+                _In_ const std::unordered_map<sai_uint32_t, sai_object_id_t> &map) const;
 
-        void redisClearLaneMap();
+        void redisClearLaneMap() const;
 
         void redisSetDummyAsicStateForRealObjectId(
-                _In_ sai_object_id_t rid);
+                _In_ sai_object_id_t rid) const;
 
         /*
          * Helper Methods.
@@ -224,18 +262,20 @@ class SaiSwitch
         /**
          * @brief Discover helper.
          *
-         * Method will call saiDiscovery and log all discovered objects.
+         * Method will call saiDiscovery and collect all discovered objects.
          */
         void helperDiscover();
 
         void helperPutDiscoveredRidsToRedis();
 
+        void helperInternalOids();
+
         /*
          * Other Methods.
          */
 
-        std::string getRedisLanesKey();
-        std::string getRedisHiddenKey();
+        std::string getRedisLanesKey() const;
+        std::string getRedisHiddenKey() const;
 };
 
 extern std::map<sai_object_id_t, std::shared_ptr<SaiSwitch>> switches;

@@ -335,7 +335,7 @@ class SaiObj
             return m_attrs;
         }
 
-        std::shared_ptr<SaiAttr> getSaiAttr(
+        std::shared_ptr<const SaiAttr> getSaiAttr(
                 _In_ sai_attr_id_t id) const
         {
             auto it = m_attrs.find(id);
@@ -389,7 +389,7 @@ class SaiObj
         }
 
         void setAttr(
-                _In_ std::shared_ptr<SaiAttr> attr)
+                _In_ const std::shared_ptr<SaiAttr> &attr)
         {
             m_attrs[attr->getSaiAttr()->id] = attr;
         }
@@ -582,9 +582,8 @@ class AsicView
                         referenceCount);
             }
 
-            SWSS_LOG_INFO("released vid %s refrence from %d to %d",
+            SWSS_LOG_INFO("decreased vid %s refrence to %d",
                     sai_serialize_object_id(vid).c_str(),
-                    referenceCount + 1,
                     referenceCount);
         }
 
@@ -1558,8 +1557,8 @@ bool hasEqualObjectList(
 bool hasEqualAttribute(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> &current,
-        _In_ const std::shared_ptr<SaiObj> &temporary,
+        _In_ const std::shared_ptr<const SaiObj> &current,
+        _In_ const std::shared_ptr<const SaiObj> &temporary,
         _In_ sai_attr_id_t id)
 {
     SWSS_LOG_ENTER();
@@ -1696,7 +1695,7 @@ std::shared_ptr<SaiObj> selectRandomCandidate(
 std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
         _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
 {
     SWSS_LOG_ENTER();
@@ -1733,7 +1732,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
 std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2107,7 +2106,7 @@ bool exchangeTemporaryVidToCurrentVid(
 std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2190,7 +2189,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNeighborEntry(
 std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2271,7 +2270,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForRouteEntry(
 std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2333,7 +2332,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForFdbEntry(
 std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2382,7 +2381,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForSwitch(
 std::shared_ptr<SaiObj> findCurrentBestMatch(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2552,11 +2551,42 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
 
 void releaseExisgingLinks(
         _In_ AsicView &view,
-        _In_ const std::shared_ptr<SaiAttr> &attr);
+        _In_ const std::shared_ptr<const SaiAttr> &attr)
+{
+    SWSS_LOG_ENTER();
+
+    /*
+     * For each VID on that attribute (it can be single oid or oid list,
+     * release link on current view.
+     *
+     * Second operation after could increase links of setting new attribute, or
+     * nothing if object was removed.
+     *
+     * Also if we want to keep track of object reverse dependency
+     * this action can be more complicated.
+     */
+
+    for (auto const &vid: attr->getOidListFromAttribute())
+    {
+        view.releaseVidReference(vid);
+    }
+}
+
+void releaseExisgingLinks(
+        _In_ AsicView &currentView,
+        _In_ const std::shared_ptr<const SaiObj> &currentObj)
+{
+    SWSS_LOG_ENTER();
+
+    for (const auto &ita: currentObj->getAllAttributes())
+    {
+        releaseExisgingLinks(currentView, ita.second);
+    }
+}
 
 void bindNewLinks(
         _In_ AsicView &view,
-        _In_ std::shared_ptr<SaiAttr> attr)
+        _In_ const std::shared_ptr<const SaiAttr> &attr)
 {
     SWSS_LOG_ENTER();
 
@@ -2583,7 +2613,7 @@ void bindNewLinks(
 void bringNonRemovableObjectToDefaultState(
         _In_ AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ std::shared_ptr<SaiObj> currentObj)
+        _In_ const std::shared_ptr<SaiObj> &currentObj)
 {
     SWSS_LOG_ENTER();
 
@@ -2659,18 +2689,6 @@ void bringNonRemovableObjectToDefaultState(
      */
 }
 
-void releaseExisgingLinks(
-        _In_ AsicView &currentView,
-        _In_ std::shared_ptr<SaiObj> currentObj)
-{
-    SWSS_LOG_ENTER();
-
-    for (const auto &ita: currentObj->getAllAttributes())
-    {
-        releaseExisgingLinks(currentView, ita.second);
-    }
-}
-
 /**
  * @brief Indicates whether object can be removed.
  *
@@ -2684,55 +2702,22 @@ void releaseExisgingLinks(
 bool isNonRemovableObject(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<SaiObj> &currentObj)
+        _In_ const std::shared_ptr<const SaiObj> &currentObj)
 {
     SWSS_LOG_ENTER();
 
-    if (!currentObj->isOidObject())
+    if (currentObj->isOidObject())
     {
-        return true;
+        sai_object_id_t rid = currentView.vidToRid.at(currentObj->getVid());
+
+        // XXX we have only 1 switch, so we can get away with this
+
+        auto sw = switches.begin()->second;
+
+        return sw->isNonRemovableRid(rid);
     }
 
-    switch (currentObj->getObjectType())
-    {
-        case SAI_OBJECT_TYPE_PORT:
-        case SAI_OBJECT_TYPE_QUEUE:
-        case SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP:
-        case SAI_OBJECT_TYPE_SCHEDULER_GROUP:
-        case SAI_OBJECT_TYPE_HASH:
-
-            /*
-             * TODO: Some vendors support removing of those objects then we
-             * need to came up with different approach. Probably SaiSwitch
-             * will need to decide whether it's possible to remove object.
-             */
-
-            return true;
-
-        default:
-            break;
-    }
-
-/*
- *main: done, processed obejcts: 1341 took 0.027104, call count: 3225
- *main: SAI_OBJECT_TYPE_PORT: 33 - prevent
- *main: SAI_OBJECT_TYPE_VIRTUAL_ROUTER: 1  - defalt
- *main: SAI_OBJECT_TYPE_STP: 1 - default
- *main: SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP: 1 - default
- *main: SAI_OBJECT_TYPE_QUEUE: 528 - prevent
- *main: SAI_OBJECT_TYPE_SCHEDULER: 3 - problem, existing already :/ or can they be removed? but set on SG so problem since no ref count
- *main: SAI_OBJECT_TYPE_SCHEDULER_GROUP: 512 - prevent
- *main: SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP: 256 - prevent
- *main: SAI_OBJECT_TYPE_HASH: 2 - prevent
- *main: SAI_OBJECT_TYPE_SWITCH: 1 - prevent
- *main: SAI_OBJECT_TYPE_VLAN: 1 - default
- *main: SAI_OBJECT_TYPE_BRIDGE: 1 - default
- *main: SAI_OBJECT_TYPE_BRIDGE_PORT: 1 - bridge with cpu port - problem :/ we can do extra call to find out, and prevent
- */
-
-    // TODO ask switch if objet is removable, default's cant be removed
-
-    return true;
+    return false;
 }
 
 void removeExistingObjectFromCurrentView(
@@ -2810,29 +2795,6 @@ void removeExistingObjectFromCurrentView(
         releaseExisgingLinks(currentView, currentObj);
 
         currentObj->setObjectStatus(SAI_OBJECT_STATUS_REMOVED);
-    }
-}
-
-void releaseExisgingLinks(
-        _In_ AsicView &view,
-        _In_ const std::shared_ptr<SaiAttr> &attr)
-{
-    SWSS_LOG_ENTER();
-
-    /*
-     * For each VID on that attribute (it can be single oid or oid list,
-     * release link on current view.
-     *
-     * Second operation after could increase links of setting new attribute, or
-     * nothing if object was removed.
-     *
-     * Also if we want to keep track of object reverse dependency
-     * this action can be more complicated.
-     */
-
-    for (auto const &vid: attr->getOidListFromAttribute())
-    {
-        view.releaseVidReference(vid);
     }
 }
 
@@ -3304,8 +3266,8 @@ void createNewObjectFromTemporaryObject(
 void UpdateObjectStatus(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
-        _In_ std::shared_ptr<SaiObj> currentBestMatch,
-        _In_ std::shared_ptr<SaiObj> temporaryObj)
+        _In_ const std::shared_ptr<SaiObj> &currentBestMatch,
+        _In_ const std::shared_ptr<SaiObj> &temporaryObj)
 {
     SWSS_LOG_ENTER();
 
@@ -3411,8 +3373,8 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
      *
      * We can check that by using SAI discovery.
      *
-     * TODO default value also must depend on dependency tree !
-     * This will be tricky
+     * TODO Default value also must depend on dependency tree !
+     * This will be tricky, we need to revisit that !
      */
 
     /*
@@ -3421,6 +3383,30 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
 
     switch (meta.defaultvaluetype)
     {
+        case SAI_DEFAULT_VALUE_TYPE_EMPTY_LIST:
+
+            {
+                /*
+                 * For empty list we can use trick here, just set attr to all
+                 * zeros, then all count's will be zeros and all lists pointers
+                 * will be NULL.
+                 *
+                 * TODO: If this is executed on existing attribute then we need
+                 * Dependency tree since initially that list may not be empty!
+                 */
+
+                sai_attribute_t attr;
+
+                memset(&attr, 0, sizeof(sai_attribute_t));
+
+                attr.id = meta.attrid;
+
+                std::string str_attr_value = sai_serialize_attr_value(meta, attr, false);
+
+                return std::make_shared<SaiAttr>(meta.attridname, str_attr_value);
+            }
+
+
         case SAI_DEFAULT_VALUE_TYPE_CONST:
 
             /*
@@ -3477,45 +3463,46 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
              * and attribute id, and auto select from attr value.
              */
 
-            // TODO double check that, since this may be not required
-            //if (meta.objecttype == SAI_OBJECT_TYPE_TRAP && meta.attrid == SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP)
-            //{
-            //    /*
-            //     * Default trap group is set on traps by default, so to bring them to
-            //     * default state we need to explicitly set this.
-            //     */
+            // TODO double check that, to make it generic (check attr value type is oid)
+            if (meta.objecttype == SAI_OBJECT_TYPE_HOSTIF_TRAP && meta.attrid == SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP)
+            {
+                /*
+                 * Default trap group is set on traps by default, so to bring them to
+                 * default state we need to explicitly set this.
+                 */
 
-            //    const auto &tg = currentView.ridToVid.find(currentView.defaultTrapGroupRid);
+                SWSS_LOG_NOTICE("bring default trap group on %s", meta.attridname);
 
-            //    if (tg == currentView.ridToVid.end())
-            //    {
-            //        SWSS_LOG_ERROR("default trap group RID 0x%lx don't exist in current view", currentView.defaultTrapGroupRid);
+                const auto &tg = currentView.ridToVid.find(currentView.defaultTrapGroupRid);
 
-            //        throw std::runtime_error("default trap group don't exist in current view");
-            //    }
+                if (tg == currentView.ridToVid.end())
+                {
+                    SWSS_LOG_THROW("default trap group RID 0x%lx don't exist in current view", currentView.defaultTrapGroupRid);
+                }
 
-            //    sai_attribute_t at;
+                sai_attribute_t at;
 
-            //    at.id = meta.attrid;
-            //    at.value.oid = tg->second; // default trap group VID
+                at.id = meta.attrid;
+                at.value.oid = tg->second; // default trap group VID
 
-            //    std::string str_attr_value = sai_serialize_attr_value(meta, at, false);
+                std::string str_attr_value = sai_serialize_attr_value(meta, at, false);
 
-            //    return std::make_shared<SaiAttr>(meta.attridname, str_attr_value);
-            //}
+                return std::make_shared<SaiAttr>(meta.attridname, str_attr_value);
+            }
 
             SWSS_LOG_ERROR("default value type %d is not supported yet for %s, FIXME",
                     meta.defaultvaluetype,
                     meta.attridname);
 
-            break;
+            return nullptr;
 
         default:
 
             SWSS_LOG_ERROR("default value type %d is not supported yet for %s, FIXME",
                     meta.defaultvaluetype,
                     meta.attridname);
-            break;
+
+            return nullptr;
     }
 
     return nullptr;
@@ -3524,8 +3511,8 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
 bool performObjectSetTransition(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
-        _In_ std::shared_ptr<SaiObj> currentBestMatch,
-        _In_ std::shared_ptr<SaiObj> temporaryObj,
+        _In_ const std::shared_ptr<SaiObj> &currentBestMatch,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
         _In_ bool performTransition)
 {
     SWSS_LOG_ENTER();
@@ -3723,7 +3710,7 @@ bool performObjectSetTransition(
     {
         auto &currentAttr = ac.second;
 
-        const auto meta = currentAttr->getAttrMetadata();
+        const auto &meta = currentAttr->getAttrMetadata();
 
         const sai_attribute_t &attr = *currentAttr->getSaiAttr();
 
@@ -3754,23 +3741,23 @@ bool performObjectSetTransition(
             sai_object_id_t vid = currentBestMatch->getVid();
 
             /*
-             * Current best match may be created, check if vid exist.
+             * Current best match may be created, check if vid/rid exist.
              */
 
             if (currentView.hasVid(vid))
             {
                 sai_object_id_t rid = currentView.vidToRid.at(vid);
 
+                // XXX we have only 1 switch, so we can get away with this
+
                 auto sw = switches.begin()->second;
 
                 if (sw->isDefaultCreatedRid(rid))
                 {
-                    SWSS_LOG_ERROR("performing default on existing object VID %s: %s: %s, we need default dependency TREE, FIXME",
+                    SWSS_LOG_INFO("performing default on existing object VID %s: %s: %s, we need default dependency TREE, FIXME",
                             sai_serialize_object_id(vid).c_str(),
                             meta->attridname,
                             currentAttr->getStrAttrValue().c_str());
-
-                    return false;
                 }
             }
         }
@@ -3791,6 +3778,32 @@ bool performObjectSetTransition(
             if (currentBestMatch->getObjectStatus() == SAI_OBJECT_STATUS_MATCHED &&
                     HAS_FLAG_CREATE_AND_SET(meta->flags))
             {
+                if (meta->objecttype == SAI_OBJECT_TYPE_SCHEDULER_GROUP &&
+                        meta->attrid == SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID)
+                {
+                    SWSS_LOG_WARN("workaround for %s, we will bring default value as NULL, but need previous from dep TREE, FIXME",
+                            meta->attridname);
+
+                    // TODO we don't know yet if set is possible, but this attribute can hold reference to user
+                    // created objects which maybe required to be destroyed.
+
+                    sai_attribute_t defattr;
+
+                    defattr.id = meta->attrid;
+                    defattr.value.oid = SAI_NULL_OBJECT_ID;
+
+                    std::string str_attr_value = sai_serialize_attr_value(*meta, defattr, false);
+
+                    auto defaultValueAttr = std::make_shared<SaiAttr>(meta->attridname, str_attr_value);
+
+                    if (performTransition)
+                    {
+                        setAttributeOnCurrentObject(currentView, temporaryView, currentBestMatch, defaultValueAttr);
+                    }
+
+                    continue;
+                }
+
                // SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE
                // SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID
                // SAI_SCHEDULER_GROUP_ATTR_PARENT_NODE
@@ -3859,6 +3872,8 @@ bool performObjectSetTransition(
                      *
                      * Same will apply for default values which are pointing to
                      * different attributes.
+                     *
+                     * TODO Default value needs to be stored.
                      */
 
                     SWSS_LOG_WARN("can't bring default value for %s, FIXME", meta->attridname);
@@ -4093,7 +4108,7 @@ void processObjectForViewTransition(
          * final.
          */
 
-        if (temporaryObj->getObjectType())
+        if (temporaryObj->getObjectType() == SAI_OBJECT_TYPE_SWITCH)
         {
             SWSS_LOG_THROW("we should not get switch object here, bug?");
         }
@@ -4225,7 +4240,8 @@ void checkSwitch(
     SWSS_LOG_THROW("unsupported number of switches: current %zu, temp %zu", csize, tsize);
 }
 
-// TODO revisit
+// TODO this needs to be done in generic way for all
+// default OID values set to attrvalue
 void bringDefaultTrapGroupToFinalState(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView)
@@ -4299,7 +4315,7 @@ void applyViewTransition(
      * traps. So what we can do here, we can explicitly move default trap group
      * to FINAL state if it's not defined in temporary view, but this problem
      * should go away when we will put all existing objects to temporary view
-     * if they don't exist. This apply to v0.9.4
+     * if they don't exist. This apply to v0.9.4 and v1.0
      *
      * Similar thing can happen when we start using PROFILE_ID on
      * SCHEDULER_GROUP.
@@ -4356,6 +4372,11 @@ void applyViewTransition(
 
         SWSS_LOG_NOTICE("- loop removed (%d)", removed);
     }
+
+    /*
+     * Check statuses will make sure that there are no objects with removed
+     * status.
+     */
 }
 
 void executeOperationsOnAsic(
@@ -4424,13 +4445,19 @@ void populateExistingObjects(
 {
     SWSS_LOG_ENTER();
 
+    if (temporaryView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size() == 0)
+    {
+        SWSS_LOG_NOTICE("no switch present in temporary view, skipping");
+        return;
+    }
+
     /*
      * If some objects that are existing objects on switch are not present in
      * temporary view, just populate them with empty values.  Since vid2rid
      * maps must match on both view after apply view.
      */
 
-    for (const auto rid: rids)
+    for (const sai_object_id_t rid: rids)
     {
         if (rid == SAI_NULL_OBJECT_ID)
         {
@@ -4467,13 +4494,6 @@ void populateExistingObjects(
          * Move both objects to matched state since match oids was already
          * called, and here we created some new objects that should be matched.
          */
-
-        for (const auto e: currentView.oOids)
-        {
-            // TODO revisit that
-            SWSS_LOG_NOTICE("temp created for VID %s",
-                    sai_serialize_object_id(e.first).c_str());
-        }
 
         currentView.oOids.at(vid)->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
         temporaryView.oOids.at(vid)->setObjectStatus(SAI_OBJECT_STATUS_MATCHED);
@@ -4641,6 +4661,8 @@ sai_status_t internalSyncdApplyView()
             SWSS_LOG_THROW("only one switch is expected, got: %zu switches", switches.size());
         }
 
+        // XXX we have only 1 switch, so we can get away with this
+
         auto sw = switches.begin()->second;
 
         ObjectIdMap vidToRidMap = sw->redisGetVidToRidMap();
@@ -4768,6 +4790,8 @@ sai_status_t internalSyncdApplyView()
      * This is second stage. Those operations are destructive, if any of them
      * fail, then we will have inconsistent state in ASIC.
      */
+
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     executeOperationsOnAsic(current, temp);
 
@@ -5004,6 +5028,15 @@ sai_status_t asic_handle_generic(
 
     meta_key.objecttype = object_type;
 
+    //if (object_type == SAI_OBJECT_TYPE_NEXT_HOP ||
+    //        object_type ==SAI_OBJECT_TYPE_NEXT_HOP_GROUP ||
+    //        object_type ==SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER )
+    //{
+    //    SWSS_LOG_NOTICE("%s : %s",
+    //            sai_serialize_object_type(object_type).c_str(),
+    //            str_object_id.c_str());
+    //}
+
     switch (api)
     {
         case SAI_COMMON_API_CREATE:
@@ -5060,7 +5093,20 @@ sai_status_t asic_handle_generic(
 
                 current.removedVidToRid.erase(object_id);
 
-                return info->remove(&meta_key);
+                sai_status_t status = info->remove(&meta_key);
+
+                if (status != SAI_STATUS_SUCCESS)
+                {
+                    // TODO get object attributes
+
+                    SWSS_LOG_ERROR("remove %s RID: %s VID %s failed: %s",
+                            sai_serialize_object_type(meta_key.objecttype).c_str(),
+                            str_rid.c_str(),
+                            str_vid.c_str(),
+                            sai_serialize_status(status).c_str());
+                }
+
+                return status;
             }
 
         case SAI_COMMON_API_SET:
@@ -5078,108 +5124,58 @@ sai_status_t asic_handle_generic(
     }
 }
 
-sai_status_t asic_handle_fdb(
+void asic_translate_vid_to_rid_non_object_id(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
-        _In_ const std::string &str_object_id,
-        _In_ sai_common_api_t api,
-        _In_ uint32_t attr_count,
-        _In_ const sai_attribute_t *attr_list)
+        _In_ sai_object_meta_key_t &meta_key)
 {
     SWSS_LOG_ENTER();
 
-    sai_fdb_entry_t fdb_entry;
-    sai_deserialize_fdb_entry(str_object_id, fdb_entry);
+    // TODO use metadat utils
+    auto info = sai_all_object_type_infos[meta_key.objecttype];
 
-    fdb_entry.switch_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.switch_id);
-    fdb_entry.bridge_id = asic_translate_vid_to_rid(current, temporary, fdb_entry.bridge_id);
-
-    SWSS_LOG_DEBUG("fdb: %s", str_object_id.c_str());
-
-    switch (api)
+    for (size_t j = 0; j < info->structmemberscount; ++j)
     {
-        case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_fdb_api->create_fdb_entry(&fdb_entry, attr_count, attr_list);
+        const sai_struct_member_info_t *m = info->structmembers[j];
 
-        case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_fdb_api->remove_fdb_entry(&fdb_entry);
+        if (m->membervaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            sai_object_id_t vid = m->getoid(&meta_key);
 
-        case SAI_COMMON_API_SET:
-            return sai_metadata_sai_fdb_api->set_fdb_entry_attribute(&fdb_entry, attr_list);
+            sai_object_id_t rid = asic_translate_vid_to_rid(current, temporary, vid);
 
-        default:
-            SWSS_LOG_ERROR("fdb other apis not implemented");
-            return SAI_STATUS_FAILURE;
+            m->setoid(&meta_key, rid);
+        }
     }
 }
 
-sai_status_t asic_handle_neighbor(
+sai_status_t asic_handle_non_object_id(
         _In_ const AsicView &current,
         _In_ const AsicView &temporary,
-        _In_ const std::string &str_object_id,
+        _In_ sai_object_meta_key_t &meta_key,
         _In_ sai_common_api_t api,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
 
-    sai_neighbor_entry_t neighbor_entry;
-    sai_deserialize_neighbor_entry(str_object_id, neighbor_entry);
+    asic_translate_vid_to_rid_non_object_id(current, temporary, meta_key);
 
-    neighbor_entry.switch_id = asic_translate_vid_to_rid(current, temporary, neighbor_entry.switch_id);
-    neighbor_entry.rif_id = asic_translate_vid_to_rid(current, temporary, neighbor_entry.rif_id);
-
-    SWSS_LOG_DEBUG("neighbor: %s", str_object_id.c_str());
+    auto info = sai_all_object_type_infos[meta_key.objecttype];
 
     switch (api)
     {
         case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_neighbor_api->create_neighbor_entry(&neighbor_entry, attr_count, attr_list);
+            return info->create(&meta_key, SAI_NULL_OBJECT_ID, attr_count, attr_list);
 
         case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_neighbor_api->remove_neighbor_entry(&neighbor_entry);
+            return info->remove(&meta_key);
 
         case SAI_COMMON_API_SET:
-            return sai_metadata_sai_neighbor_api->set_neighbor_entry_attribute(&neighbor_entry, attr_list);
+            return info->set(&meta_key, attr_list);
 
         default:
-            SWSS_LOG_ERROR("neighbor other apis not implemented");
-            return SAI_STATUS_FAILURE;
-    }
-}
-
-sai_status_t asic_handle_route(
-        _In_ const AsicView &current,
-        _In_ const AsicView &temporary,
-        _In_ const std::string &str_object_id,
-        _In_ sai_common_api_t api,
-        _In_ uint32_t attr_count,
-        _In_ const sai_attribute_t *attr_list)
-{
-    SWSS_LOG_ENTER();
-
-    sai_route_entry_t route_entry;
-    sai_deserialize_route_entry(str_object_id, route_entry);
-
-    route_entry.switch_id = asic_translate_vid_to_rid(current, temporary, route_entry.switch_id);
-    route_entry.vr_id = asic_translate_vid_to_rid(current, temporary, route_entry.vr_id);
-
-    SWSS_LOG_DEBUG("route: %s", str_object_id.c_str());
-
-    switch (api)
-    {
-        case SAI_COMMON_API_CREATE:
-            return sai_metadata_sai_route_api->create_route_entry(&route_entry, attr_count, attr_list);
-
-        case SAI_COMMON_API_REMOVE:
-            return sai_metadata_sai_route_api->remove_route_entry(&route_entry);
-
-        case SAI_COMMON_API_SET:
-            return sai_metadata_sai_route_api->set_route_entry_attribute(&route_entry, attr_list);
-
-        default:
-            SWSS_LOG_ERROR("route other apis not implemented");
-            return SAI_STATUS_FAILURE;
+            SWSS_LOG_THROW("other apis not implemented");
     }
 }
 
@@ -5207,6 +5203,7 @@ sai_status_t asic_process_event(
 
     sai_common_api_t api = SAI_COMMON_API_MAX;
 
+    // TODO convert those in common to use sai_common_api
     if (op == "set")
     {
         /*
@@ -5255,29 +5252,37 @@ sai_status_t asic_process_event(
 
     auto info = sai_metadata_get_object_type_info(object_type);
 
-    switch (object_type)
+    if (info->isnonobjectid)
     {
-        case SAI_OBJECT_TYPE_FDB_ENTRY:
-            status = asic_handle_fdb(current, temporary, str_object_id, api, attr_count, attr_list);
-            break;
+        sai_object_meta_key_t meta_key;
 
-        case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
-            status = asic_handle_neighbor(current, temporary, str_object_id, api, attr_count, attr_list);
-            break;
+        meta_key.objecttype = object_type;
 
-        case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-            status = asic_handle_route(current, temporary, str_object_id, api, attr_count, attr_list);
-            break;
+        // TODO use meta key deserialize
+        switch (object_type)
+        {
+            case SAI_OBJECT_TYPE_FDB_ENTRY:
+                sai_deserialize_fdb_entry(str_object_id, meta_key.objectkey.key.fdb_entry);
+                break;
 
-        default:
+            case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
+                sai_deserialize_neighbor_entry(str_object_id, meta_key.objectkey.key.neighbor_entry);
+                break;
 
-            if (info->isnonobjectid)
-            {
-                SWSS_LOG_THROW("object %s is non object id, but not handled, FIXME", key.c_str());
-            }
+            case SAI_OBJECT_TYPE_ROUTE_ENTRY:
+                sai_deserialize_route_entry(str_object_id, meta_key.objectkey.key.route_entry);
+                break;
 
-            status = asic_handle_generic(current, temporary, object_type, str_object_id, api, attr_count, attr_list);
-            break;
+            default:
+
+                SWSS_LOG_THROW("non object id %s is not supported yet, FIXME", info->objecttypename);
+        }
+
+        status = asic_handle_non_object_id(current, temporary, meta_key, api, attr_count, attr_list);
+    }
+    else
+    {
+        status = asic_handle_generic(current, temporary, object_type, str_object_id, api, attr_count, attr_list);
     }
 
     if (status != SAI_STATUS_SUCCESS)
@@ -5295,6 +5300,8 @@ sai_status_t asic_process_event(
                 op.c_str(),
                 key.c_str(),
                 sai_serialize_status(status).c_str());
+
+        status = SAI_STATUS_SUCCESS;
     }
 
     return status;

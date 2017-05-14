@@ -57,18 +57,6 @@ const service_method_table_t test_services = {
     test_profile_get_next_value
 };
 
-void init_sai_api()
-{
-    SWSS_LOG_ENTER();
-
-    int failed = sai_meta_apis_query(sai_api_query);
-
-    if (failed > 0)
-    {
-        SWSS_LOG_WARN("sai_api_query failed for %d apis", failed);
-    }
-}
-
 void on_switch_state_change(
         _In_ sai_switch_oper_status_t switch_oper_status)
 {
@@ -1007,7 +995,17 @@ int replay(int argc, char **argv)
             }
             while (response[response.find_first_of("|") + 1] == 'n');
 
-            handle_get_response(object_type, attr_count, attr_list, response);
+            try
+            {
+                handle_get_response(object_type, attr_count, attr_list, response);
+            }
+            catch (const std::exception &e)
+            {
+                SWSS_LOG_NOTICE("line: %s", line.c_str());
+                SWSS_LOG_NOTICE("resp: %s", response.c_str());
+
+                exit(EXIT_FAILURE);
+            }
         }
     }
 
@@ -1085,6 +1083,58 @@ void handleCmdLine(int argc, char **argv)
     }
 }
 
+void sai_meta_log_syncd(
+        _In_ sai_log_level_t log_level,
+        _In_ const char *file,
+        _In_ int line,
+        _In_ const char *func,
+        _In_ const char *format,
+        ...)
+    __attribute__ ((format (printf, 5, 6)));
+
+void sai_meta_log_syncd(
+        _In_ sai_log_level_t log_level,
+        _In_ const char *file,
+        _In_ int line,
+        _In_ const char *func,
+        _In_ const char *format,
+        ...)
+{
+    char buffer[0x1000];
+
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buffer, 0x1000, format, ap);
+    va_end(ap);
+
+    swss::Logger::Priority p = swss::Logger::SWSS_NOTICE;
+
+    switch (log_level)
+    {
+        case SAI_LOG_LEVEL_DEBUG:
+            p = swss::Logger::SWSS_DEBUG;
+            break;
+        case SAI_LOG_LEVEL_INFO:
+            p = swss::Logger::SWSS_INFO;
+            break;
+        case SAI_LOG_LEVEL_ERROR:
+            p = swss::Logger::SWSS_ERROR;
+            break;
+        case SAI_LOG_LEVEL_WARN:
+            p = swss::Logger::SWSS_WARN;
+            break;
+        case SAI_LOG_LEVEL_CRITICAL:
+            p = swss::Logger::SWSS_CRIT;
+            break;
+
+        default:
+            p = swss::Logger::SWSS_NOTICE;
+            break;
+    }
+
+    swss::Logger::getInstance().write(p, ":- %s: %s", func, buffer);
+}
+
 int main(int argc, char **argv)
 {
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
@@ -1095,9 +1145,14 @@ int main(int argc, char **argv)
 
     handleCmdLine(argc, argv);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
+    sai_meta_log = &sai_meta_log_syncd;
+#pragma GCC diagnostic pop
+
     EXIT_ON_ERROR(sai_api_initialize(0, (const service_method_table_t *)&test_services));
 
-    init_sai_api();
+    sai_meta_apis_query(sai_api_query);
 
     sai_attribute_t attr;
 
