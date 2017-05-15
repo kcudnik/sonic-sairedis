@@ -37,6 +37,17 @@ std::map<std::string, std::string> gProfileMap = {
  */
 std::map<sai_object_id_t, std::shared_ptr<SaiSwitch>> switches;
 
+/**
+ * @brief set of objects removed by user when we are in init view mode. Those
+ * could be vlan members, bridge ports etc.
+ *
+ * We need this list to later on not put them back to temp view mode when doing
+ * populate existing obejcts in apply view mode.
+ *
+ * Object ids here a VIDs.
+ */
+std::set<sai_object_id_t> initViewRemovedVidSet;
+
 /*
  * By default we are in APPLY mode.
  */
@@ -715,7 +726,7 @@ void snoop_get_attr_value(
 
     std::string value = sai_serialize_attr_value(*meta, attr);
 
-    SWSS_LOG_NOTICE("%s:%s", meta->attridname, value.c_str());
+    SWSS_LOG_DEBUG("%s:%s", meta->attridname, value.c_str());
 
     snoop_get_attr(meta->objecttype, str_object_id, meta->attridname, value);
 }
@@ -826,6 +837,12 @@ void snoop_get_response(
 
         /*
          * Put non readonly, and non oid attribute value to temp view.
+         *
+         * NOTE: This will also put create-only attributes to view, and after
+         * syncd hard reinit we will not be able to do "SET" on that attribute.
+         *
+         * Similar action can happen when we will do this on asicSet during
+         * apply view.
          */
 
         snoop_get_attr_value(str_object_id, meta, attr);
@@ -1327,6 +1344,12 @@ void clearTempView()
     {
         g_redisClient->del(key);
     }
+
+    /*
+     * Also clear list of objects removed in init view mode.
+     */
+
+    initViewRemovedVidSet.clear();
 }
 
 sai_status_t notifySyncd(
@@ -1676,6 +1699,25 @@ sai_status_t processEventInInitViewMode(
                  */
 
                 SWSS_LOG_THROW("remove switch (%s) is not supported in init view mode yet! FIXME", str_object_id.c_str());
+            }
+
+            if (!info->isnonobjectid)
+            {
+                /*
+                 * If object is existing obejct (like bridge port, vlan member)
+                 * user may want to remove them, but this is temporary view,
+                 * and when we receive apply view, we will populate existing
+                 * objects to temporary view (since not all of them user may
+                 * query) and this will produce conflict, since some of those
+                 * objects user could explicitly remove. So to solve that we
+                 * need to have a list of removed objects, and then only
+                 * populate objects which not exist on removed list.
+                 */
+
+                sai_object_id_t object_vid;
+                sai_deserialize_object_id(str_object_id, object_vid);
+
+                initViewRemovedVidSet.insert(object_vid);
             }
 
             return SAI_STATUS_SUCCESS;

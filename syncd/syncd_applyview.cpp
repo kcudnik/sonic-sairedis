@@ -1094,21 +1094,51 @@ class AsicView
             std::shared_ptr<swss::KeyOpFieldsValuesTuple> kco =
                 std::make_shared<swss::KeyOpFieldsValuesTuple>(key, "remove", entry);
 
-            m_asicOperations.push_back(kco);
+            if (currentObj->isOidObject())
+            {
+                m_asicOperations.push_back(kco);
+            }
+            else
+            {
+                /*
+                 * When doin remove of non object id, let's put it on front,
+                 * since when removing next hop group from group last member,
+                 * and group is in use by some route, then remove fails since
+                 * group cant be empty.
+                 *
+                 * Of course this does'nt guarantee that remove all routes will
+                 * be at the beginning, also it may happen that default route
+                 * will be removed first which maybe not allowed.
+                 */
+
+                m_asicRemoveOperationsNonObjectId.push_back(kco);
+            }
         }
 
-        const std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>>& asicGetOperations() const
+        std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>> asicGetOperations() const
         {
             SWSS_LOG_ENTER();
 
-            return m_asicOperations;
+            // XXX it will copy entire vector :/, expensive, but
+            // in most cases we will have very small number operations to execute
+
+            /*
+             * We need to put remove operations of non object id first because
+             * of removing last next hop group member if group is in use.
+             */
+
+            auto sum = m_asicRemoveOperationsNonObjectId;
+
+            sum.insert(sum.end(), m_asicOperations.begin(), m_asicOperations.end());
+
+            return sum;
         }
 
         size_t asicGetOperationsCount() const
         {
             SWSS_LOG_ENTER();
 
-            return m_asicOperations.size();
+            return m_asicOperations.size() +  m_asicRemoveOperationsNonObjectId.size();
         }
 
         bool hasRid(
@@ -1196,6 +1226,7 @@ class AsicView
          * adding to vector.
          */
         std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>> m_asicOperations;
+        std::vector<std::shared_ptr<swss::KeyOpFieldsValuesTuple>> m_asicRemoveOperationsNonObjectId;
 
         /*
          * Copy constructor and assignment operator are marked as private to
@@ -3549,6 +3580,11 @@ bool performObjectSetTransition(
      * after all object will be moved to final state.
      */
 
+    /*
+     * XXX If objects are matched (same vid/rid on object id) then this
+     * function must return true, just skip all create only attributes.
+     */
+
     for (auto &at: temporaryObj->getAllAttributes())
     {
         auto &temporaryAttr = at.second;
@@ -3620,6 +3656,21 @@ bool performObjectSetTransition(
              * is present on both objects.
              */
 
+            if (currentBestMatch->getObjectStatus() == SAI_OBJECT_STATUS_MATCHED)
+            {
+                /*
+                 * This should not happen, since this mean, that attribute is
+                 * crete only, object is matched, nad attribute value is
+                 * different! DB is broken?
+                 */
+
+                SWSS_LOG_THROW("Attr %s CAN'T be updated from %s to %s on VID %s when MATCHED and CREATE_ONLY, FATAL",
+                        meta->attridname,
+                        currentAttr->getStrAttrValue().c_str(),
+                        temporaryAttr->getStrAttrValue().c_str(),
+                        temporaryObj->str_object_id.c_str());
+            }
+
             SWSS_LOG_WARN("Attr %s CAN'T be updated from %s to %s since it's CREATE_ONLY",
                     meta->attridname,
                     currentAttr->getStrAttrValue().c_str(),
@@ -3681,6 +3732,29 @@ bool performObjectSetTransition(
             continue;
         }
 
+        if (currentBestMatch->getObjectStatus() == SAI_OBJECT_STATUS_MATCHED)
+        {
+            if (HAS_FLAG_CREATE_ONLY(meta->flags))
+            {
+                /*
+                 * Attribute is create only attribute on matched object. This
+                 * can happen when we are have create only attributes in asic
+                 * view, those attributes were put by snoop logic. Since we
+                 * skipping only read-only attributes then we snoop create-only
+                 * also, but on "existing" objects this will cause problem and
+                 * during apply logic we need to skip this attribute sinec we
+                 * won't be able to SET it anyway on matched object, and value
+                 * is the same as current obejct.
+                 */
+
+                SWSS_LOG_INFO("Skipping create only attr on matched object: %s:%s",
+                        meta->attridname,
+                        temporaryAttr->getStrAttrValue().c_str());
+
+                continue;
+            }
+        }
+
         /*
          * This is the most interesting case, we currently leave it here and we
          * will support it later. Some other cases here also can be considered
@@ -3736,6 +3810,8 @@ bool performObjectSetTransition(
          * values actually exists.
          */
 
+        bool isDefaultCreatedRid = false;
+
         if (currentBestMatch->isOidObject())
         {
             sai_object_id_t vid = currentBestMatch->getVid();
@@ -3752,12 +3828,15 @@ bool performObjectSetTransition(
 
                 auto sw = switches.begin()->second;
 
-                if (sw->isDefaultCreatedRid(rid))
+                isDefaultCreatedRid = sw->isDefaultCreatedRid(rid);
+
+                if (isDefaultCreatedRid)
                 {
                     SWSS_LOG_INFO("performing default on existing object VID %s: %s: %s, we need default dependency TREE, FIXME",
                             sai_serialize_object_id(vid).c_str(),
                             meta->attridname,
                             currentAttr->getStrAttrValue().c_str());
+
                 }
             }
         }
@@ -3781,11 +3860,17 @@ bool performObjectSetTransition(
                 if (meta->objecttype == SAI_OBJECT_TYPE_SCHEDULER_GROUP &&
                         meta->attrid == SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID)
                 {
+                    // XXX this is workaround, FIXME
+
                     SWSS_LOG_WARN("workaround for %s, we will bring default value as NULL, but need previous from dep TREE, FIXME",
                             meta->attridname);
 
-                    // TODO we don't know yet if set is possible, but this attribute can hold reference to user
-                    // created objects which maybe required to be destroyed.
+                    /*
+                     * This attribute can hold reference to user created
+                     * objects which maybe required to be destroyed, thats why
+                     * we need to bring real value. What if real value were
+                     * removed?
+                     */
 
                     sai_attribute_t defattr;
 
@@ -3822,6 +3907,29 @@ bool performObjectSetTransition(
                         currentAttr->getStrAttrValue().c_str());
 
                 return false;
+            }
+
+            if (currentBestMatch->getObjectStatus() == SAI_OBJECT_STATUS_MATCHED)
+            {
+                if (HAS_FLAG_CREATE_ONLY(meta->flags))
+                {
+                    /*
+                     * Attribute is create only attribute on matched object. This
+                     * can happen when we are have create only attributes in asic
+                     * view, those attributes were put by snoop logic. Since we
+                     * skipping only read-only attributes then we snoop create-only
+                     * also, but on "existing" objects this will cause problem and
+                     * during apply logic we need to skip this attribute sinec we
+                     * won't be able to SET it anyway on matched object, and value
+                     * is the same as current obejct.
+                     */
+
+                    SWSS_LOG_INFO("Skipping create only attr on matched object: %s:%s",
+                            meta->attridname,
+                            currentAttr->getStrAttrValue().c_str());
+
+                    continue;
+                }
             }
 
             SWSS_LOG_ERROR("Present current attr %s:%s is conditional or MANDATORY_ON_CREATE, we don't expect this here, FIXME",
@@ -4172,22 +4280,22 @@ void processObjectForViewTransition(
     UpdateObjectStatus(currentView, temporaryView, currentBestMatch, temporaryObj);
 }
 
-void processObjectsByObjectType(
-        _In_ AsicView &currentView,
-        _In_ AsicView &temporaryView,
-        _In_ sai_object_type_t object_type)
-{
-    SWSS_LOG_ENTER();
-
-    auto objects = temporaryView.getObjectsByObjectType(object_type);
-
-    for (const auto &o: objects)
-    {
-        processObjectForViewTransition(currentView, temporaryView, o);
-    }
-
-    SWSS_LOG_NOTICE("processed %s", sai_serialize_object_type(object_type).c_str());
-}
+//void processObjectsByObjectType(
+//        _In_ AsicView &currentView,
+//        _In_ AsicView &temporaryView,
+//        _In_ sai_object_type_t object_type)
+//{
+//    SWSS_LOG_ENTER();
+//
+//    auto objects = temporaryView.getObjectsByObjectType(object_type);
+//
+//    for (const auto &o: objects)
+//    {
+//        processObjectForViewTransition(currentView, temporaryView, o);
+//    }
+//
+//    SWSS_LOG_NOTICE("processed %s", sai_serialize_object_type(object_type).c_str());
+//}
 
 void checkSwitch(
         _In_ const AsicView &currentView,
@@ -4299,11 +4407,54 @@ void applyViewTransition(
      * During iteration no object from temp view are removed, so no need to
      * worry about any iterator issues here since removed objects are only from
      * current view.
+     *
+     * Order here can't be random, since it can mean that we will be adding
+     * routes here, and on some ASICs there is limitation that default routes
+     * must be put to ASIC first, so we need to compensate for that.
+     *
+     * TODO what about remove? can they be removed first ?
+     *
+     * There is another issue that when we are removind next hop group member
+     * and it's the last next hop group member in group where group is still in
+     * use by some group, then we can't remove it, we need to first remove
+     * route that uses this group, this puts this task in conflict when
+     * creating routes.
+     *
+     * XXX this is workaround. FIXME
      */
 
     for (auto &obj: temp.soAll)
     {
-        processObjectForViewTransition(current, temp, obj.second);
+        if (obj.second->getObjectType() != SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            processObjectForViewTransition(current, temp, obj.second);
+        }
+    }
+
+    for (auto &obj: temp.soAll)
+    {
+        if (obj.second->getObjectType() == SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            bool isDefault = obj.second->str_object_id.find("/0") != std::string::npos;
+
+            if (isDefault)
+            {
+                processObjectForViewTransition(current, temp, obj.second);
+            }
+        }
+    }
+
+    for (auto &obj: temp.soAll)
+    {
+        if (obj.second->getObjectType() == SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            bool isDefault = obj.second->str_object_id.find("/0") != std::string::npos;
+
+            if (!isDefault)
+            {
+                processObjectForViewTransition(current, temp, obj.second);
+            }
+        }
     }
 
     /*
@@ -4330,6 +4481,40 @@ void applyViewTransition(
      * multiple passes since if in first pass object had non zero references,
      * it can have zero in next pass so it is safe to remove.
      */
+
+    /*
+     * Another issue, since user may remove bridge port and vlan members and we
+     * don't have references on them on the first place, then it may happen
+     * that bridge port remove will be before vlan member remove and it will
+     * fail. Similar problem is on hard reinit when removing existing objects.
+     *
+     * TODO we need dependency tree during sai discovery! but if we put thsoe
+     * to redis it will cause another problem, since some of those attributes
+     * are creat only, so object will be selected to "SET" after vid processing
+     * but it wont be able to set create only attributes, we would need to skip
+     * those.
+     *
+     * XXX this is workaround. FIXME
+     */
+
+    std::vector<sai_object_type_t> removeOrder = {
+        SAI_OBJECT_TYPE_VLAN_MEMBER,
+        SAI_OBJECT_TYPE_STP_PORT,
+        SAI_OBJECT_TYPE_BRIDGE_PORT };
+
+    for (const sai_object_type_t ot: removeOrder)
+    {
+        for (const auto &obj: current.getObjectsByObjectType(ot))
+        {
+            if (obj->getObjectStatus() == SAI_OBJECT_STATUS_NOT_PROCESSED)
+            {
+                if (current.getVidReferenceCount(obj->getVid()) == 0)
+                {
+                    removeExistingObjectFromCurrentView(current, temp, obj);
+                }
+            }
+        }
+    }
 
     for (int removed = 1; removed != 0 ;)
     {
@@ -4438,6 +4623,9 @@ void executeOperationsOnAsic(
 // be in sync and when apply view will come, we will have all needed objects
 // currently we are doing this only when doing hard reinit
 
+// TODO find better way to acces this
+extern std::set<sai_object_id_t> initViewRemovedVidSet;
+
 void populateExistingObjects(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView,
@@ -4484,9 +4672,22 @@ void populateExistingObjects(
 
         sai_object_id_t vid = it->second;
 
+        if (initViewRemovedVidSet.find(vid) != initViewRemovedVidSet.end())
+        {
+            /*
+             * If this vid was removed during init view mode, it still exits in
+             * current view, but don't put it to existing objects, then
+             * comparison logic will take care of that and, it will remove it
+             * from current view as well.
+             */
+
+            continue;
+        }
+
         temporaryView.createDummyExistingObject(rid, vid);
 
-        SWSS_LOG_DEBUG("populate existing RID %s VID %s",
+        SWSS_LOG_DEBUG("populate existing %s RID %s VID %s",
+                sai_serialize_object_type(sai_object_type_query(rid)).c_str(),
                 sai_serialize_object_id(rid).c_str(),
                 sai_serialize_object_id(vid).c_str());
 
@@ -5105,6 +5306,24 @@ sai_status_t asic_handle_generic(
                             str_vid.c_str(),
                             sai_serialize_status(status).c_str());
                 }
+                else
+                {
+                    /*
+                     * When we remove object which was existing on the switch
+                     * then we need to remove it from the SaiSwitch, because
+                     * later on it will lead to creating this object again
+                     * since isNonRemovable object will return true.
+                     */
+
+                    // XXX we have only 1 switch, so we can get away with this
+
+                    auto sw = switches.begin()->second;
+
+                    if (sw->isDefaultCreatedRid(rid))
+                    {
+                        sw->removeExistingObjectReference(rid);
+                    }
+                }
 
                 return status;
             }
@@ -5114,6 +5333,16 @@ sai_status_t asic_handle_generic(
                 sai_object_id_t rid = asic_translate_vid_to_rid(current, temporary, object_id);
 
                 meta_key.objectkey.key.object_id = rid;
+
+                // XXX workaround
+                if (meta_key.objecttype == SAI_OBJECT_TYPE_SWITCH &&
+                        attr_list->id == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
+                {
+                    SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
+
+                    // TODO where are routes from temp view ?
+                    return SAI_STATUS_SUCCESS;
+                }
 
                 return info->set(&meta_key, attr_list);
             }
@@ -5300,8 +5529,6 @@ sai_status_t asic_process_event(
                 op.c_str(),
                 key.c_str(),
                 sai_serialize_status(status).c_str());
-
-        status = SAI_STATUS_SUCCESS;
     }
 
     return status;

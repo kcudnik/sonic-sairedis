@@ -247,6 +247,8 @@ void checkAllIds()
      * Order matters here, we can't remove bridge before removing all bridge
      * ports etc. We would need to use dependency tree to do it in order.
      * But since we will only remove default objects we can try
+     *
+     * XXX this is workaround. FIXME
      */
 
     std::vector<sai_object_type_t> removeOrder = {
@@ -457,6 +459,13 @@ void processSwitches()
         for (uint32_t idx = 0; idx < attr_count_left; ++idx)
         {
             sai_attribute_t *attr = &attrs_left[idx];
+
+            // XXX workaround
+            if (attr->id == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
+            {
+                SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
+                continue;
+            }
 
             status = sai_metadata_sai_switch_api->set_switch_attribute(switch_rid, attr);
 
@@ -697,6 +706,46 @@ sai_object_id_t processSingleVid(
             meta_key.objecttype = objectType;
             meta_key.objectkey.key.object_id = rid;
 
+            auto meta = sai_metadata_get_attr_metadata(objectType, attr->id);
+
+            if (meta == NULL)
+            {
+                SWSS_LOG_THROW("failed to get atribute metadata %s: %d",
+                        sai_serialize_object_type(objectType).c_str(),
+                        attr->id);
+            }
+
+            // XXX workaround
+            if (meta->objecttype == SAI_OBJECT_TYPE_SWITCH &&
+                    attr->id == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
+            {
+                SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
+                continue;
+            }
+
+            if (HAS_FLAG_CREATE_ONLY(meta->flags))
+            {
+                /*
+                 * If we will be performing this on default existing created
+                 * object then it may happen taht during snoop in previous
+                 * iteration we put some attribute that is create only, then
+                 * this set will fail and we need to skip this set.
+                 *
+                 * NOTE: We could do get here to see if it actually matches.
+                 */
+
+                if (g_sw->isDefaultCreatedRid(rid))
+                {
+                    continue;
+                }
+
+                SWSS_LOG_WARN("skipping create only attr %s: %s",
+                        meta->attridname,
+                        sai_serialize_attr_value(*meta, *attr).c_str());
+
+                continue;
+            }
+
 #ifdef ENABLE_PERF
             auto start = std::chrono::high_resolution_clock::now();
 #endif
@@ -716,15 +765,6 @@ sai_object_id_t processSingleVid(
 
             if (status != SAI_STATUS_SUCCESS)
             {
-                auto meta = sai_metadata_get_attr_metadata(objectType, attr->id);
-
-                if (meta == NULL)
-                {
-                    SWSS_LOG_THROW("failed to get atribute metadata %s: %d",
-                            sai_serialize_object_type(objectType).c_str(),
-                            attr->id);
-                }
-
                 SWSS_LOG_THROW(
                         "failed to set %s value %s: %s",
                         meta->attridname,

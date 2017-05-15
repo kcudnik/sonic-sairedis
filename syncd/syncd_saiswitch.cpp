@@ -439,7 +439,7 @@ void SaiSwitch::removeExistingObject(
 
     sai_object_meta_key_t meta_key = { .objecttype = ot, .objectkey = {.key = { .object_id = rid } } };
 
-    SWSS_LOG_DEBUG("removing %s", sai_serialize_object_meta_key(meta_key).c_str());
+    SWSS_LOG_INFO("removing %s", sai_serialize_object_meta_key(meta_key).c_str());
 
     sai_status_t status = info->remove(&meta_key);
 
