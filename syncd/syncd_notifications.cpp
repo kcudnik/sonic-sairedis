@@ -278,6 +278,15 @@ void check_notifications_pointers(
 
         sai_pointer_t prev = attr.value.ptr;
 
+        if (prev == NULL)
+        {
+            /*
+             * If pointer is NULL, then fine, let it be.
+             */
+
+            continue;
+        }
+
         switch (attr.id)
         {
             case SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY:

@@ -3455,6 +3455,7 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
                 case SAI_ATTR_VALUE_TYPE_INT32:
                 case SAI_ATTR_VALUE_TYPE_UINT64:
                 case SAI_ATTR_VALUE_TYPE_INT64:
+                case SAI_ATTR_VALUE_TYPE_POINTER:
                 case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
 
                     {
@@ -5511,6 +5512,11 @@ sai_status_t asic_process_event(
     }
     else
     {
+        if (object_type == SAI_OBJECT_TYPE_SWITCH)
+        {
+            check_notifications_pointers(attr_count, attr_list);
+        }
+
         status = asic_handle_generic(current, temporary, object_type, str_object_id, api, attr_count, attr_list);
     }
 
