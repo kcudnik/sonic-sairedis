@@ -1023,7 +1023,7 @@ class AsicView
                 oOids.erase(currentObj->meta_key.objectkey.key.object_id);
 
                 soAll.erase(currentObj->str_object_id);
-                sotAll[currentObj->meta_key.objecttype].erase(currentObj->str_object_id);
+                sotAll.at(currentObj->meta_key.objecttype).erase(currentObj->str_object_id);
 
                 m_vidReference[currentObj->meta_key.objectkey.key.object_id] -= 1;
 
@@ -1078,7 +1078,7 @@ class AsicView
                 }
 
                 soAll.erase(currentObj->str_object_id);
-                sotAll[currentObj->meta_key.objecttype].erase(currentObj->str_object_id);
+                sotAll.at(currentObj->meta_key.objecttype).erase(currentObj->str_object_id);
 
                 updateNonObjectIdVidReferenceCountByValue(currentObj, -1);
             }
@@ -1741,9 +1741,9 @@ std::vector<std::shared_ptr<const SaiObj>> findUsageCount(
         {
             const auto &attr = m->getSaiAttr(attr_id);
 
-            if (attr->getAttrMetadata()->allowedobjecttypeslength == 0)
+            if (attr->getAttrMetadata()->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
             {
-                SWSS_LOG_THROW("attribute %s is not oid attribute, bug!", 
+                SWSS_LOG_THROW("attribute %s is not oid attribute, or not oid attr, bug!",
                         attr->getAttrMetadata()->attridname);
             }
 
@@ -1757,108 +1757,94 @@ std::vector<std::shared_ptr<const SaiObj>> findUsageCount(
     return filtered;
 }
 
-std::shared_ptr<SaiObj> findCurrentBestMatchForNextHopGroupUsingHeuristic(
-        _In_ const AsicView &currentView,
-        _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
-        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
+int findAllChildsInDependencyTreeCount(
+        _In_ const AsicView &view,
+        _In_ const std::shared_ptr<const SaiObj> &obj)
 {
     SWSS_LOG_ENTER();
 
-    size_t tempCount = findUsageCount(
-            temporaryView,
-            temporaryObj,
-            SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
-            SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID).size();
+    int count = 0;
 
-    for (const auto &c: candidateObjects)
+    const auto &info = obj->info;
+
+    if (info->revgraphmembers == NULL)
     {
-        size_t currentCount = findUsageCount(
-                currentView,
-                c.obj,
-                SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
-                SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID).size();
+        return count;
+    }
 
-        if (currentCount == tempCount)
+    for (int idx = 0; info->revgraphmembers[idx] != NULL; ++idx)
+    {
+        auto &member = info->revgraphmembers[idx];
+
+        if (member->attrmetadata == NULL)
         {
-            return c.obj;
+            /*
+             * Skip struct members for now but we need support.
+             */
+
+            continue;
+        }
+
+        auto &meta = member->attrmetadata;
+
+        if (HAS_FLAG_READ_ONLY(meta->flags))
+        {
+            /*
+             * Skip read only attributes.
+             */
+
+            continue;
+        }
+
+        if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            /*
+             * For now skip lists and acl.
+             */
+
+            continue;
+        }
+
+        SWSS_LOG_DEBUG("looking for %s on %s", obj->str_object_type.c_str(), meta->attridname);
+
+        auto usageObjects = findUsageCount(view, obj, meta->objecttype, meta->attrid);
+
+        count += (int)usageObjects.size();
+
+        if (meta->objecttype == obj->getObjectType())
+        {
+            /*
+             * Skip kiips on scheduler group.
+             * Mirror session has loop on port, but we break port in next condition.
+             */
+
+            continue;
+        }
+
+        if (meta->objecttype == SAI_OBJECT_TYPE_PORT ||
+                meta->objecttype == SAI_OBJECT_TYPE_SWITCH)
+        {
+            /*
+             * Ports and switch have a lot of members lets just stop here.
+             */
+            continue;
+        }
+
+        /*
+         * For each object that is using input object run recursion to find all
+         * nodes in the tree.
+         *
+         * NOTE: if we would have actual tree then this task would be much
+         * easier.
+         */
+
+        for (auto &uo: usageObjects)
+        {
+            count += findAllChildsInDependencyTreeCount(view, uo);
         }
     }
 
-    SWSS_LOG_WARN("heuristic failed, selecting at random");
-
-    return selectRandomCandidate(candidateObjects);
-}
-
-std::shared_ptr<SaiObj> findCurrentBestMatchForTrapGroupUsingHeuristic(
-        _In_ const AsicView &currentView,
-        _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
-        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
-{
-    SWSS_LOG_ENTER();
-
-    size_t tempCount = findUsageCount(
-            temporaryView,
-            temporaryObj,
-            SAI_OBJECT_TYPE_HOSTIF_TRAP,
-            SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP).size();
-
-    for (const auto &c: candidateObjects)
-    {
-        size_t currentCount = findUsageCount(
-                currentView,
-                c.obj,
-                SAI_OBJECT_TYPE_HOSTIF_TRAP,
-                SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP).size();
-
-        if (currentCount == tempCount)
-        {
-            return c.obj;
-        }
-    }
-
-    SWSS_LOG_WARN("heuristic failed, selecting at random");
-
-    return selectRandomCandidate(candidateObjects);
-}
-
-std::shared_ptr<SaiObj> findCurrentBestMatchForPolicerUsingHeuristic(
-        _In_ const AsicView &currentView,
-        _In_ const AsicView &temporaryView,
-        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
-        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
-{
-    SWSS_LOG_ENTER();
-
-    size_t tempCount = findUsageCount(
-            temporaryView,
-            temporaryObj,
-            SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP,
-            SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER).size();
-
-    if (tempCount == 0)
-    {
-        return selectRandomCandidate(candidateObjects);
-    }
-
-    for (const auto &c: candidateObjects)
-    {
-        size_t currentCount = findUsageCount(
-                currentView,
-                c.obj,
-                SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP,
-                SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER).size();
-
-        if (currentCount == tempCount)
-        {
-            return c.obj;
-        }
-    }
-
-    SWSS_LOG_WARN("heuristic failed, selecting at random");
-
-    return selectRandomCandidate(candidateObjects);
+    return count;
 }
 
 std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
@@ -1870,56 +1856,43 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
     SWSS_LOG_ENTER();
 
     /*
-     * This method will select heuristic method for best current object
-     * matching for given temporary object based on object type.  If heuristic
-     * don't exists yet, then current object will be chosen at random.
+     * Idea is to count all dependencies that uses this object.  this may not
+     * be a good approach since logic may choose wrong candidate.
      */
 
-    sai_object_type_t object_type = temporaryObj->getObjectType();
+    int tempCount = findAllChildsInDependencyTreeCount(temporaryView, temporaryObj);
 
-    /*
-     * TODO: Later on we can have a list of heuristic function pointers since
-     * all signatures will be the same.
-     *
-     * Also if heuristic function can't decide it should return random object
-     * as well, it could return nullptr and we could deal with it here as well.
-     */
+    SWSS_LOG_DEBUG("%s count usage: %d", temporaryObj->str_object_type.c_str(), tempCount);
 
-    std::shared_ptr<SaiObj> selected = nullptr;
+    std::vector<int> counts;
 
-    switch (object_type)
+    int exact = 0;
+    std::shared_ptr<SaiObj> matched;
+
+    for (auto &c: candidateObjects)
     {
-        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
+        int count = findAllChildsInDependencyTreeCount(currentView, c.obj);
 
-            return findCurrentBestMatchForNextHopGroupUsingHeuristic(
-                    currentView,
-                    temporaryView,
-                    temporaryObj,
-                    candidateObjects);
+        SWSS_LOG_DEBUG("candidate count usage: %d", count);
 
-        case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
+        counts.push_back(count);
 
-            return findCurrentBestMatchForTrapGroupUsingHeuristic(
-                    currentView,
-                    temporaryView,
-                    temporaryObj,
-                    candidateObjects);
-
-        case SAI_OBJECT_TYPE_POLICER:
-
-            return findCurrentBestMatchForPolicerUsingHeuristic(
-                    currentView,
-                    temporaryView,
-                    temporaryObj,
-                    candidateObjects);
-
-        default:
-
-            SWSS_LOG_WARN("%s is not supported for heuristic, will select best match object at random",
-                    sai_serialize_object_type(object_type).c_str());
-
-            break;
+        if (count == tempCount)
+        {
+            exact++;
+            matched = c.obj;
+        }
     }
+
+    if (exact == 1)
+    {
+        return matched;
+    }
+
+    SWSS_LOG_WARN("heuristic failed for %s, selecting at random (count: %d, exact match: %d)",
+            temporaryObj->str_object_type.c_str(),
+            tempCount,
+            exact);
 
     return selectRandomCandidate(candidateObjects);
 }
@@ -2154,7 +2127,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(
 
     std::sort(candidateObjects.begin(), candidateObjects.end(), compareByEqualAttributes);
 
-    if (candidateObjects[0].equal_attributes > candidateObjects[1].equal_attributes)
+    if (candidateObjects.at(0).equal_attributes > candidateObjects.at(1).equal_attributes)
     {
         /*
          * We have only 1 object with the greatest number of equal attributes
@@ -2185,7 +2158,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObject(
 
     size_t previousCandidates = candidateObjects.size();
 
-    size_t equalAttributes = candidateObjects[0].equal_attributes;
+    size_t equalAttributes = candidateObjects.at(0).equal_attributes;
 
     auto endIt = std::remove_if(candidateObjects.begin(), candidateObjects.end(),
             [equalAttributes](const sai_object_compare_info_t &candidate)
