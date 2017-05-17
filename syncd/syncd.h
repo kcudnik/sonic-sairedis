@@ -64,11 +64,6 @@ extern std::map<sai_object_id_t, std::shared_ptr<SaiSwitch>> switches;
 
 void hardReinit();
 
-//std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetVidToRidMap();
-//std::unordered_map<sai_object_id_t, sai_object_id_t> redisGetRidToVidMap();
-
-//std::vector<std::string> redisGetAsicStateKeys();
-
 void redisClearVidToRidMap();
 void redisClearRidToVidMap();
 
@@ -101,8 +96,6 @@ void translate_rid_to_vid_list(
 void endCountersThread();
 void startCountersThread(
         _In_ int intervalInSeconds);
-
-//std::unordered_map<sai_uint32_t, sai_object_id_t> redisGetLaneMap();
 
 void start_cli();
 void stop_cli();

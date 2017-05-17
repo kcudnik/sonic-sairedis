@@ -747,7 +747,7 @@ bool SaiSwitch::isNonRemovableRid(
     switch (ot)
     {
         case SAI_OBJECT_TYPE_VLAN_MEMBER:
-        case SAI_OBJECT_TYPE_STP:
+        case SAI_OBJECT_TYPE_STP_PORT:
         case SAI_OBJECT_TYPE_BRIDGE_PORT:
             return false;
 
@@ -820,6 +820,8 @@ void SaiSwitch::saiDiscover(
      *
      * TODO: This needs to be solved by sending discovered state to sairedis
      * metadata db for reference count.
+     *
+     * XXX: workaround
      */
 
     if (ot != SAI_OBJECT_TYPE_STP_PORT)

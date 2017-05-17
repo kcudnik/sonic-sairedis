@@ -17,10 +17,7 @@ std::shared_ptr<swss::NotificationProducer> notifications;
  *
  * Also DEVICE_MAC_ADDRESS is not present in saiswitch.h
  */
-std::map<std::string, std::string> gProfileMap = {
-    { "SAI_INIT_CONFIG_FILE", "/usr/share/sai_2700.xml" },
-    { "DEVICE_MAC_ADDRESS", "7c:fe:90:5e:6a:80" }
-};
+std::map<std::string, std::string> gProfileMap;
 
 /**
  * @brief Contais map of all created switches.
@@ -1623,7 +1620,7 @@ void on_switch_create_in_init_view(
             SWSS_LOG_THROW("hardware info missmatch: current '%s' vs new '%s'", currentHw.c_str(), newHw.c_str());
         }
 
-        SWSS_LOG_NOTICE("current switch hardware info: %s", currentHw.c_str());
+        SWSS_LOG_NOTICE("current switch hardware info: '%s'", currentHw.c_str());
     }
     else
     {
@@ -2376,7 +2373,7 @@ bool isVeryFirstRun()
      * this is first run, let's query HIDDEN ?
      */
 
-    auto keys = g_redisClient->keys("*" + std::string(HIDDEN) + "*");
+    auto keys = g_redisClient->keys(HIDDEN);
 
     bool firstRun = keys.size() == 0;
 

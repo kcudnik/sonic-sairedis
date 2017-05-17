@@ -1723,6 +1723,106 @@ std::shared_ptr<SaiObj> selectRandomCandidate(
     return candidateObjects.at(index).obj;
 }
 
+int findUsageCount(
+        _In_ const AsicView &view,
+        _In_ const std::shared_ptr<const SaiObj> &obj,
+        _In_ sai_object_type_t object_type,
+        _In_ sai_attr_id_t attr_id)
+{
+    SWSS_LOG_ENTER();
+
+    const auto &members = view.getObjectsByObjectType(object_type);
+
+    int count = 0;
+
+    for (auto &m: members)
+    {
+        if (!m->hasAttr(attr_id))
+        {
+            continue;
+        }
+
+        const auto &attr = m->getSaiAttr(attr_id);
+
+        if (attr->getSaiAttr()->value.oid != obj->getVid())
+        {
+            continue;
+        }
+
+        count++;
+    }
+
+    // by default we could use reference count on vid's
+
+    return count;
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatchForNextHopGroupUsingHeuristic(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
+        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
+{
+    SWSS_LOG_ENTER();
+
+    int tempCount = findUsageCount(
+            temporaryView,
+            temporaryObj,
+            SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
+            SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID);
+
+    for (const auto &c: candidateObjects)
+    {
+        int currentCount = findUsageCount(
+                currentView,
+                c.obj,
+                SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
+                SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID);
+
+        if (currentCount == tempCount)
+        {
+            return c.obj;
+        }
+    }
+
+    SWSS_LOG_WARN("heuristic failed, selecting at random");
+
+    return selectRandomCandidate(candidateObjects);
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatchForTrapGroupUsingHeuristic(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
+        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
+{
+    SWSS_LOG_ENTER();
+
+    int tempCount = findUsageCount(
+            temporaryView,
+            temporaryObj,
+            SAI_OBJECT_TYPE_HOSTIF_TRAP,
+            SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP);
+
+    for (const auto &c: candidateObjects)
+    {
+        int currentCount = findUsageCount(
+                currentView,
+                c.obj,
+                SAI_OBJECT_TYPE_HOSTIF_TRAP,
+                SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP);
+
+        if (currentCount == tempCount)
+        {
+            return c.obj;
+        }
+    }
+
+    SWSS_LOG_WARN("heuristic failed, selecting at random");
+
+    return selectRandomCandidate(candidateObjects);
+}
+
 std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
@@ -1747,8 +1847,26 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
      * as well, it could return nullptr and we could deal with it here as well.
      */
 
+    std::shared_ptr<SaiObj> selected = nullptr;
+
     switch (object_type)
     {
+        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP:
+
+            return findCurrentBestMatchForNextHopGroupUsingHeuristic(
+                    currentView,
+                    temporaryView,
+                    temporaryObj,
+                    candidateObjects);
+
+        case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
+
+            return findCurrentBestMatchForTrapGroupUsingHeuristic(
+                    currentView,
+                    temporaryView,
+                    temporaryObj,
+                    candidateObjects);
+
         default:
 
             SWSS_LOG_WARN("%s is not supported for heuristic, will select best match object at random",
@@ -4556,7 +4674,10 @@ void applyViewTransition(
             }
         }
 
-        SWSS_LOG_NOTICE("- loop removed (%d)", removed);
+        if (removed)
+        {
+            SWSS_LOG_NOTICE("loop removed %d objects", removed);
+        }
     }
 
     /*
@@ -5551,6 +5672,8 @@ void executeOperationsOnAsic(
     {
         SWSS_LOG_TIMER("asic apply");
 
+        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
+
         try
         {
             for (const auto &op: currentView.asicGetOperations())
@@ -5582,7 +5705,11 @@ void executeOperationsOnAsic(
 
             throw;
         }
+
+        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
     }
+
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
     SWSS_LOG_NOTICE("performed all operations on asic succesfully");
 }
