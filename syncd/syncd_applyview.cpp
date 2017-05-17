@@ -1723,7 +1723,7 @@ std::shared_ptr<SaiObj> selectRandomCandidate(
     return candidateObjects.at(index).obj;
 }
 
-int findUsageCount(
+std::vector<std::shared_ptr<const SaiObj>> findUsageCount(
         _In_ const AsicView &view,
         _In_ const std::shared_ptr<const SaiObj> &obj,
         _In_ sai_object_type_t object_type,
@@ -1731,30 +1731,30 @@ int findUsageCount(
 {
     SWSS_LOG_ENTER();
 
-    const auto &members = view.getObjectsByObjectType(object_type);
+    std::vector<std::shared_ptr<const SaiObj>> filtered;
 
-    int count = 0;
+    const auto &members = view.getObjectsByObjectType(object_type);
 
     for (auto &m: members)
     {
-        if (!m->hasAttr(attr_id))
+        if (m->hasAttr(attr_id))
         {
-            continue;
+            const auto &attr = m->getSaiAttr(attr_id);
+
+            if (attr->getAttrMetadata()->allowedobjecttypeslength == 0)
+            {
+                SWSS_LOG_THROW("attribute %s is not oid attribute, bug!", 
+                        attr->getAttrMetadata()->attridname);
+            }
+
+            if (attr->getSaiAttr()->value.oid == obj->getVid())
+            {
+                filtered.push_back(m);
+            }
         }
-
-        const auto &attr = m->getSaiAttr(attr_id);
-
-        if (attr->getSaiAttr()->value.oid != obj->getVid())
-        {
-            continue;
-        }
-
-        count++;
     }
 
-    // by default we could use reference count on vid's
-
-    return count;
+    return filtered;
 }
 
 std::shared_ptr<SaiObj> findCurrentBestMatchForNextHopGroupUsingHeuristic(
@@ -1765,19 +1765,19 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForNextHopGroupUsingHeuristic(
 {
     SWSS_LOG_ENTER();
 
-    int tempCount = findUsageCount(
+    size_t tempCount = findUsageCount(
             temporaryView,
             temporaryObj,
             SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
-            SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID);
+            SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID).size();
 
     for (const auto &c: candidateObjects)
     {
-        int currentCount = findUsageCount(
+        size_t currentCount = findUsageCount(
                 currentView,
                 c.obj,
                 SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER,
-                SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID);
+                SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID).size();
 
         if (currentCount == tempCount)
         {
@@ -1798,19 +1798,57 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForTrapGroupUsingHeuristic(
 {
     SWSS_LOG_ENTER();
 
-    int tempCount = findUsageCount(
+    size_t tempCount = findUsageCount(
             temporaryView,
             temporaryObj,
             SAI_OBJECT_TYPE_HOSTIF_TRAP,
-            SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP);
+            SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP).size();
 
     for (const auto &c: candidateObjects)
     {
-        int currentCount = findUsageCount(
+        size_t currentCount = findUsageCount(
                 currentView,
                 c.obj,
                 SAI_OBJECT_TYPE_HOSTIF_TRAP,
-                SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP);
+                SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP).size();
+
+        if (currentCount == tempCount)
+        {
+            return c.obj;
+        }
+    }
+
+    SWSS_LOG_WARN("heuristic failed, selecting at random");
+
+    return selectRandomCandidate(candidateObjects);
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatchForPolicerUsingHeuristic(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
+        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
+{
+    SWSS_LOG_ENTER();
+
+    size_t tempCount = findUsageCount(
+            temporaryView,
+            temporaryObj,
+            SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP,
+            SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER).size();
+
+    if (tempCount == 0)
+    {
+        return selectRandomCandidate(candidateObjects);
+    }
+
+    for (const auto &c: candidateObjects)
+    {
+        size_t currentCount = findUsageCount(
+                currentView,
+                c.obj,
+                SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP,
+                SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER).size();
 
         if (currentCount == tempCount)
         {
@@ -1862,6 +1900,14 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingHeuristic(
         case SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:
 
             return findCurrentBestMatchForTrapGroupUsingHeuristic(
+                    currentView,
+                    temporaryView,
+                    temporaryObj,
+                    candidateObjects);
+
+        case SAI_OBJECT_TYPE_POLICER:
+
+            return findCurrentBestMatchForPolicerUsingHeuristic(
                     currentView,
                     temporaryView,
                     temporaryObj,
