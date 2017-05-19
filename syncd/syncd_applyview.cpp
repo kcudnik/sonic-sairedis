@@ -267,6 +267,7 @@ class SaiAttr
         sai_attribute_t m_attr;
 };
 
+// TODO remove later since exists in metadata
 bool sai_metadata_is_object_type_valid(
         _In_ sai_object_type_t object_type)
 {
@@ -296,7 +297,6 @@ class SaiObj
          */
         SaiObj():
             createdObject(false),
-            defaultObject(false),
             m_object_status(SAI_OBJECT_STATUS_NOT_PROCESSED)
         {
             /* empty intentionally */
@@ -315,14 +315,6 @@ class SaiObj
          * indicate that currently there is no RID for it.
          */
         bool createdObject;
-
-        /**
-         * @brief This will indicate wheter object is default object, like
-         * default STP instance, default Virtual Router, default Trap Group etc
-         * so it can't be removed or created, it attributes can be brought to
-         * default values.
-         */
-        bool defaultObject;
 
         bool isOidObject() const
         {
@@ -1243,9 +1235,9 @@ void redisGetAsicView(
 {
     SWSS_LOG_ENTER();
 
-    swss::DBConnector db(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
+    SWSS_LOG_TIMER("get asic view from %s", tableName.c_str());
 
-    SWSS_LOG_NOTICE("tableName: %s", tableName.c_str());
+    swss::DBConnector db(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
 
     swss::Table table(&db, tableName);
 
@@ -1255,7 +1247,7 @@ void redisGetAsicView(
 
     view.fromDump(dump);
 
-    SWSS_LOG_NOTICE("objects count: %zu", view.soAll.size());
+    SWSS_LOG_NOTICE("objects count for %s: %zu", tableName.c_str(), view.soAll.size());
 }
 
 void checkObjectsStatus(
@@ -3320,7 +3312,6 @@ void createNewObjectFromTemporaryObject(
     currentObj->str_object_type  = temporaryObj->str_object_type;
     currentObj->str_object_id    = temporaryObj->str_object_id;      // temporary VID / non object id
     currentObj->meta_key         = temporaryObj->meta_key;           // temporary VID / non object id
-    currentObj->defaultObject    = temporaryObj->defaultObject;
     currentObj->info             = temporaryObj->info;
 
     if (!temporaryObj->isOidObject())
@@ -4418,23 +4409,6 @@ void processObjectForViewTransition(
     UpdateObjectStatus(currentView, temporaryView, currentBestMatch, temporaryObj);
 }
 
-//void processObjectsByObjectType(
-//        _In_ AsicView &currentView,
-//        _In_ AsicView &temporaryView,
-//        _In_ sai_object_type_t object_type)
-//{
-//    SWSS_LOG_ENTER();
-//
-//    auto objects = temporaryView.getObjectsByObjectType(object_type);
-//
-//    for (const auto &o: objects)
-//    {
-//        processObjectForViewTransition(currentView, temporaryView, o);
-//    }
-//
-//    SWSS_LOG_NOTICE("processed %s", sai_serialize_object_type(object_type).c_str());
-//}
-
 void checkSwitch(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView)
@@ -4532,6 +4506,8 @@ void applyViewTransition(
         _In_ AsicView &temp)
 {
     SWSS_LOG_ENTER();
+
+    SWSS_LOG_TIMER("comparison logic");
 
     checkSwitch(current, temp);
 
@@ -4709,61 +4685,6 @@ void executeOperationsOnAsic(
         _In_ AsicView &currentView,
         _In_ AsicView &temporaryView);
 
-// TODO REMOVE since we populate existing obejcts to the REDIs when we doing
-// discovery
-
-// TODO there may be problem with temporary objects, like, user did't queried
-// queues or cpu port etc, sure we can transfer them but which objects we
-// should transfer ?  all of them ? or none ?
-//
-// TODO: scenario, - current view contaisn all obects with default then we are
-// doing apply view, temporary contains only switch then after apply it will
-// bring back non removable objects to default in curent view then wehn views
-// will be switches, objects will be missing from asic state.
-//
-// when doing stuff on non removeable objects we should also transfer them to
-// temporary view as well.  TODO this will be conflict !
-//
-// TODO one solution could be to populate Temporary view right after "crate
-// switch" with current switch on which we operationg, like discovery etc, all
-// vlans all that stuff, then when user will modify, or create all will be
-// there
-//
-// problem also can arise, since when doing for example creating vlan/vlan
-// member, which is already there they will just match, and we would need to
-// transfer all attributes for existing objects as well, this gets complicated
-// and metadat in sairedis will have no info about dependencies on thsoe objects
-// we would need to transfer them in init view mode. entire dependency tree
-//
-// then wehn we will not transfer thsoe obejcts in right way it may happen
-// scenario 2:
-// - we have current view, then temporary view is missing something we didnt
-// put existing there, then we are doing switch view, this missing will be
-// inside current asic state, but object will be existing, and when we will
-// do syncd restart hard then this missing object will fail comparing
-// at the check ids, since it will be not in view, but it will be in switch
-// then we will try to remove it like queue.
-//
-// ALSO note that existing obejcts reflect only those that are on the switch
-// after beginning, if we create more scheduler groups or queue, it will not
-// reflect that, but that expectedted?
-//
-// We will need a sophisticated check at the end of comparison logic to make
-// sure current redis asic state, reflects current asic state.
-
-// TODO bring non removable object to default should put
-// also this object to temporary View if it's missing !
-// since temporary view snapshot will be put into DB !
-// basically we need to put non removalbe objects to temporary view at start
-// so call isNonRemovableObject on discovered objects
-// this will be the best scenario to translate to empty switch
-//
-// ok so normal flow (remove) must be corelated with saiswitch, so if user
-// will remove existing obejct (because maybe its possible liek vlan member)
-// we need to take that object off in syncd.cpp after remove, then we will
-// be in sync and when apply view will come, we will have all needed objects
-// currently we are doing this only when doing hard reinit
-
 // TODO find better way to acces this
 extern std::set<sai_object_id_t> initViewRemovedVidSet;
 
@@ -4773,6 +4694,19 @@ void populateExistingObjects(
         _In_ const std::set<sai_object_id_t> rids)
 {
     SWSS_LOG_ENTER();
+
+    /*
+     * We should transfer existing objects from current view to temporary view.
+     * But not all objects, since user could remove some default removable
+     * obejcts like vlan member, bridge port etc. We collected those removed
+     * objects to initViewRemovedVidSet and we will use this as a reference to
+     * transfer objects to temporary view.
+     *
+     * TODO: still sairedis metadata database have no idea about existing
+     * obejcts so user can create object which already exists like vlan 1 if he
+     * didn't queried it yet. We need to transfer all dependency tree to
+     * sairedis after switch create.
+     */
 
     if (temporaryView.getObjectsByObjectType(SAI_OBJECT_TYPE_SWITCH).size() == 0)
     {
@@ -4933,9 +4867,11 @@ void updateRedisDatabase(
     SWSS_LOG_NOTICE("updated redis database");
 }
 
-sai_status_t internalSyncdApplyView()
+sai_status_t syncdApplyView()
 {
     SWSS_LOG_ENTER();
+
+    SWSS_LOG_TIMER("apply");
 
     /*
      * We assume that there will be no case that we will move from 1 to 0, also
@@ -5133,53 +5069,11 @@ sai_status_t internalSyncdApplyView()
      * fail, then we will have inconsistent state in ASIC.
      */
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
-
     executeOperationsOnAsic(current, temp);
 
     updateRedisDatabase(current, temp);
 
     return SAI_STATUS_SUCCESS;
-}
-
-sai_status_t syncdApplyView()
-{
-    SWSS_LOG_ENTER();
-
-    // TODO: Remove setting logger level here
-
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
-
-    sai_status_t status = SAI_STATUS_FAILURE;
-
-    {
-        /*
-         * TODO: We need this as notice, we should create timer notice
-         */
-
-        SWSS_LOG_TIMER("apply");
-
-        try
-        {
-            status = internalSyncdApplyView();
-        }
-        catch (const std::runtime_error &e)
-        {
-            SWSS_LOG_ERROR("Exception: %s", e.what());
-
-            /*
-             * Re-throw exception, we just need to log it here.
-             */
-
-            throw;
-        }
-
-        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
-    }
-
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
-
-    return status;
 }
 
 /*
@@ -5341,8 +5235,7 @@ void asic_translate_vid_to_rid_list(
 sai_status_t asic_handle_generic(
         _In_ AsicView &current,
         _In_ AsicView &temporary,
-        _In_ sai_object_type_t object_type,
-        _In_ const std::string &str_object_id,
+        _In_ sai_object_meta_key_t &meta_key,
         _In_ sai_common_api_t api,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
@@ -5351,10 +5244,7 @@ sai_status_t asic_handle_generic(
 
     SWSS_LOG_DEBUG("generic %s for %s",
             sai_serialize_common_api(api).c_str(),
-            sai_serialize_object_type(object_type).c_str());
-
-    sai_object_id_t object_id;
-    sai_deserialize_object_id(str_object_id, object_id);
+            sai_serialize_object_type(meta_key.objecttype).c_str());
 
     /*
      * If we will use split for generics we can avoid meta key if we will
@@ -5364,20 +5254,9 @@ sai_status_t asic_handle_generic(
      * And this needs to be executed in sai_meta_apis_query.
      */
 
-    auto info = sai_metadata_get_object_type_info(object_type);
+    auto info = sai_metadata_get_object_type_info(meta_key.objecttype);
 
-    sai_object_meta_key_t meta_key;
-
-    meta_key.objecttype = object_type;
-
-    //if (object_type == SAI_OBJECT_TYPE_NEXT_HOP ||
-    //        object_type ==SAI_OBJECT_TYPE_NEXT_HOP_GROUP ||
-    //        object_type ==SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER )
-    //{
-    //    SWSS_LOG_NOTICE("%s : %s",
-    //            sai_serialize_object_type(object_type).c_str(),
-    //            str_object_id.c_str());
-    //}
+    sai_object_id_t object_id = meta_key.objectkey.key.object_id;
 
     switch (api)
     {
@@ -5412,7 +5291,7 @@ sai_status_t asic_handle_generic(
                 else
                 {
                     SWSS_LOG_ERROR("failed to create %s %s",
-                            sai_serialize_object_type(object_type).c_str(),
+                            sai_serialize_object_type(meta_key.objecttype).c_str(),
                             sai_serialize_status(status).c_str());
                 }
 
@@ -5481,7 +5360,6 @@ sai_status_t asic_handle_generic(
                 {
                     SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
 
-                    // TODO where are routes from temp view ?
                     return SAI_STATUS_SUCCESS;
                 }
 
@@ -5489,7 +5367,7 @@ sai_status_t asic_handle_generic(
             }
 
         default:
-            SWSS_LOG_ERROR("generic other apis not implemented");
+            SWSS_LOG_ERROR("other apis not implemented");
             return SAI_STATUS_FAILURE;
     }
 }
@@ -5501,12 +5379,11 @@ void asic_translate_vid_to_rid_non_object_id(
 {
     SWSS_LOG_ENTER();
 
-    // TODO use metadat utils
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_get_object_type_info(meta_key.objecttype);
 
-    for (size_t j = 0; j < info->structmemberscount; ++j)
+    for (size_t idx = 0; idx < info->structmemberscount; ++idx)
     {
-        const sai_struct_member_info_t *m = info->structmembers[j];
+        const sai_struct_member_info_t *m = info->structmembers[idx];
 
         if (m->membervaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_ID)
         {
@@ -5531,7 +5408,7 @@ sai_status_t asic_handle_non_object_id(
 
     asic_translate_vid_to_rid_non_object_id(current, temporary, meta_key);
 
-    auto info = sai_all_object_type_infos[meta_key.objecttype];
+    auto info = sai_metadata_get_object_type_info(meta_key.objecttype);
 
     switch (api)
     {
@@ -5545,7 +5422,8 @@ sai_status_t asic_handle_non_object_id(
             return info->set(&meta_key, attr_list);
 
         default:
-            SWSS_LOG_THROW("other apis not implemented");
+            SWSS_LOG_ERROR("other apis not implemented");
+            return SAI_STATUS_FAILURE;
     }
 }
 
@@ -5566,8 +5444,8 @@ sai_status_t asic_process_event(
     const std::string &key = kfvKey(kco);
     const std::string &op = kfvOp(kco);
 
-    std::string str_object_type = key.substr(0, key.find(":"));
-    std::string str_object_id = key.substr(key.find(":") + 1);
+    sai_object_meta_key_t meta_key;
+    sai_deserialize_object_meta_key(key, meta_key);
 
     SWSS_LOG_INFO("key: %s op: %s", key.c_str(), op.c_str());
 
@@ -5577,7 +5455,7 @@ sai_status_t asic_process_event(
     if (op == "set")
     {
         /*
-         * Most common operation will probably be set so let put it first
+         * Most common operation will probably be set so let put it first.
          */
 
         api = SAI_COMMON_API_SET;
@@ -5599,15 +5477,7 @@ sai_status_t asic_process_event(
 
     std::stringstream ss;
 
-    sai_object_type_t object_type;
-    sai_deserialize_object_type(str_object_type, object_type);
-
-    if (!sai_metadata_is_object_type_valid(object_type))
-    {
-        SWSS_LOG_ERROR("undefined object type: %d on %s", object_type, key.c_str());
-
-        return SAI_STATUS_NOT_SUPPORTED;
-    }
+    sai_object_type_t object_type = meta_key.objecttype;
 
     const std::vector<swss::FieldValueTuple> &values = kfvFieldsValues(kco);
 
@@ -5622,62 +5492,38 @@ sai_status_t asic_process_event(
 
     auto info = sai_metadata_get_object_type_info(object_type);
 
+    if (object_type == SAI_OBJECT_TYPE_SWITCH)
+    {
+        check_notifications_pointers(attr_count, attr_list);
+    }
+
     if (info->isnonobjectid)
     {
-        sai_object_meta_key_t meta_key;
-
-        meta_key.objecttype = object_type;
-
-        // TODO use meta key deserialize
-        switch (object_type)
-        {
-            case SAI_OBJECT_TYPE_FDB_ENTRY:
-                sai_deserialize_fdb_entry(str_object_id, meta_key.objectkey.key.fdb_entry);
-                break;
-
-            case SAI_OBJECT_TYPE_NEIGHBOR_ENTRY:
-                sai_deserialize_neighbor_entry(str_object_id, meta_key.objectkey.key.neighbor_entry);
-                break;
-
-            case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-                sai_deserialize_route_entry(str_object_id, meta_key.objectkey.key.route_entry);
-                break;
-
-            default:
-
-                SWSS_LOG_THROW("non object id %s is not supported yet, FIXME", info->objecttypename);
-        }
-
         status = asic_handle_non_object_id(current, temporary, meta_key, api, attr_count, attr_list);
     }
     else
     {
-        if (object_type == SAI_OBJECT_TYPE_SWITCH)
-        {
-            check_notifications_pointers(attr_count, attr_list);
-        }
-
-        status = asic_handle_generic(current, temporary, object_type, str_object_id, api, attr_count, attr_list);
+        status = asic_handle_generic(current, temporary, meta_key, api, attr_count, attr_list);
     }
 
-    if (status != SAI_STATUS_SUCCESS)
+    if (status == SAI_STATUS_SUCCESS)
     {
-        for (const auto &v: values)
-        {
-            SWSS_LOG_ERROR("field: %s, value: %s", fvField(v).c_str(), fvValue(v).c_str());
-        }
-
-        /*
-         * Asic here will be in inconsistent state, we need to terminate.
-         */
-
-        SWSS_LOG_THROW("failed to execute api: %s, key: %s, status: %s",
-                op.c_str(),
-                key.c_str(),
-                sai_serialize_status(status).c_str());
+        return status;
     }
 
-    return status;
+    for (const auto &v: values)
+    {
+        SWSS_LOG_ERROR("field: %s, value: %s", fvField(v).c_str(), fvValue(v).c_str());
+    }
+
+    /*
+     * ASIC here will be in inconsistent state, we need to terminate.
+     */
+
+    SWSS_LOG_THROW("failed to execute api: %s, key: %s, status: %s",
+            op.c_str(),
+            key.c_str(),
+            sai_serialize_status(status).c_str());
 }
 
 void executeOperationsOnAsic(
@@ -5688,47 +5534,39 @@ void executeOperationsOnAsic(
 
     SWSS_LOG_NOTICE("operations to execute on ASIC: %zu", currentView.asicGetOperationsCount());
 
+    try
     {
         SWSS_LOG_TIMER("asic apply");
 
-        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
-
-        try
+        for (const auto &op: currentView.asicGetOperations())
         {
-            for (const auto &op: currentView.asicGetOperations())
-            {
-                /*
-                 * It is possible that this method will throw exception in that case we
-                 * also should exit syncd since we can be in the middle of executing
-                 * operations and if some problems will happen and we continue to stay
-                 * alive and next apply view, we will be in inconsistent state which
-                 * will lead to unexpected behaviour.
-                 */
-
-                sai_status_t status = asic_process_event(currentView, temporaryView, *op);
-
-                if (status != SAI_STATUS_SUCCESS)
-                {
-                    SWSS_LOG_THROW("status of last operation was: %s, ASIC will be in inconsistent state, exiting",
-                            sai_serialize_status(status).c_str());
-                }
-            }
-        }
-        catch (const std::exception &e)
-        {
-            SWSS_LOG_ERROR("Error while executing asic operations, ASIC is in inconsistent state: %s", e.what());
-
             /*
-             * Re-throw exception to main loop.
+             * It is possible that this method will throw exception in that case we
+             * also should exit syncd since we can be in the middle of executing
+             * operations and if some problems will happen and we continue to stay
+             * alive and next apply view, we will be in inconsistent state which
+             * will lead to unexpected behaviour.
              */
 
-            throw;
+            sai_status_t status = asic_process_event(currentView, temporaryView, *op);
+
+            if (status != SAI_STATUS_SUCCESS)
+            {
+                SWSS_LOG_THROW("status of last operation was: %s, ASIC will be in inconsistent state, exiting",
+                        sai_serialize_status(status).c_str());
+            }
         }
-
-        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
     }
+    catch (const std::exception &e)
+    {
+        SWSS_LOG_ERROR("Error while executing asic operations, ASIC is in inconsistent state: %s", e.what());
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
+        /*
+         * Re-throw exception to main loop.
+         */
+
+        throw;
+    }
 
     SWSS_LOG_NOTICE("performed all operations on asic succesfully");
 }

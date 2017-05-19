@@ -1156,22 +1156,20 @@ void hardReinit()
 
     for (const auto &p: g_perf_create)
     {
-        SWSS_LOG_NOTICE("create %s: %d: %f -> %f",
+        SWSS_LOG_NOTICE("create %s: %d: %f",
                 sai_serialize_object_type(p.first).c_str(),
                 std::get<0>(p.second),
-                std::get<1>(p.second),
-                std::get<1>(p.second)/std::get<0>(p.second));
+                std::get<1>(p.second));
 
         total_create += std::get<1>(p.second);
     }
 
     for (const auto &p: g_perf_set)
     {
-        SWSS_LOG_NOTICE("set %s: %d: %f -> %f",
+        SWSS_LOG_NOTICE("set %s: %d: %f",
                 sai_serialize_object_type(p.first).c_str(),
                 std::get<0>(p.second),
-                std::get<1>(p.second),
-                std::get<1>(p.second)/std::get<0>(p.second));
+                std::get<1>(p.second));
 
         total_set += std::get<1>(p.second);
     }
