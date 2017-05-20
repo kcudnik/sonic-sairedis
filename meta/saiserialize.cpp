@@ -113,7 +113,7 @@ sai_status_t transfer_list(
 
 sai_status_t transfer_attribute(
         _In_ sai_attr_value_type_t serialization_type,
-        _In_ sai_attribute_t &src_attr,
+        _In_ const sai_attribute_t &src_attr,
         _In_ sai_attribute_t &dst_attr,
         _In_ bool countOnly)
 {
@@ -372,13 +372,13 @@ sai_status_t transfer_attribute(
 sai_status_t transfer_attributes(
         _In_ sai_object_type_t object_type,
         _In_ uint32_t attr_count,
-        _In_ sai_attribute_t *src_attr_list,
+        _In_ const sai_attribute_t *src_attr_list,
         _In_ sai_attribute_t *dst_attr_list,
         _In_ bool countOnly)
 {
     for (uint32_t i = 0; i < attr_count; i++)
     {
-        sai_attribute_t &src_attr = src_attr_list[i];
+        const sai_attribute_t &src_attr = src_attr_list[i];
         sai_attribute_t &dst_attr = dst_attr_list[i];
 
         auto meta = sai_metadata_get_attr_metadata(object_type, src_attr.id);

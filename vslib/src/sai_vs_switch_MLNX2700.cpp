@@ -9,9 +9,11 @@
  * done under global lock.
  */
 
+// TODO implement actual mlnx 2700
+
 static std::shared_ptr<SwitchState> ss;
 
-static sai_status_t set_switch_mac_address()
+sai_status_t set_switch_mac_address()
 {
     SWSS_LOG_ENTER();
 
@@ -702,7 +704,7 @@ static sai_status_t initialize_default_objects()
     return SAI_STATUS_SUCCESS;
 }
 
-void init_switch_BCM56850(
+void init_switch_MLNX2700(
         _In_ sai_object_id_t switch_id)
 {
     SWSS_LOG_ENTER();
@@ -729,7 +731,7 @@ void init_switch_BCM56850(
     SWSS_LOG_NOTICE("initialized switch 0x%lx", switch_id);
 }
 
-void uninit_switch_BCM56850(
+void uninit_switch_MLNX2700(
         _In_ sai_object_id_t switch_id)
 {
     SWSS_LOG_ENTER();

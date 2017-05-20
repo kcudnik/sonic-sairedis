@@ -1,6 +1,7 @@
 #include "sai_vs.h"
 #include "sai_vs_state.h"
 #include "sai_vs_switch_BCM56850.h"
+#include "sai_vs_switch_MLNX2700.h"
 
 SwitchStateMap g_switch_state_map;
 
@@ -189,7 +190,7 @@ sai_object_id_t vs_create_real_object_id(
     {
         sai_object_id_t object_id = vs_create_switch_real_object_id();
 
-        SWSS_LOG_DEBUG("created SWITCH VID 0x%lx", object_id);
+        SWSS_LOG_NOTICE("created swith RID 0x%lx", object_id);
 
         return object_id;
     }
@@ -201,7 +202,7 @@ sai_object_id_t vs_create_real_object_id(
 
     sai_object_id_t object_id = vs_construct_object_id(object_type, index, real_id);
 
-    SWSS_LOG_DEBUG("created VID 0x%lx", object_id);
+    SWSS_LOG_DEBUG("created RID 0x%lx", object_id);
 
     return object_id;
 }
@@ -226,42 +227,45 @@ sai_status_t internal_vs_generic_create(
 {
     SWSS_LOG_ENTER();
 
-    // NOTE: in base class SwitchState we could have
-    // 4 generic api that whould handle this
-
     if (object_type == SAI_OBJECT_TYPE_SWITCH)
     {
-        init_switch_BCM56850(switch_id);
+        switch (g_vs_switch_type)
+        {
+            case SAI_VS_SWITCH_TYPE_BCM56850:
+                init_switch_BCM56850(switch_id);
+                break;
+
+            case SAI_VS_SWITCH_TYPE_MLNX2700:
+                init_switch_MLNX2700(switch_id);
+                break;
+
+            default:
+                SWSS_LOG_WARN("unknown switch type: %d", g_vs_switch_type);
+                return SAI_STATUS_FAILURE;
+        }
     }
 
-    auto & objectHash = g_switch_state_map.at(switch_id)->objectHash;
+    auto &objectHash = g_switch_state_map.at(switch_id)->objectHash;
 
     auto it = objectHash.find(serialized_object_id);
 
     if (object_type != SAI_OBJECT_TYPE_SWITCH)
     {
         /*
-         * Switch is special, and object is already created by init
+         * Switch is special, and object is already created by init.
+         *
+         * XXX revisit this.
          */
 
         if (it != objectHash.end())
         {
-            SWSS_LOG_ERROR("Create failed, object already exists, object type: %s: id: %s",
+            SWSS_LOG_ERROR("create failed, object already exists %s:%, object type: %s: id: %s",
                     sai_serialize_object_type(object_type).c_str(),
                     serialized_object_id.c_str());
 
             return SAI_STATUS_ITEM_ALREADY_EXISTS;
         }
     }
-
-    std::vector<swss::FieldValueTuple> values = SaiAttributeList::serialize_attr_list(
-            object_type,
-            attr_count,
-            attr_list,
-            false);
-
-    // we can have multiple attributes when creating object, we need to set each one
-    // in hash per object, since get can request multiple attributes
 
     if (objectHash.find(serialized_object_id) == objectHash.end())
     {
@@ -275,24 +279,17 @@ sai_status_t internal_vs_generic_create(
 
     for (uint32_t i = 0; i < attr_count; ++i)
     {
-        const std::string &str_attr_id = fvField(values[i]);
-        const std::string &str_attr_value = fvValue(values[i]);
+        auto a = std::make_shared<SaiAttrWrap>(object_type, &attr_list[i]);
 
-        /*
-         * This is replacing what was created on switch so we need to use union.
-         */
-
-        objectHash[serialized_object_id][str_attr_id] = str_attr_value; // set attributes to object id
+        objectHash[serialized_object_id][a->getAttrMetadata()->attridname] = a;
     }
-
-    SWSS_LOG_DEBUG("Create succeeded, object type: %d, id: %s", object_type, serialized_object_id.c_str());
 
     return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t vs_generic_create(
         _In_ sai_object_type_t object_type,
-        _Out_ sai_object_id_t* object_id,
+        _Out_ sai_object_id_t *object_id,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
@@ -335,7 +332,7 @@ sai_status_t vs_generic_create_fdb_entry(
 }
 
 sai_status_t vs_generic_create_neighbor_entry(
-        _In_ const sai_neighbor_entry_t* neighbor_entry,
+        _In_ const sai_neighbor_entry_t *neighbor_entry,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {
@@ -352,7 +349,7 @@ sai_status_t vs_generic_create_neighbor_entry(
 }
 
 sai_status_t vs_generic_create_route_entry(
-        _In_ const sai_route_entry_t* route_entry,
+        _In_ const sai_route_entry_t *route_entry,
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list)
 {

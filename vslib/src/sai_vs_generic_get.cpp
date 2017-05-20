@@ -1,27 +1,16 @@
 #include "sai_vs.h"
 #include "sai_vs_state.h"
 
-sai_status_t internal_vs_get_process(
-        _In_ sai_object_type_t object_type,
-        _In_ const std::string &str_attr_id,
-        _In_ const std::string &str_attr_value,
-        _Out_ sai_attribute_t *attr)
+void refresh_read_only(
+        _In_ const sai_attr_metadata_t *meta,
+        _In_ const std::string &serialized_object_id,
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _Out_ sai_attribute_t *attr_list)
 {
-    SWSS_LOG_ENTER();
+    // TODO!
 
-    // TODO we currently don't check get list count
-    // so we will not get SAI_STATUS_BUFFER_OVERFLOW
-    // count needs to be exact or less then actual attribute count
-    // we will need extra transfer method for that or method that
-    // can extract count from attribute
-
-    std::vector<swss::FieldValueTuple> values;
-
-    values.push_back(swss::FieldValueTuple(str_attr_id, str_attr_value));
-
-    SaiAttributeList list(object_type, values, false);
-
-    return transfer_attributes(object_type, 1, list.get_attr_list(), attr, false);
+    SWSS_LOG_WARN("need to recalculate RO: %s", meta->attridname);
 }
 
 sai_status_t internal_vs_generic_get(
@@ -39,78 +28,93 @@ sai_status_t internal_vs_generic_get(
 
     if (it == objectHash.end())
     {
-        SWSS_LOG_ERROR("Get failed, object not found, object type: %d: id: %s", object_type, serialized_object_id.c_str());
+        SWSS_LOG_ERROR("not found %s:%s",
+                sai_serialize_object_type(object_type).c_str(),
+                serialized_object_id.c_str());
 
         return SAI_STATUS_ITEM_NOT_FOUND;
     }
 
-    std::vector<swss::FieldValueTuple> values = SaiAttributeList::serialize_attr_list(
-            object_type,
-            attr_count,
-            attr_list,
-            false);
-
     AttrHash attrHash = it->second;
 
-    for (uint32_t i = 0; i < attr_count; ++i)
+    /*
+     * Some of the list query maybe for length, so we can't do
+     * normal serialize, maybe with count only.
+     */
+
+    sai_status_t final_status = SAI_STATUS_SUCCESS;
+
+    for (uint32_t idx = 0; idx < attr_count; ++idx)
     {
-        // TODO we need to also support "0" for list types
-        // to return only number
+        sai_attr_id_t id = attr_list[idx].id;
 
-        const std::string &str_attr_id = fvField(values[i]);
+        auto meta = sai_metadata_get_attr_metadata(object_type, id);
 
-        // actual count that user requests is in attr_value
-        // if requested item is a list, then it must be extracted
-        // const std::string &str_attr_value = fvValue(values[i]);
+        if (meta == NULL)
+        {
+            SWSS_LOG_ERROR("failed to find attribute %d for %s:%s", id,
+                    sai_serialize_object_type(object_type).c_str(),
+                    serialized_object_id.c_str());
 
-        auto ait = attrHash.find(str_attr_id);
+            return SAI_STATUS_FAILURE;
+        }
+
+        if (HAS_FLAG_READ_ONLY(meta->flags))
+        {
+            // read only attributes may require recalculation
+            refresh_read_only(meta, serialized_object_id, switch_id, attr_count, attr_list);
+        }
+
+        auto ait = attrHash.find(meta->attridname);
 
         if (ait == attrHash.end())
         {
-            SWSS_LOG_ERROR("Get failed, attribute not found, object type: %s: id: %s, attr_id: %s",
+            SWSS_LOG_ERROR("attribute %s not found on %s:%s",
+                    meta->attridname,
                     sai_serialize_object_type(object_type).c_str(),
-                    serialized_object_id.c_str(),
-                    str_attr_id.c_str());
+                    serialized_object_id.c_str());
 
             return SAI_STATUS_ITEM_NOT_FOUND;
         }
 
-        const std::string &str_attr_value = ait->second;
+        auto attr = ait->second->getAttr();
 
-        sai_status_t status = internal_vs_get_process(
-                object_type,
-                str_attr_id,
-                str_attr_value,
-                &attr_list[i]);
+        sai_status_t status = transfer_attributes(object_type, 1, attr, &attr_list[idx], false);
 
         if (status == SAI_STATUS_BUFFER_OVERFLOW)
         {
-            // this is considered partial success, since we get correct list length
+            /*
+             * This is considered partial success, since we get correct list
+             * length.  Note that other items ARE processes on the list.
+             */
 
-            SWSS_LOG_NOTICE("Get returned BUFFER_OVERFLOW object type: %d: id: %s, attr_id: %s",
-                    object_type,
+            SWSS_LOG_NOTICE("BUFFER_OVERFLOW %s: %s",
                     serialized_object_id.c_str(),
-                    str_attr_id.c_str());
+                    meta->attridname);
 
-            return status;
+            /*
+             * We still continue processing other attributes for get as long as
+             * we only will be getting buffer overflow error.
+             */
+
+            final_status = status;
+            continue;
         }
 
         if (status != SAI_STATUS_SUCCESS)
         {
             // all other errors
 
-            SWSS_LOG_ERROR("Get failed, attribute process failed, object type: %d: id: %s, attr_id: %s",
-                    object_type,
+            SWSS_LOG_ERROR("get failed %s: %s: %s",
                     serialized_object_id.c_str(),
-                    str_attr_id.c_str());
+                    meta->attridname,
+                    sai_serialize_status(status).c_str());
 
             return status;
         }
     }
 
-    SWSS_LOG_DEBUG("Get succeeded, object type: %d, id: %s", object_type, serialized_object_id.c_str());
-
-    return SAI_STATUS_SUCCESS;
+    return final_status;
 }
 
 sai_status_t vs_generic_get(
@@ -151,7 +155,7 @@ sai_status_t vs_generic_get_fdb_entry(
 }
 
 sai_status_t vs_generic_get_neighbor_entry(
-        _In_ const sai_neighbor_entry_t* neighbor_entry,
+        _In_ const sai_neighbor_entry_t *neighbor_entry,
         _In_ uint32_t attr_count,
         _Out_ sai_attribute_t *attr_list)
 {
@@ -168,7 +172,7 @@ sai_status_t vs_generic_get_neighbor_entry(
 }
 
 sai_status_t vs_generic_get_route_entry(
-        _In_ const sai_route_entry_t* route_entry,
+        _In_ const sai_route_entry_t *route_entry,
         _In_ uint32_t attr_count,
         _Out_ sai_attribute_t *attr_list)
 {

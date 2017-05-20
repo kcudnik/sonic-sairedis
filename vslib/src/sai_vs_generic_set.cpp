@@ -9,36 +9,25 @@ sai_status_t internal_vs_generic_set(
 {
     SWSS_LOG_ENTER();
 
-    auto & objectHash = g_switch_state_map.at(switch_id)->objectHash;
+    auto &objectHash = g_switch_state_map.at(switch_id)->objectHash;
 
     auto it = objectHash.find(serialized_object_id);
 
     if (it == objectHash.end())
     {
-        SWSS_LOG_ERROR("Set failed, object not found, object type: %s: id: %s",
+        SWSS_LOG_ERROR("not found %s:%s",
                 sai_serialize_object_type(object_type).c_str(),
                 serialized_object_id.c_str());
 
         return SAI_STATUS_ITEM_NOT_FOUND;
     }
 
-    std::vector<swss::FieldValueTuple> values = SaiAttributeList::serialize_attr_list(
-            object_type,
-            1,
-            attr,
-            false);
-
     AttrHash &attrHash = it->second;
 
-    const std::string &str_attr_id = fvField(values[0]);
-    const std::string &str_attr_value = fvValue(values[0]);
+    auto a = std::make_shared<SaiAttrWrap>(object_type, attr);
 
-    // sai set have only one attribute
-    attrHash[str_attr_id] = str_attr_value;
-
-    SWSS_LOG_DEBUG("Set succeeded, object type: %s, id: %s",
-                sai_serialize_object_type(object_type).c_str(),
-                serialized_object_id.c_str());
+    // set have only one attribute
+    attrHash[a->getAttrMetadata()->attridname] = a;
 
     return SAI_STATUS_SUCCESS;
 }
@@ -77,7 +66,7 @@ sai_status_t vs_generic_set_fdb_entry(
 }
 
 sai_status_t vs_generic_set_neighbor_entry(
-        _In_ const sai_neighbor_entry_t* neighbor_entry,
+        _In_ const sai_neighbor_entry_t *neighbor_entry,
         _In_ const sai_attribute_t *attr)
 {
     SWSS_LOG_ENTER();
@@ -92,7 +81,7 @@ sai_status_t vs_generic_set_neighbor_entry(
 }
 
 sai_status_t vs_generic_set_route_entry(
-        _In_ const sai_route_entry_t* route_entry,
+        _In_ const sai_route_entry_t *route_entry,
         _In_ const sai_attribute_t *attr)
 {
     SWSS_LOG_ENTER();

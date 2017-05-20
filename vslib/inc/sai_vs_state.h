@@ -9,14 +9,81 @@
 #include <string>
 #include <set>
 
-#define CHECK_STATUS(status) \
-{\
-    sai_status_t s = (status);\
-    if (s != SAI_STATUS_SUCCESS) \
-        { return s; }\
-}
+#define CHECK_STATUS(status)            \
+    {                                   \
+        sai_status_t s = (status);      \
+        if (s != SAI_STATUS_SUCCESS)    \
+            { return s; }               \
+    }
 
-typedef std::unordered_map<std::string, std::string> AttrHash;
+// TODO unify wrapper and add to common
+class SaiAttrWrap
+{
+    public:
+
+        SaiAttrWrap(
+                _In_ sai_object_type_t object_type,
+                _In_ const sai_attribute_t *attr)
+        {
+            SWSS_LOG_ENTER();
+
+            m_meta = sai_metadata_get_attr_metadata(object_type, attr->id);
+
+            m_attr.id = attr->id;
+
+            /*
+             * We are making serialize and deserialize to get copy of
+             * attribute, it may be a list so we need to allocate new memory.
+             *
+             * This copy will be used later to get previous value of attribute
+             * if attribute will be updated. And if this attribute is oid list
+             * then we need to release object reference count.
+             */
+
+            m_value = sai_serialize_attr_value(*m_meta, *attr, false);
+
+            sai_deserialize_attr_value(m_value, *m_meta, m_attr, false);
+        }
+
+        ~SaiAttrWrap()
+        {
+            SWSS_LOG_ENTER();
+
+            /*
+             * On destructor we need to call free to dealocate possible
+             * alocated list on constructor.
+             */
+
+            sai_deserialize_free_attribute_value(m_meta->attrvaluetype, m_attr);
+        }
+
+        const sai_attribute_t* getAttr() const
+        {
+            return &m_attr;
+        }
+
+        const sai_attr_metadata_t* getAttrMetadata() const
+        {
+            return m_meta;
+        }
+
+        const std::string& getAttrStrValue() const
+        {
+            return m_value;
+        }
+
+    private:
+
+        SaiAttrWrap(const SaiAttrWrap&);
+        SaiAttrWrap& operator=(const SaiAttrWrap&);
+
+        const sai_attr_metadata_t *m_meta;
+        sai_attribute_t m_attr;
+
+        std::string m_value;
+};
+
+typedef std::unordered_map<std::string, std::shared_ptr<SaiAttrWrap>> AttrHash;
 typedef std::unordered_map<std::string, AttrHash> ObjectHash;
 
 #define DEFAULT_VLAN_NUMBER 1
@@ -29,7 +96,6 @@ class SwitchState
                 _In_ sai_object_id_t switch_id):
             m_switch_id(switch_id)
         {
-
             if (sai_object_type_query(switch_id) != SAI_OBJECT_TYPE_SWITCH)
             {
                 SWSS_LOG_THROW("object %s is not SWITCH, its %s",
@@ -59,9 +125,6 @@ class SwitchState
 
         sai_object_id_t m_switch_id;
 };
-
-void update_vlan_member_list_on_vlan(
-        _In_ sai_object_id_t vlan_id);
 
 typedef std::map<sai_object_id_t, std::shared_ptr<SwitchState>> SwitchStateMap;
 

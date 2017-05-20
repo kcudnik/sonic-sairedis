@@ -22,7 +22,7 @@ extern "C" {
 sai_status_t transfer_attributes(
         _In_ sai_object_type_t object_type,
         _In_ uint32_t attr_count,
-        _In_ sai_attribute_t *src_attr_list,
+        _In_ const sai_attribute_t *src_attr_list,
         _In_ sai_attribute_t *dst_attr_list,
         _In_ bool countOnly = false);
 
