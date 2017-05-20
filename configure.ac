@@ -95,4 +95,5 @@ AC_OUTPUT(Makefile
           vslib/src/Makefile
           syncd/Makefile
           saiplayer/Makefile
-          saidump/Makefile)
+          saidump/Makefile
+          saidiscovery/Makefile)

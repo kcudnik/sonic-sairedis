@@ -1116,6 +1116,20 @@ std::string sai_serialize_acl_field(
     }
 }
 
+std::string sai_serialize_acl_capability(
+        _In_ const sai_attr_metadata_t &meta,
+        _In_ const sai_acl_capability_t &cap,
+        _In_ bool countOnly)
+{
+    SWSS_LOG_ENTER();
+
+    auto mandatory = sai_serialize_bool(cap.is_action_list_mandatory);
+
+    auto list = sai_serialize_enum_list(cap.action_list, &metadata_enum_sai_acl_action_type_t, countOnly);
+
+    return mandatory + ":" + list;
+}
+
 std::string sai_serialize_attr_value(
         _In_ const sai_attr_metadata_t& meta,
         _In_ const sai_attribute_t &attr,
@@ -1240,6 +1254,9 @@ std::string sai_serialize_attr_value(
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
             return sai_serialize_acl_action(meta, attr.value.aclaction, countOnly);
+
+        case SAI_ATTR_VALUE_TYPE_ACL_CAPABILITY:
+            return sai_serialize_acl_capability(meta, attr.value.aclcapability, countOnly);
 
         default:
             SWSS_LOG_ERROR("FATAIL: invalid serialization type %d", meta.attrvaluetype);
