@@ -42,12 +42,16 @@ static sai_status_t create_default_vlan()
     attr.id = SAI_VLAN_ATTR_VLAN_ID;
     attr.value.u16 = DEFAULT_VLAN_NUMBER;
 
-    return vs_generic_create(
-            SAI_OBJECT_TYPE_VLAN,
-            &ss->default_vlan_id,
-            ss->getSwitchId(),
-            1,
-            &attr);
+    sai_object_id_t vlan_id;
+
+    CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_VLAN, &vlan_id, ss->getSwitchId(), 1, &attr));
+
+    /* set default vlan on switch */
+
+    attr.id = SAI_SWITCH_ATTR_DEFAULT_VLAN_ID;
+    attr.value.oid = vlan_id;
+
+    return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, ss->getSwitchId(), &attr);
 }
 
 static sai_status_t create_cpu_port()
@@ -77,8 +81,7 @@ static sai_status_t create_cpu_port()
     return vs_generic_set(SAI_OBJECT_TYPE_PORT, cpu_port_id, &attr);
 }
 
-static sai_status_t create_default_1q_bridge(const std::vector<sai_object_id_t>& port_list,
-        std::vector<sai_object_id_t>& bridge_port_list)
+static sai_status_t create_default_1q_bridge()
 {
     SWSS_LOG_ENTER();
 
@@ -89,45 +92,16 @@ static sai_status_t create_default_1q_bridge(const std::vector<sai_object_id_t>&
     attr.id = SAI_BRIDGE_ATTR_TYPE;
     attr.value.s32 = SAI_BRIDGE_TYPE_1Q;
 
-    sai_object_id_t switch_object_id = ss->getSwitchId();
+    sai_object_id_t switch_id = ss->getSwitchId();
 
-    CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_BRIDGE, &ss->default_1q_bridge, switch_object_id, 1, &attr));
+    sai_object_id_t default_1q_bridge;
+
+    CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_BRIDGE, &default_1q_bridge, switch_id, 1, &attr));
 
     attr.id = SAI_SWITCH_ATTR_DEFAULT_1Q_BRIDGE_ID;
-    attr.value.oid = ss->default_1q_bridge;
+    attr.value.oid = default_1q_bridge;
 
-    CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_object_id, &attr));
-
-    // Create bridge ports
-
-    for (const auto &port: port_list)
-    {
-        sai_object_id_t bp;
-
-        // create bridge port
-        // TODO not sure if this is the right way
-        // TODO where tu pass bridge id to assiociate ?
-
-        sai_attribute_t attrs[2];
-
-        attrs[0].id = SAI_BRIDGE_PORT_ATTR_TYPE;
-        attrs[0].value.s32 = SAI_BRIDGE_PORT_TYPE_PORT;
-
-        attrs[1].id = SAI_BRIDGE_PORT_ATTR_PORT_ID;
-        attrs[1].value.oid = port;
-
-        CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_BRIDGE_PORT, &bp, switch_object_id, 2, attrs));
-
-        bridge_port_list.push_back(bp);
-    }
-
-    // set bridge port list
-
-    attr.id = SAI_BRIDGE_ATTR_PORT_LIST;
-    attr.value.objlist.count = (uint32_t)bridge_port_list.size();
-    attr.value.objlist.list = bridge_port_list.data();
-
-    return vs_generic_set(SAI_OBJECT_TYPE_BRIDGE, ss->default_1q_bridge, &attr);
+    return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_id, &attr);
 }
 
 static sai_status_t create_ports(std::vector<sai_object_id_t>& port_list)
@@ -281,6 +255,7 @@ static sai_status_t create_default_stp_instance()
     return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_object_id, &attr);
 }
 
+/*
 static sai_status_t create_vlan_members_for_default_vlan(
         std::vector<sai_object_id_t>& bridge_port_list,
         std::vector<sai_object_id_t>& vlan_member_list)
@@ -331,6 +306,7 @@ static sai_status_t create_vlan_members_for_default_vlan(
 
     return SAI_STATUS_SUCCESS;
 }
+*/
 
 static sai_status_t create_default_trap_group()
 {
@@ -681,7 +657,7 @@ static sai_status_t initialize_default_objects()
     CHECK_STATUS(create_ports(port_list));
     CHECK_STATUS(create_port_list(port_list));
 
-    CHECK_STATUS(create_default_1q_bridge(port_list, bridge_port_list));
+    CHECK_STATUS(create_default_1q_bridge());
 
     CHECK_STATUS(create_default_virtual_router());
 
@@ -689,7 +665,7 @@ static sai_status_t initialize_default_objects()
 
     std::vector<sai_object_id_t> vlan_member_list;
 
-    CHECK_STATUS(create_vlan_members_for_default_vlan(bridge_port_list, vlan_member_list));
+    //CHECK_STATUS(create_vlan_members_for_default_vlan(bridge_port_list, vlan_member_list));
 
     CHECK_STATUS(create_default_trap_group());
 

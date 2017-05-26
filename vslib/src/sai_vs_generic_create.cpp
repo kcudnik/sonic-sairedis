@@ -245,7 +245,7 @@ sai_status_t internal_vs_generic_create(
         }
     }
 
-    auto &objectHash = g_switch_state_map.at(switch_id)->objectHash;
+    auto &objectHash = g_switch_state_map.at(switch_id)->objectHash.at(object_type);
 
     auto it = objectHash.find(serialized_object_id);
 

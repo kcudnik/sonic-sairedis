@@ -236,8 +236,9 @@ const std::vector<swss::FieldValueTuple> get_values(const std::vector<std::strin
     return values;
 }
 
-#define CHECK_LIST(x)\
-    if (attr.x.count != get_attr.x.count) { SWSS_LOG_THROW("get response list count not match recording"); }
+#define CHECK_LIST(x)                           \
+    if (attr.x.count != get_attr.x.count) {     \
+        SWSS_LOG_THROW("get response list count not match recording %u vs %u (expected)", get_attr.x.count, attr.x.count); }
 
 void match_list_lengths(
         sai_object_type_t object_type,
@@ -981,7 +982,7 @@ int replay(int argc, char **argv)
 
         if (status != SAI_STATUS_SUCCESS)
         {
-            SWSS_LOG_THROW("failed to execute api: %c: %d", op, status);
+            SWSS_LOG_THROW("failed to execute api: %c: %s", op, sai_serialize_status(status).c_str());
         }
 
         if (api == SAI_COMMON_API_GET)

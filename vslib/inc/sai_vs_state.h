@@ -83,8 +83,15 @@ class SaiAttrWrap
         std::string m_value;
 };
 
-typedef std::unordered_map<std::string, std::shared_ptr<SaiAttrWrap>> AttrHash;
-typedef std::unordered_map<std::string, AttrHash> ObjectHash;
+/**
+ * @brief AttrHash key is attribute ID, value is actuall attribute
+ */
+typedef std::map<std::string, std::shared_ptr<SaiAttrWrap>> AttrHash;
+
+/**
+ * @brief ObjectHash is map indexed by object type and then serialized object id.
+ */
+typedef std::map<sai_object_type_t, std::map<std::string, AttrHash>> ObjectHash;
 
 #define DEFAULT_VLAN_NUMBER 1
 
@@ -103,22 +110,29 @@ class SwitchState
                         sai_serialize_object_type(sai_object_type_query(switch_id)).c_str());
             }
 
-            // create switch by default
-            // (it will require special treat on creating
+            for (int i = SAI_OBJECT_TYPE_NULL; i < (int)SAI_OBJECT_TYPE_MAX; ++i)
+            {
+                /*
+                 * Populate empty maps for each object to avoid checking if
+                 * objecttype exists.
+                 */
 
-            objectHash[sai_serialize_object_id(switch_id)] = {};
+                objectHash[(sai_object_type_t)i] = { };
+            }
+
+            /*
+             * Create switch by default, it will require special treat on
+             * creating.
+             */
+
+            objectHash[SAI_OBJECT_TYPE_SWITCH][sai_serialize_object_id(switch_id)] = {};
         }
 
     ObjectHash objectHash;
 
-    sai_object_id_t default_vlan_id;
-    sai_object_id_t default_1q_bridge;
-
-    std::map<sai_object_id_t, std::set<sai_object_id_t>> vlan_members_map;
-
     sai_object_id_t getSwitchId() const
     {
-        return m_switch_id;
+    return m_switch_id;
     }
 
     private:

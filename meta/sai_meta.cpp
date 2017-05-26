@@ -3280,11 +3280,11 @@ sai_status_t meta_sai_create_fdb_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("create status: %d", status);
+        SWSS_LOG_DEBUG("create status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("create status: %d", status);
+        SWSS_LOG_ERROR("create status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3328,11 +3328,11 @@ sai_status_t meta_sai_remove_fdb_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("remove status: %d", status);
+        SWSS_LOG_DEBUG("remove status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("remove status: %d", status);
+        SWSS_LOG_ERROR("remove status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3377,11 +3377,11 @@ sai_status_t meta_sai_set_fdb_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("set status: %d", status);
+        SWSS_LOG_DEBUG("set status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("set status: %d", status);
+        SWSS_LOG_ERROR("set status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3429,11 +3429,11 @@ sai_status_t meta_sai_get_fdb_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("get status: %d", status);
+        SWSS_LOG_DEBUG("get status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("get status: %d", status);
+        SWSS_LOG_ERROR("get status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3577,11 +3577,11 @@ sai_status_t meta_sai_create_neighbor_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("create status: %d", status);
+        SWSS_LOG_DEBUG("create status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("create status: %d", status);
+        SWSS_LOG_ERROR("create status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3625,11 +3625,11 @@ sai_status_t meta_sai_remove_neighbor_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("remove status: %d", status);
+        SWSS_LOG_DEBUG("remove status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("remove status: %d", status);
+        SWSS_LOG_ERROR("remove status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3674,11 +3674,11 @@ sai_status_t meta_sai_set_neighbor_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("set status: %d", status);
+        SWSS_LOG_DEBUG("set status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("set status: %d", status);
+        SWSS_LOG_ERROR("set status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3724,11 +3724,11 @@ sai_status_t meta_sai_get_neighbor_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("get status: %d", status);
+        SWSS_LOG_DEBUG("get status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("get status: %d", status);
+        SWSS_LOG_ERROR("get status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3884,11 +3884,11 @@ sai_status_t meta_sai_create_route_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("create status: %d", status);
+        SWSS_LOG_DEBUG("create status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("create status: %d", status);
+        SWSS_LOG_ERROR("create status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3932,11 +3932,11 @@ sai_status_t meta_sai_remove_route_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("remove status: %d", status);
+        SWSS_LOG_DEBUG("remove status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("remove status: %d", status);
+        SWSS_LOG_ERROR("remove status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -3981,11 +3981,11 @@ sai_status_t meta_sai_set_route_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("set status: %d", status);
+        SWSS_LOG_DEBUG("set status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("set status: %d", status);
+        SWSS_LOG_ERROR("set status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -4031,11 +4031,11 @@ sai_status_t meta_sai_get_route_entry(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("get status: %d", status);
+        SWSS_LOG_DEBUG("get status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("get status: %d", status);
+        SWSS_LOG_ERROR("get status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -4166,11 +4166,11 @@ sai_status_t meta_sai_create_oid(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("create status: %d", status);
+        SWSS_LOG_DEBUG("create status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("create status: %d", status);
+        SWSS_LOG_ERROR("create status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -4228,11 +4228,11 @@ sai_status_t meta_sai_remove_oid(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("remove status: %d", status);
+        SWSS_LOG_DEBUG("remove status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("remove status: %d", status);
+        SWSS_LOG_ERROR("remove status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -4278,11 +4278,11 @@ sai_status_t meta_sai_set_oid(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("set status: %d", status);
+        SWSS_LOG_DEBUG("set status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("set status: %d", status);
+        SWSS_LOG_ERROR("set status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)
@@ -4329,11 +4329,11 @@ sai_status_t meta_sai_get_oid(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_DEBUG("get status: %d", status);
+        SWSS_LOG_DEBUG("get status: %s", sai_serialize_status(status).c_str());
     }
     else
     {
-        SWSS_LOG_ERROR("get status: %d", status);
+        SWSS_LOG_ERROR("get status: %s", sai_serialize_status(status).c_str());
     }
 
     if (status == SAI_STATUS_SUCCESS)

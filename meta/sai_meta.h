@@ -6,7 +6,7 @@ extern "C" {
 #include "saimetadata.h"
 }
 
-#define MAX_LIST_COUNT 256
+#define MAX_LIST_COUNT 0x1000
 
 #define DEFAULT_VLAN_NUMBER 1
 #define MINIMUM_VLAN_NUMBER 1
