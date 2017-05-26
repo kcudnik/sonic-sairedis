@@ -97,9 +97,6 @@ void endCountersThread();
 void startCountersThread(
         _In_ int intervalInSeconds);
 
-void start_cli();
-void stop_cli();
-
 sai_status_t syncdApplyView();
 
 void check_notifications_pointers(

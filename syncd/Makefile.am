@@ -20,7 +20,6 @@ syncd_SOURCES = \
 				syncd_hard_reinit.cpp \
 				syncd_notifications.cpp \
 				syncd_counters.cpp \
-				syncd_cli.cpp \
 				syncd_applyview.cpp
 
 syncd_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
