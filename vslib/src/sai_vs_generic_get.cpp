@@ -54,7 +54,12 @@ sai_status_t internal_vs_generic_get(
         return SAI_STATUS_ITEM_NOT_FOUND;
     }
 
-    AttrHash attrHash = it->second;
+    /*
+     * We need reference here since we can potentially update attr hash for RO
+     * object.
+     */
+
+    AttrHash& attrHash = it->second;
 
     /*
      * Some of the list query maybe for length, so we can't do
@@ -95,7 +100,7 @@ sai_status_t internal_vs_generic_get(
 
             if (status != SAI_STATUS_SUCCESS)
             {
-                SWSS_LOG_ERROR("%s not implemented on %s",
+                SWSS_LOG_ERROR("%s read only not implemented on %s",
                         meta->attridname,
                         serialized_object_id.c_str());
 
