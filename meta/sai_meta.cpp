@@ -1660,6 +1660,16 @@ sai_status_t meta_generic_validation_set(
         case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
 
             {
+
+                if (md.objecttype == SAI_OBJECT_TYPE_SCHEDULER_GROUP &&
+                        md.attrid == SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID &&
+                        value.oid == SAI_NULL_OBJECT_ID)
+                {
+                    // XXX workaround, since this profile can't be NULL according to metadata,
+                    // but currently on mlnx2700 null can be set, need verify and fix
+                    break;
+                }
+
                 sai_status_t status = meta_generic_validation_objlist(md, switch_id, 1, &value.oid);
 
                 if (status != SAI_STATUS_SUCCESS)
@@ -2022,7 +2032,8 @@ sai_status_t meta_generic_validation_get(
             {
                 std::string key = sai_serialize_object_meta_key(meta_key);
 
-                META_LOG_WARN(md, "get for conditional, but not found in local db, object %s created on switch ?", key.c_str());
+                // XXX produces too much noise
+                // META_LOG_WARN(md, "get for conditional, but not found in local db, object %s created on switch ?", key.c_str());
             }
             else
             {
@@ -2651,7 +2662,8 @@ void meta_generic_validation_post_set(
 
             std::string key = sai_serialize_object_meta_key(meta_key);
 
-            META_LOG_WARN(md, "post set, not in local db, FIX snoop!: %s", key.c_str());
+            // XXX produces too much noise
+            // META_LOG_WARN(md, "post set, not in local db, FIX snoop!: %s", key.c_str());
         }
     }
 
@@ -2865,7 +2877,8 @@ void meta_generic_validation_post_get_objlist(
         {
             std::string key = sai_serialize_object_meta_key(meta_key);
 
-            META_LOG_WARN(md, "post get, not in local db, FIX snoop!: %s", key.c_str());
+            // XXX produces too much noise
+            // META_LOG_WARN(md, "post get, not in local db, FIX snoop!: %s", key.c_str());
         }
     }
 
