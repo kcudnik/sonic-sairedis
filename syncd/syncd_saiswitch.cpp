@@ -33,6 +33,37 @@ sai_uint32_t SaiSwitch::saiGetPortCount() const
     return attr.value.u32;
 }
 
+void SaiSwitch::saiGetMacAddress(
+        _Out_ sai_mac_t &mac) const
+{
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+
+    attr.id = SAI_SWITCH_ATTR_SRC_MAC_ADDRESS;
+
+    sai_status_t status = sai_metadata_sai_switch_api->get_switch_attribute(m_switch_rid, 1, &attr);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_THROW("failed to get mac address: %s",
+                sai_serialize_status(status).c_str());
+    }
+
+    SWSS_LOG_DEBUG("mac address is: %s",
+            sai_serialize_mac(attr.value.mac).c_str());
+
+    memcpy(mac, attr.value.mac, sizeof(sai_mac_t));
+}
+
+void SaiSwitch::getDefaultMacAddress(
+        _Out_ sai_mac_t& mac)
+{
+    SWSS_LOG_ENTER();
+
+    memcpy(mac, m_default_mac_address, sizeof(sai_mac_t));
+}
+
 #define MAX_HARDWARE_INFO_LENGTH 0x1000
 
 std::string SaiSwitch::saiGetHardwareInfo() const
@@ -1134,4 +1165,6 @@ SaiSwitch::SaiSwitch(
     helperCheckLaneMap();
 
     m_supported_counters = saiGetSupportedCounters();
+
+    saiGetMacAddress(m_default_mac_address);
 }

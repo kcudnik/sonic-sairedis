@@ -137,6 +137,14 @@ class SaiSwitch
         void removeExistingObjectReference(
                 _In_ sai_object_id_t rid);
 
+        /**
+         * @brief Gets switch default MAC address.
+         *
+         * @param[out] mac MAC address to be obtained.
+         */
+        void getDefaultMacAddress(
+                _Out_ sai_mac_t& mac);
+
     private:
 
         /*
@@ -166,6 +174,8 @@ class SaiSwitch
         sai_object_id_t m_switch_rid;
 
         std::string m_hardware_info;
+
+        sai_mac_t m_default_mac_address;
 
         std::vector<sai_port_stat_t> m_supported_counters;
 
@@ -210,6 +220,18 @@ class SaiSwitch
         std::unordered_map<sai_uint32_t, sai_object_id_t> saiGetHardwareLaneMap() const;
 
         std::vector<sai_port_stat_t> saiGetSupportedCounters() const;
+
+        /**
+         * @brief Get MAC address.
+         *
+         * Intended use is to get switch default MAC addres, for comparison
+         * logic, when we will try to bring it's default value, in case user
+         * changed original switch MAC address.
+         *
+         * @param[out] mac Obtained MAC address.
+         */
+        void saiGetMacAddress(
+                _Out_ sai_mac_t &mac) const;
 
         /*
          * Redis Methods.

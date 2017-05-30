@@ -93,6 +93,9 @@ std::string sai_serialize_attr_id(
 std::string sai_serialize_object_meta_key(
         _In_ const sai_object_meta_key_t& meta_key);
 
+std::string sai_serialize_mac(
+        _In_ const sai_mac_t mac);
+
 // serialize ntf
 
 std::string sai_serialize_fdb_event_ntf(

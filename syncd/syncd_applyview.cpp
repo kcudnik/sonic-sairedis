@@ -3536,6 +3536,35 @@ std::shared_ptr<SaiAttr> getSaiAttrFromDefaultValue(
      * This will be tricky, we need to revisit that !
      */
 
+    if (meta.objecttype == SAI_OBJECT_TYPE_SWITCH &&
+            meta.attrid == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
+    {
+        /*
+         * Same will apply for default values which are pointing to
+         * different attributes.
+         *
+         * Default value is stored in SaiSwitch class.
+         */
+
+        // XXX we have only 1 switch, so we can get away with this
+
+        auto sw = switches.begin()->second;
+
+        sai_attribute_t attr;
+
+        memset(&attr, 0, sizeof(sai_attribute_t));
+
+        attr.id = meta.attrid;
+
+        sw->getDefaultMacAddress(attr.value.mac);
+
+        std::string str_attr_value = sai_serialize_attr_value(meta, attr, false);
+
+        SWSS_LOG_NOTICE("bringing default %s", meta.attridname);
+
+        return std::make_shared<SaiAttr>(meta.attridname, str_attr_value);
+    }
+
     /*
      * Move this method to asicview class.
      */
@@ -4096,27 +4125,6 @@ bool performObjectSetTransition(
 
             if (defaultValueAttr == nullptr)
             {
-                if (meta->objecttype == SAI_OBJECT_TYPE_SWITCH &&
-                        meta->attrid == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
-                {
-                    /*
-                     * TODO: we need to store somewhere default value for
-                     * switch MAC.  Also not sure if this check should be here
-                     * ? or should it be in remove phase. Problem here is that
-                     * switch will be matched (current best match) but since we
-                     * can't get default value, then what will happen we will
-                     * try to remove switch and recreate it.
-                     *
-                     * Same will apply for default values which are pointing to
-                     * different attributes.
-                     *
-                     * TODO Default value needs to be stored.
-                     */
-
-                    SWSS_LOG_WARN("can't bring default value for %s, FIXME", meta->attridname);
-                    continue;
-                }
-
                 SWSS_LOG_WARN("Can't get default value for present current attr %s:%s, FIXME",
                         meta->attridname,
                         currentAttr->getStrAttrValue().c_str());
