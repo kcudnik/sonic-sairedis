@@ -1407,7 +1407,20 @@ sai_status_t notifySyncd(
         return SAI_STATUS_SUCCESS;
     }
 
-    if (g_veryFirstRun)
+    static bool firstInitWasPerformed = false;
+
+    if (g_veryFirstRun && firstInitWasPerformed && op == SYNCD_INIT_VIEW)
+    {
+        /*
+         * Make sure that when second INIT view arrives, then we will jump
+         * to next section, since second init view may create switch that
+         * already exists and will fail with creating multiple switches
+         * error.
+         */
+
+        g_veryFirstRun = false;
+    }
+    else if (g_veryFirstRun)
     {
         SWSS_LOG_NOTICE("very first run is TRUE, op = %s", op.c_str());
 
@@ -1425,6 +1438,8 @@ sai_status_t notifySyncd(
              */
 
             g_asicInitViewMode = false;
+
+            firstInitWasPerformed = true;
 
             /*
              * We need to clear current temp view to make space for new one.
