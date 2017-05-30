@@ -460,17 +460,15 @@ void processSwitches()
         {
             sai_attribute_t *attr = &attrs_left[idx];
 
-            // XXX workaround
-            if (attr->id == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
-            {
-                SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
-                continue;
-            }
-
             status = sai_metadata_sai_switch_api->set_switch_attribute(switch_rid, attr);
 
             if (status != SAI_STATUS_SUCCESS)
             {
+                if (is_set_attribute_workaround(SAI_OBJECT_TYPE_SWITCH, attr->id, status))
+                {
+                    continue;
+                }
+
                 SWSS_LOG_THROW("failed to set attribute %s on switch VID %s: %s",
                         sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr->id)->attridname,
                         sai_serialize_object_id(switch_rid).c_str(),

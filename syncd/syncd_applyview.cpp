@@ -5354,16 +5354,14 @@ sai_status_t asic_handle_generic(
 
                 meta_key.objectkey.key.object_id = rid;
 
-                // XXX workaround
-                if (meta_key.objecttype == SAI_OBJECT_TYPE_SWITCH &&
-                        attr_list->id == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
-                {
-                    SWSS_LOG_WARN("skipping to set MAC addres since not supported on mlnx 2700");
+                sai_status_t status = info->set(&meta_key, attr_list);
 
+                if (is_set_attribute_workaround(meta_key.objecttype, attr_list->id, status))
+                {
                     return SAI_STATUS_SUCCESS;
                 }
 
-                return info->set(&meta_key, attr_list);
+                return status;
             }
 
         default:

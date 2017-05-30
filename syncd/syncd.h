@@ -103,4 +103,9 @@ void check_notifications_pointers(
         _In_ uint32_t attr_count,
         _In_ sai_attribute_t *attr_list);
 
+bool is_set_attribute_workaround(
+        _In_ sai_object_type_t objecttype,
+        _In_ sai_attr_id_t attrid,
+        _In_ sai_status_t status);
+
 #endif // __SYNCD_H__

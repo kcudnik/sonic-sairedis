@@ -1045,6 +1045,43 @@ void on_switch_remove(
     SWSS_LOG_THROW("remove switch is not implemented, FIXME");
 }
 
+/**
+ * @brief Determines whether attribute is "workaround" attribute for SET API.
+ *
+ * Some attributes are not supported on SET API od different platforms.
+ * For example SAI_SWITCH_ATTR_SRC_MAC_ADDRESS.
+ *
+ * @param[in] objecttype Object type.
+ * @param[in] attrid Attribute Id.
+ * @param[in] status Status from SET API.
+ *
+ * @return True if error from SET API can be ignored, false otherwise.
+ */
+bool is_set_attribute_workaround(
+        _In_ sai_object_type_t objecttype,
+        _In_ sai_attr_id_t attrid,
+        _In_ sai_status_t status)
+{
+    SWSS_LOG_ENTER();
+
+    if (status == SAI_STATUS_SUCCESS)
+    {
+        return false;
+    }
+
+    if (objecttype == SAI_OBJECT_TYPE_SWITCH &&
+            attrid == SAI_SWITCH_ATTR_SRC_MAC_ADDRESS)
+    {
+        SWSS_LOG_WARN("setting %s failed: %s, not all platforms support this attribute",
+                sai_metadata_get_attr_metadata(objecttype, attrid)->attridname,
+                sai_serialize_status(status).c_str());
+
+        return true;
+    }
+
+    return false;
+}
+
 sai_status_t handle_generic(
         _In_ sai_object_type_t object_type,
         _In_ const std::string &str_object_id,
@@ -1234,7 +1271,14 @@ sai_status_t handle_generic(
 
                 meta_key.objectkey.key.object_id = rid;
 
-                return info->set(&meta_key, attr_list);
+                sai_status_t status = info->set(&meta_key, attr_list);
+
+                if (is_set_attribute_workaround(meta_key.objecttype, attr_list->id, status))
+                {
+                    return SAI_STATUS_SUCCESS;
+                }
+
+                return status;
             }
 
         case SAI_COMMON_API_GET:
