@@ -420,8 +420,7 @@ void processSwitches()
 
         if (status != SAI_STATUS_SUCCESS)
         {
-            SWSS_LOG_THROW("failed to create switch VID %s: %s",
-                    sai_serialize_object_id(switch_rid).c_str(),
+            SWSS_LOG_THROW("failed to create switch RID: %s",
                     sai_serialize_status(status).c_str());
         }
 

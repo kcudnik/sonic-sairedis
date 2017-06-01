@@ -326,6 +326,17 @@ void SaiSwitch::helperCheckLaneMap()
         SWSS_LOG_THROW("lanes map size differ: %lu vs %lu", laneMap.size(), redisLaneMap.size());
     }
 
+    /*
+     * We assume there are at least 32 ports and port number
+     * can be divided by 16 without rest.
+     */
+
+    if (laneMap.size() < 32 || (laneMap.size() % 16 != 0))
+    {
+        // TODO throw here
+        SWSS_LOG_ERROR("LANES size is %zu, something is wrong!", laneMap.size());
+    }
+
     for (auto kv: laneMap)
     {
         sai_uint32_t lane = kv.first;
@@ -900,7 +911,15 @@ void SaiSwitch::saiDiscover(
             if (md->objecttype == SAI_OBJECT_TYPE_STP &&
                     md->attrid == SAI_STP_ATTR_BRIDGE_ID)
             {
+                // XXX workaround (for mlnx)
                 SWSS_LOG_WARN("skipping since it causes crash: %s", md->attridname);
+                continue;
+            }
+
+            if (md->objecttype == SAI_OBJECT_TYPE_VLAN_MEMBER &&
+                    md->attrid == SAI_VLAN_MEMBER_ATTR_VLAN_ID)
+            {
+                // XXX workaround (for brcm) return u16 vs oid
                 continue;
             }
 
@@ -940,6 +959,20 @@ void SaiSwitch::saiDiscover(
             if (!md->allownullobjectid && attr.value.oid == SAI_NULL_OBJECT_ID)
             {
                 // SWSS_LOG_WARN("got null on %s, but not allowed", md->attridname);
+            }
+
+            if (attr.value.oid != SAI_NULL_OBJECT_ID)
+            {
+                ot = sai_object_type_query(attr.value.oid);
+
+                if (ot == SAI_OBJECT_TYPE_NULL)
+                {
+                    SWSS_LOG_THROW("when query %s (on %s RID %s) got value %s sai_object_type_query returned NULL object type",
+                            md->attridname,
+                            sai_serialize_object_type(md->objecttype).c_str(),
+                            sai_serialize_object_id(rid).c_str(),
+                            sai_serialize_object_id(attr.value.oid).c_str());
+                }
             }
 
             saiDiscover(attr.value.oid, discovered); // recursion
@@ -985,7 +1018,20 @@ void SaiSwitch::saiDiscover(
 
             for (uint32_t i = 0; i < attr.value.objlist.count; ++i)
             {
-                saiDiscover(attr.value.objlist.list[i], discovered); // recursion
+                sai_object_id_t oid = attr.value.objlist.list[i];
+
+                ot = sai_object_type_query(oid);
+
+                if (ot == SAI_OBJECT_TYPE_NULL)
+                {
+                    SWSS_LOG_THROW("when query %s (on %s RID %s) got value %s sai_object_type_query returned NULL object type",
+                            md->attridname,
+                            sai_serialize_object_type(md->objecttype).c_str(),
+                            sai_serialize_object_id(rid).c_str(),
+                            sai_serialize_object_id(oid).c_str());
+                }
+
+                saiDiscover(oid, discovered); // recursion
             }
         }
     }

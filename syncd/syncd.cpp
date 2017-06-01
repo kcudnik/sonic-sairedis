@@ -2113,6 +2113,18 @@ sai_status_t processEvent(
     }
     else if (status != SAI_STATUS_SUCCESS)
     {
+        if (!info->isnonobjectid && api == SAI_COMMON_API_SET)
+        {
+            sai_object_id_t vid;
+            sai_deserialize_object_id(str_object_id, vid);
+
+            sai_object_id_t rid = translate_vid_to_rid(vid);
+
+            SWSS_LOG_ERROR("VID: %s RID: %s",
+                    sai_serialize_object_id(vid).c_str(),
+                    sai_serialize_object_id(rid).c_str());
+        }
+
         for (const auto &v: values)
         {
             SWSS_LOG_ERROR("attr: %s: %s", fvField(v).c_str(), fvValue(v).c_str());
