@@ -35,6 +35,7 @@ struct cmdOptions
         enableDebugLogs    = false;
         dumpObjects        = false;
         fullDiscovery      = false;
+        saiApiLogLevel     = SAI_LOG_LEVEL_NOTICE;
     }
 
     std::string profileMapFile;
@@ -43,6 +44,7 @@ struct cmdOptions
     bool enableDebugLogs;
     bool fullDiscovery;
     bool dumpObjects;
+    sai_log_level_t saiApiLogLevel;
 };
 
 cmdOptions gOptions;
@@ -105,6 +107,13 @@ int discover(
     for (int idx = 0; info->attrmetadata[idx] != NULL; ++idx)
     {
         const sai_attr_metadata_t *md = info->attrmetadata[idx];
+
+        if (md->objecttype == SAI_OBJECT_TYPE_PORT &&
+                md->attrid == SAI_PORT_ATTR_HW_LANE_LIST)
+        {
+            // XXX workaround for brcm
+            continue;
+        }
 
         /*
          * Note that we don't care about ACL object id's since we assume that
@@ -509,6 +518,7 @@ void handleCmdLine(int argc, char **argv)
             case 'd':
                 gOptions.enableDebugLogs = true;
                 swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
+                gOptions.saiApiLogLevel = SAI_LOG_LEVEL_DEBUG;
                 break;
 
             case 'w':
@@ -558,7 +568,12 @@ int main(int argc, char **argv)
         SWSS_LOG_ERROR("failed to initialize api: %s",
                 sai_serialize_status(status).c_str());
 
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
+    }
+
+    for (int api = 1; api < SAI_API_MAX; api++)
+    {
+        sai_log_set((sai_api_t)api, gOptions.saiApiLogLevel);
     }
 
     sai_meta_apis_query(sai_api_query);
@@ -574,6 +589,8 @@ int main(int argc, char **argv)
 
     check_mandatory_attributes(AttributesCount, attrs);
 
+    SWSS_LOG_NOTICE("creating switch");
+
     status = sai_metadata_sai_switch_api->create_switch(&switch_id, AttributesCount, attrs);
 
     if (status != SAI_STATUS_SUCCESS)
@@ -581,7 +598,7 @@ int main(int argc, char **argv)
         SWSS_LOG_ERROR("failed to create a switch: %s",
                 sai_serialize_status(status).c_str());
 
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     if (sai_object_type_query(switch_id) != SAI_OBJECT_TYPE_SWITCH)
@@ -589,10 +606,10 @@ int main(int argc, char **argv)
         SWSS_LOG_ERROR("create switch returned invalid oid: %s",
                 sai_serialize_object_id(switch_id).c_str());
 
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
-    std::map<sai_object_id_t,std::map<std::string,std::string>> discovered;
+    std::map<sai_object_id_t, std::map<std::string,std::string>> discovered;
 
     auto m_start = std::chrono::high_resolution_clock::now();
 
@@ -619,36 +636,55 @@ int main(int argc, char **argv)
         printf("%s: %d\n", sai_serialize_object_type(p.first).c_str(), p.second);
     }
 
-    if (!gOptions.dumpObjects)
+    if (gOptions.dumpObjects)
     {
-        return EXIT_SUCCESS;
-    }
+        printf("\n");
 
-    printf("\n");
-
-    for (const auto &o: map)
-    {
-        for (const auto &p: discovered)
+        for (const auto &o: map)
         {
-            sai_object_type_t ot = sai_object_type_query(p.first);
-
-            if (ot != o.first)
+            for (const auto &p: discovered)
             {
-                continue;
+                sai_object_type_t ot = sai_object_type_query(p.first);
+
+                if (ot != o.first)
+                {
+                    continue;
+                }
+
+                printf("%s: %s\n",
+                        sai_serialize_object_type(ot).c_str(),
+                        sai_serialize_object_id(p.first).c_str());
+
+                for (const auto &m: p.second)
+                {
+                    printf("    %s: %s\n", m.first.c_str(), m.second.c_str());
+                }
+
+                printf("\n");
             }
-
-            printf("%s: %s\n", 
-                    sai_serialize_object_type(ot).c_str(),
-                    sai_serialize_object_id(p.first).c_str());
-
-            for (const auto &m: p.second)
-            {
-                printf("    %s: %s\n", m.first.c_str(), m.second.c_str());
-            }
-
-            printf("\n");
         }
     }
 
-    return EXIT_SUCCESS;
+    SWSS_LOG_NOTICE("remove switch");
+
+    status = sai_metadata_sai_switch_api->remove_switch(switch_id);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("remove switch %s failed: %s",
+                sai_serialize_object_id(switch_id).c_str(),
+                sai_serialize_status(status).c_str());
+    }
+
+    status = sai_api_uninitialize();
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("sai_api_uninitialize failed: %s",
+                sai_serialize_status(status).c_str());
+
+        exit(EXIT_FAILURE);
+    }
+
+    exit(EXIT_SUCCESS);
 }

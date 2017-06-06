@@ -154,6 +154,8 @@ std::unordered_map<sai_uint32_t, sai_object_id_t> SaiSwitch::saiGetHardwareLaneM
     {
         sai_uint32_t lanes[lanesPerPort];
 
+        memset(lanes, 0, sizeof(lanes));
+
         sai_attribute_t attr;
 
         attr.id = SAI_PORT_ATTR_HW_LANE_LIST;
@@ -913,13 +915,6 @@ void SaiSwitch::saiDiscover(
             {
                 // XXX workaround (for mlnx)
                 SWSS_LOG_WARN("skipping since it causes crash: %s", md->attridname);
-                continue;
-            }
-
-            if (md->objecttype == SAI_OBJECT_TYPE_VLAN_MEMBER &&
-                    md->attrid == SAI_VLAN_MEMBER_ATTR_VLAN_ID)
-            {
-                // XXX workaround (for brcm) return u16 vs oid
                 continue;
             }
 
