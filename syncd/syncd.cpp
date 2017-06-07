@@ -130,7 +130,8 @@ void sai_diag_shell(
 
         if (status != SAI_STATUS_SUCCESS)
         {
-            SWSS_LOG_ERROR("Failed to enable switch shell %d", status);
+            SWSS_LOG_ERROR("Failed to enable switch shell: %s",
+                    sai_serialize_status(status).c_str());
             return;
         }
 
@@ -1020,6 +1021,19 @@ void on_switch_create(
      */
 
     switches[switch_vid] = std::make_shared<SaiSwitch>(switch_vid, switch_rid);
+
+    if (options.diagShell)
+    {
+        SWSS_LOG_NOTICE("starting diag shell thread");
+
+        /*
+         * TODO actual switch id must be supplied
+         */
+
+        std::thread diag_shell_thread = std::thread(sai_diag_shell, SAI_NULL_OBJECT_ID);
+
+        diag_shell_thread.detach();
+    }
 }
 
 void on_switch_remove(
@@ -2684,7 +2698,7 @@ int main(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
     set_sai_api_loglevel();
 
@@ -2776,19 +2790,6 @@ int main(int argc, char **argv)
      * TODO: user should create switch from OA, so shell should be started only
      * after we create switch.
      */
-
-    if (options.diagShell)
-    {
-        SWSS_LOG_NOTICE("starting diag shell thread");
-
-        /*
-         * TODO actual switch id must be supplied
-         */
-
-        std::thread diag_shell_thread = std::thread(sai_diag_shell, SAI_NULL_OBJECT_ID);
-
-        diag_shell_thread.detach();
-    }
 
 #ifdef SAITHRIFT
     if (options.run_rpc_server)
