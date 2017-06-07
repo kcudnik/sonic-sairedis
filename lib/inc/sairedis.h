@@ -20,18 +20,8 @@ typedef enum _sai_redis_notify_syncd_t
 
 typedef enum _sai_redis_switch_attr_t
 {
-    /*
-     * NOTE: those attributes will work without actual switch id being present
-     * since those attributes control internal sai redis library. Example
-     * usage:
-     *
-     * sai_switch_api->set_switch_attribute(SAI_NULL_OBJECT_ID, &attr);
-     */
-
     /**
      * @brief Will start or stop recording history file for player
-     *
-     * Flag IS NOT cleared between api initialize/uninitialize.
      *
      * @type bool
      * @flags CREATE_AND_SET
@@ -41,8 +31,6 @@ typedef enum _sai_redis_switch_attr_t
 
     /**
      * @brief Will notify syncd whether to init or apply view
-     *
-     * Flag IS cleared between api initialize/uninitialize.
      *
      * @type sai_redis_notify_syncd_t
      * @flags CREATE_AND_SET
@@ -56,8 +44,6 @@ typedef enum _sai_redis_switch_attr_t
      * not take effect. This is temporary solution until
      * comparison logic will be in place.
      *
-     * Flag IS cleared between api initialize/uninitialize.
-     *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
@@ -66,8 +52,6 @@ typedef enum _sai_redis_switch_attr_t
 
     /**
      * @brief Enable redis pipeline
-     *
-     * Flag IS NOT cleared between api initialize/uninitialize.
      *
      * @type bool
      * @flags CREATE_AND_SET
@@ -78,14 +62,140 @@ typedef enum _sai_redis_switch_attr_t
     /**
      * @brief Will flush redis pipeline
      *
-     * Flag IS NOT cleared between api initialize/uninitialize.
-     *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
      */
     SAI_REDIS_SWITCH_ATTR_FLUSH,
 
+    /**
+     * @brief Recording output directory.
+     *
+     * By default is current directory. Also setting empty will force default
+     * directory.
+     *
+     * It will have only impact on next created recording.
+     *
+     * @type sai_s8_list_t
+     * @flags CREATE_AND_SET
+     * @default empty
+     */
+    SAI_REDIS_SWITCH_ATTR_RECORDING_OUTPUT_DIR,
+
 } sai_redis_switch_attr_t;
+
+/*
+ * Those bulk APIs are provided as static functions since current SAI 0.9.4
+ * doesn't support bulk API.  Also note that SDK don't support bulk route API
+ * yet, so those APIs are introduced here to reduce number of calls to redis,
+ * in syncd bulk API will be splitted to separate call's until proper SDK
+ * support will be added.
+ *
+ * Currently bulk operation type is skipped, and all operation must end with
+ * success.
+ */
+
+#ifndef SAI_STATUS_NOT_EXECUTED
+#define SAI_STATUS_NOT_EXECUTED                     SAI_STATUS_CODE(0x00000017L)
+#endif
+
+#ifndef SAI_COMMON_API_BULK_SET
+#define SAI_COMMON_API_BULK_CREATE 4
+#define SAI_COMMON_API_BULK_REMOVE 5
+#define SAI_COMMON_API_BULK_SET    6
+#define SAI_COMMON_API_BULK_GET    7
+#endif
+
+/**
+ * @brief Bulk create route entry
+ *
+ * @param[in] object_count Number of objects to create
+ * @param[in] route_entry List of object to create
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to create.
+ * @param[in] attr_list List of attributes for every object.
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are created or
+ * #SAI_STATUS_FAILURE when any of the objects fails to create. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t sai_bulk_create_route_entry(
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ const uint32_t *attr_count,
+        _In_ const sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses);
+
+/**
+ * @brief Bulk remove route entry
+ *
+ * @param[in] object_count Number of objects to remove
+ * @param[in] route_entry List of objects to remove
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t sai_bulk_remove_route_entry(
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses);
+
+/**
+ * @brief Bulk set attribute on route entry
+ *
+ * @param[in] object_count Number of objects to set attribute
+ * @param[in] route_entry List of objects to set attribute
+ * @param[in] attr_list List of attributes to set on objects, one attribute per object
+ * @param[in] type Bulk operation type.
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t sai_bulk_set_route_entry_attribute(
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ const sai_attribute_t *attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses);
+
+/**
+ * @brief Bulk get attribute on route entry
+ *
+ * @param[in] object_count Number of objects to set attribute
+ * @param[in] route_entry List of objects to set attribute
+ * @param[in] attr_count List of attr_count. Caller passes the number
+ *    of attribute for each object to get
+ * @param[inout] attr_list List of attributes to set on objects, one attribute per object
+ * @param[in] type Bulk operation type
+ * @param[out] object_statuses List of status for every object. Caller needs to
+ * allocate the buffer
+ *
+ * @return #SAI_STATUS_SUCCESS on success when all objects are removed or
+ * #SAI_STATUS_FAILURE when any of the objects fails to remove. When there is
+ * failure, Caller is expected to go through the list of returned statuses to
+ * find out which fails and which succeeds.
+ */
+sai_status_t sai_bulk_get_route_entry_attribute(
+        _In_ uint32_t object_count,
+        _In_ const sai_route_entry_t *route_entry,
+        _In_ const uint32_t *attr_count,
+        _Inout_ sai_attribute_t **attr_list,
+        _In_ sai_bulk_op_type_t type,
+        _Out_ sai_status_t *object_statuses);
 
 #endif // __SAIREDIS__

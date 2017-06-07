@@ -173,6 +173,11 @@ int discover(
 
             discovered[id][md->attridname] = sai_serialize_attr_value(*md, attr);
 
+            SWSS_LOG_DEBUG("result on %s: %s: %s",
+                    sai_serialize_object_id(id).c_str(),
+                    md->attridname,
+                    discovered[id][md->attridname].c_str());
+
             callCount += discover(attr.value.oid, discovered); // recursion
         }
         else if (md->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_LIST)
@@ -215,6 +220,11 @@ int discover(
             discovered[id][md->attridname] = sai_serialize_attr_value(*md, attr);
 
             SWSS_LOG_INFO("list count %s: %u", md->attridname, attr.value.objlist.count);
+
+            SWSS_LOG_DEBUG("result on %s: %s: %s",
+                    sai_serialize_object_id(id).c_str(),
+                    md->attridname,
+                    discovered[id][md->attridname].c_str());
 
             for (uint32_t i = 0; i < attr.value.objlist.count; ++i)
             {
@@ -293,6 +303,11 @@ int discover(
             if (status == SAI_STATUS_SUCCESS)
             {
                 discovered[id][md->attridname] = sai_serialize_attr_value(*md, attr);
+
+                SWSS_LOG_DEBUG("result on %s: %s: %s",
+                        sai_serialize_object_id(id).c_str(),
+                        md->attridname,
+                        discovered[id][md->attridname].c_str());
             }
             else
             {
