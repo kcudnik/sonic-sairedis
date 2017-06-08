@@ -2016,6 +2016,8 @@ sai_status_t meta_generic_validation_get(
         if (md.isconditional)
         {
             /*
+             * XXX workaround
+             *
              * TODO If object was created internally by switch (like bridge
              * port) then current db will not have previous value of this
              * attribute (like SAI_BRIDGE_PORT_ATTR_PORT_ID) or even other oid.
@@ -2024,6 +2026,11 @@ sai_status_t meta_generic_validation_get(
              * reference is not decreased since previous oid was not snooped.
              *
              * TODO This concearn all attributes not only conditionals
+             *
+             * If attribute is conditional, we need to check if condition is
+             * met, if not then this attribute is not mandatory so we can
+             * return fail in that case, for that we need all internal
+             * switch objects after create.
              */
 
             // check if it was set on local DB
