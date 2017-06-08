@@ -20,7 +20,7 @@ const char* profile_get_value(
 
     if (std::string(variable) == SAI_KEY_VS_SWITCH_TYPE)
     {
-        return SAI_VALUE_VS_SWITCH_TYPE_BCM56850;
+        return SAI_VALUE_VS_SWITCH_TYPE_MLNX2700;
     }
 
     return NULL;
