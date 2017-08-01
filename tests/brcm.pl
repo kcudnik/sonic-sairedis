@@ -172,22 +172,22 @@ sub test_brcm_full_to_empty_no_queue_no_ipg_no_buffer_profile
 
 # RUN TESTS
 
-test_brcm_start_empty;
-test_brcm_start_empty_to_empty;
-test_brcm_full;
-test_brcm_full_to_empty;
-test_brcm_empty_to_full;
-test_brcm_empty_restart_to_full;
+#test_brcm_start_empty;
+#test_brcm_start_empty_to_empty;
+#test_brcm_full;
+#test_brcm_full_to_empty;
+#test_brcm_empty_to_full;
+#test_brcm_empty_restart_to_full;
 test_brcm_empty_to_full_to_empty_to_full_to_full;
-test_brcm_full_to_full;
-test_brcm_full_to_full_no_bridge;
-test_brcm_full_to_full_no_bridge_restart;
-test_brcm_empty_to_full_to_empty;
-test_brcm_empty_to_full_nhg_bug;
-test_brcm_empty_to_full_prio_flow_bug;
-test_brcm_empty_to_full_trap_group_bug;
-test_brcm_queue_bug_null_buffer_profile;
-test_brcm_full_to_empty_no_queue;
-test_brcm_full_to_empty_no_queue_no_ipg;
-test_brcm_full_to_empty_hostif_remove_segfault;
-test_brcm_full_to_empty_no_queue_no_ipg_no_buffer_profile;
+#test_brcm_full_to_full;
+#test_brcm_full_to_full_no_bridge;
+#test_brcm_full_to_full_no_bridge_restart;
+#test_brcm_empty_to_full_to_empty;
+#test_brcm_empty_to_full_nhg_bug;
+#test_brcm_empty_to_full_prio_flow_bug;
+#test_brcm_empty_to_full_trap_group_bug;
+#test_brcm_queue_bug_null_buffer_profile;
+#test_brcm_full_to_empty_no_queue;
+#test_brcm_full_to_empty_no_queue_no_ipg;
+#test_brcm_full_to_empty_hostif_remove_segfault;
+#test_brcm_full_to_empty_no_queue_no_ipg_no_buffer_profile;

@@ -7,6 +7,9 @@
 #include <algorithm>
 #include <list>
 
+#include "swss/rediscommand.h"
+#include "swss/redisapi.h"
+
 /*
  * NOTE: All methods taking current and temporary view could be moved to
  * transition class etc to just use class members instead of passing those
@@ -5002,20 +5005,128 @@ void populateExistingObjects(
     }
 }
 
+void luaUpdateRidVidMaps(
+       _In_ const std::unordered_map<sai_object_id_t, sai_object_id_t>& ridToVid)
+{
+    /*
+     * When supporting multiple switches VID2RID maps must be per switch.
+     */
+
+    SWSS_LOG_ENTER();
+
+    std::stringstream ss;
+
+    for (auto &kv: ridToVid)
+    {
+        const std::string& strRid = sai_serialize_object_id(kv.first);
+        const std::string& strVid = sai_serialize_object_id(kv.second);
+
+        ss << strRid << "," << strVid << ",";
+    }
+
+    static std::string luaScript = swss::loadLuaScript("update_rid_vid_maps.lua");
+
+    // TODO we already have db connection in syncd main and we can use that
+
+    std::shared_ptr<swss::DBConnector> db = std::make_shared<swss::DBConnector>(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
+
+    static std::string sha = swss::loadRedisScript(&*db, luaScript);
+
+    swss::RedisCommand command;
+
+    command.format(
+        "EVALSHA %s 3 %s %s %s '' '' ''",
+        sha.c_str(),
+        RIDTOVID,
+        VIDTORID,
+        ss.str().c_str());
+
+    swss::RedisReply r(&*db, command);
+
+    auto ctx0 = r.getContext();
+
+    if (ctx0->type != REDIS_REPLY_NIL)
+    {
+        SWSS_LOG_THROW("Failed to update redis DB using lua, reply code: %d", ctx0->type);
+    }
+}
+
+void luaUpdateRedisDatabase(
+        _In_ const AsicView &temporaryView)
+{
+    SWSS_LOG_ENTER();
+
+    std::stringstream ss;
+
+    for (const auto &pair: temporaryView.soAll)
+    {
+        const auto &obj = pair.second;
+
+        const auto &attr = obj->getAllAttributes();
+
+        std::string key = std::string(ASIC_STATE_TABLE) + ":" + obj->str_object_type + ":" + obj->str_object_id;
+
+        if (attr.size() == 0)
+        {
+
+            /*
+             * Object has no attributes, so populate using NULL just to
+             * indicate that object exists.
+             */
+
+            ss << key << "|NULL|NULL|";
+        }
+        else
+        {
+            for (const auto &ap: attr)
+            {
+                const auto saiAttr = ap.second;
+
+                ss << key << "|" << saiAttr->getStrAttrId() << "|" << saiAttr->getStrAttrValue() << "|";
+            }
+        }
+    }
+
+    static std::string luaScript = swss::loadLuaScript("update_asic_view.lua");
+
+    // TODO we already have db connection in syncd main and we can use that
+
+    std::shared_ptr<swss::DBConnector> db = std::make_shared<swss::DBConnector>(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
+
+    static std::string sha = swss::loadRedisScript(&*db, luaScript);
+
+    swss::RedisCommand command;
+
+    command.format(
+        "EVALSHA %s 3 %s %s %s '' '' ''",
+        sha.c_str(),
+        ASIC_STATE_TABLE ":*",
+        TEMP_PREFIX ASIC_STATE_TABLE ":*",
+        ss.str().c_str());
+
+    swss::RedisReply r(&*db, command);
+
+    auto ctx0 = r.getContext();
+
+    if (ctx0->type != REDIS_REPLY_NIL)
+    {
+        SWSS_LOG_THROW("Failed to update redis DB using lua, reply code: %d", ctx0->type);
+    }
+}
+
 void updateRedisDatabase(
-        _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView)
 {
     SWSS_LOG_ENTER();
 
     /*
-     * TODO: We can make LUA script for this which will be much faster.
-     *
      * TODO: This needs to be updated if we want to support multiple switches.
      */
 
-    SWSS_LOG_TIMER("redis update");
+    SWSS_LOG_TIMER("redis update - all");
 
+    {
+        SWSS_LOG_TIMER("asic update 1  by 1");
     /*
      * Remove Asic State Table
      */
@@ -5071,6 +5182,13 @@ void updateRedisDatabase(
             }
         }
     }
+    }
+
+    {
+        SWSS_LOG_TIMER("asic update lua");
+
+        luaUpdateRedisDatabase(temporaryView);
+    }
 
     /*
      * Remove previous RID2VID maps and apply new map.
@@ -5078,19 +5196,29 @@ void updateRedisDatabase(
      * TODO: This needs to be done per switch, we can't remove all maps.
      */
 
-    redisClearVidToRidMap();
-    redisClearRidToVidMap();
-
-    for (auto &kv: temporaryView.ridToVid)
     {
-        std::string strVid = sai_serialize_object_id(kv.second);
-        std::string strRid = sai_serialize_object_id(kv.first);
+        SWSS_LOG_TIMER("rid2vid 111");
 
-        g_redisClient->hset(VIDTORID, strVid, strRid);
-        g_redisClient->hset(RIDTOVID, strRid, strVid);
+        redisClearVidToRidMap();
+        redisClearRidToVidMap();
+
+        for (auto &kv: temporaryView.ridToVid)
+        {
+            std::string strVid = sai_serialize_object_id(kv.second);
+            std::string strRid = sai_serialize_object_id(kv.first);
+
+            g_redisClient->hset(VIDTORID, strVid, strRid);
+            g_redisClient->hset(RIDTOVID, strRid, strVid);
+        }
     }
 
     SWSS_LOG_NOTICE("updated redis database");
+
+    {
+        SWSS_LOG_TIMER("rid2vid lua");
+
+        luaUpdateRidVidMaps(temporaryView.ridToVid);
+    }
 }
 
 sai_status_t syncdApplyView()
@@ -5297,7 +5425,7 @@ sai_status_t syncdApplyView()
 
     executeOperationsOnAsic(current, temp);
 
-    updateRedisDatabase(current, temp);
+    updateRedisDatabase(temp);
 
     return SAI_STATUS_SUCCESS;
 }
