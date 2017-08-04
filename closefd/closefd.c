@@ -499,7 +499,7 @@ int main(int argc, char **argv)
     //
     // to extend this logic we could use "memalloc" to allocate
     // memory and put some more data and then do _dl_open to load
-    // external so librarh which we can control and do a ot more
+    // external so librarh which we can control and do a lot more
     //
     // this is already done: https://github.com/vikasnkumar/hotpatch
     // but somehow it's not working
@@ -606,7 +606,7 @@ int main(int argc, char **argv)
     ptrace_detach(pid);
 
     if (access(fdpath, F_OK) != -1)
-        LOG_DEBUG("FAILURE: file descripor %s is still present, FATAL", fdpath);
+        LOG_ERROR("FAILURE: file descripor %s is still present, FATAL", fdpath);
 
     LOG_DEBUG("SUCCESS: file descriptor %s was closed", fdpath);
 
