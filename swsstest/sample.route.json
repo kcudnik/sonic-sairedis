@@ -1,0 +1,9 @@
+[
+{
+    "ROUTE_TABLE:2.2.2.0/24": {
+        "nexthop": "10.0.0.1",
+        "ifname":"Ethernet0"
+    },
+        "OP": "SET"
+}
+]
