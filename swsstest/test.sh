@@ -42,7 +42,6 @@ orchagent -m 00:11:11:11:11:22 &
 sleep 2
 
 echo -e $colorGreen starting portsyncd $colorDefault
-#portsyncd -p sonic/platform/ACS-MSN2700/port_config.ini &
 portsyncd -p ./Force10-S6000/port_config.ini &
 
 sleep 2
@@ -52,11 +51,6 @@ intfsyncd &
 
 sleep 2
 
-#echo -e $colorGreen ifup $colorDefault
-#sudo ifup -a --force
-#sleep 2
-
-# TODO first use static arp insert
 echo -e $colorGreen starting neighsyncd $colorDefault
 neighsyncd &
 
@@ -68,35 +62,24 @@ seq 1 2 63| while read all; do HW=`echo $all|perl -ne 'printf("52:54:00:00:00:%0
 sleep 2
 
 ## https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/start.sh
-#
-#SWSSCONFIG_ARGS="00-copp.config.json ipinip.json mirror.json "
-#SWSSCONFIG_ARGS+="msn2700.32ports.buffers.json msn2700.32ports.qos.json "
-#
-#echo -e $colorGreen apply copp $colorDefault
-#
-#for file in $SWSSCONFIG_ARGS
-#do
-#    if [ -f config.d/$file ]; then
-#        echo -e $colorGreen apply $file $colorDefault
-#        LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./swssconfig config.d/$file
-#        sleep 1
-#    else
-#        echo -e $colorYellow file config.d/$file don\'t exists $colorDefault
-#    fi
-#done
-#
-#sleep 5
-#
-#echo -e $colorGreen starting fpmsyncd $colorDefault
-#sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./fpmsyncd &
 
-echo -e $colorGreen DONE sleep $colorDefault
+echo -e $colorGreen DONE - test setup was configured $colorDefault
 
 sleep 2
 
- swssconfig  sample.route.json
+# here begins actual test
 
-# $ redis-cli -n 1 "keys" "*ROUTE_ENTRY:*2.2.2.0/24*"
-# 1) "ASIC_STATE:SAI_OBJECT_TYPE_ROUTE_ENTRY:{\"dest\":\"2.2.2.0/24\",\"switch_id\":\"oid:0x21000000000000\",\"vr\":\"oid:0x3000000000022\"}"
+echo -e $colorGreen Inserting sample route to APP DB $colorDefault
+swssconfig  sample.route.json
 
-#sleep 10000
+sleep 2 # give some time to propagate to ASIC DB
+
+LINES=$(redis-cli -n 1 "keys" "*ROUTE_ENTRY:*2.2.2.0/24*" | grep ROUTE_ENTRY | wc -l)
+
+if [ $LINES == 1 ];
+then
+    echo -e $colorGreen PASSED $colorDefault
+else
+    echo -e $colorRed FAILED, route not found in ASIC DB $colorDefault
+    exit 1
+fi
