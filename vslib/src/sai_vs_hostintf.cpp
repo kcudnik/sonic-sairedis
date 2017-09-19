@@ -1,6 +1,10 @@
 #include "sai_vs.h"
 #include "sai_vs_internal.h"
 
+#include "meta/saiserialize.h"
+
+#define MAX_INTERFACE_NAME_LEN 16
+
 sai_status_t vs_recv_hostif_packet(
         _In_ sai_object_id_t hif_id,
         _Out_ void *buffer,
@@ -43,13 +47,49 @@ sai_status_t vs_create_hostif_int(
         return SAI_STATUS_SUCCESS;
     }
 
-    // TODO validate input params, colistions, dulicates etc
+    // validate SAI_HOSTIF_ATTR_TYPE
 
-    // SAI_OBJECT_TYPE_HOSTIF:oid:0xd00000000058d
-    //
-    // SAI_HOSTIF_ATTR_TYPE=SAI_HOSTIF_TYPE_NETDEV
-    // SAI_HOSTIF_ATTR_OBJ_ID=oid:0x1000000000002
-    // SAI_HOSTIF_ATTR_NAME=Ethernet0
+    auto attr_type = sai_metadata_get_attr_by_id(SAI_HOSTIF_ATTR_TYPE, attr_count, attr_list);
+
+    if (attr_type == NULL)
+    {
+        SWSS_LOG_ERROR("attr SAI_HOSTIF_ATTR_TYPE was not passed");
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    if (attr_type->value.s32 != SAI_HOSTIF_TYPE_NETDEV)
+    {
+        SWSS_LOG_ERROR("only SAI_HOSTIF_TYPE_NETDEV is supported");
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    // validate SAI_HOSTIF_ATTR_OBJ_ID
+
+    auto attr_obj_id = sai_metadata_get_attr_by_id(SAI_HOSTIF_ATTR_OBJ_ID, attr_count, attr_list);
+
+    if (attr_obj_id == NULL)
+    {
+        SWSS_LOG_ERROR("attr SAI_HOSTIF_ATTR_OBJ_ID was not passed");
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    sai_object_id_t obj_id = attr_obj_id->value.oid;
+
+    sai_object_type_t ot = sai_object_type_query(obj_id);
+
+    if (ot != SAI_OBJECT_TYPE_PORT)
+    {
+        SWSS_LOG_ERROR("SAI_HOSTIF_ATTR_OBJ_ID=%s expected to be PORT but is: %s",
+                sai_serialize_object_id(obj_id).c_str(),
+                sai_serialize_object_type(ot).c_str());
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    // validate SAI_HOSTIF_ATTR_NAME
 
     auto attr_name = sai_metadata_get_attr_by_id(SAI_HOSTIF_ATTR_NAME, attr_count, attr_list);
 
@@ -60,7 +100,23 @@ sai_status_t vs_create_hostif_int(
         return SAI_STATUS_FAILURE;
     }
 
+    if (strnlen(attr_name->value.chardata, sizeof(attr_name->value.chardata)) >= MAX_INTERFACE_NAME_LEN)
+    {
+        SWSS_LOG_ERROR("interface name is too long: %.*s", MAX_INTERFACE_NAME_LEN, attr_name->value.chardata);
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    if (strncmp(attr_name->value.chardata, "Ethernet", 8) != 0)
+    {
+        SWSS_LOG_ERROR("interface name should start with EthernetX but is %s", attr_name->value.chardata);
+
+        return SAI_STATUS_FAILURE;
+    }
+
     std::string name = std::string(attr_name->value.chardata);
+
+    // create TAP device
 
     SWSS_LOG_INFO("creating hostif %s", name.c_str());
 
@@ -86,13 +142,12 @@ sai_status_t vs_create_hostif_int(
         return SAI_STATUS_FAILURE;
     }
 
+    // TODO update mac address
+
     // TODO what about FDB entries notifications, they also should
     // be generated if new mac addres will show up on the interface/arp table
 
     SWSS_LOG_INFO("created tap interface %d", name.c_str());
-
-    // TODO create router interface should update MAC address on that hostif since all
-    // should have mac of the switch
 
     return vs_generic_create(object_type,
             hostif_id,
