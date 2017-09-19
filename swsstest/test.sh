@@ -19,7 +19,7 @@ killall neighsyncd
 killall fpmsynd
 
 # remove interfaces, TODO later on they should not be persiten on tests
-echo -e $colorGreen remove Ethernet interfaces $colorDefault
+echo -e $colorGreen Remove Ethernet interfaces $colorDefault
 seq 0 4 124| while read all; do ip tuntap del name Ethernet$all mode tap; done
 
 set -e
@@ -91,5 +91,12 @@ sleep 2
 #sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./fpmsyncd &
 
 echo -e $colorGreen DONE sleep $colorDefault
+
+sleep 2
+
+ swssconfig  sample.route.json
+
+# $ redis-cli -n 1 "keys" "*ROUTE_ENTRY:*2.2.2.0/24*"
+# 1) "ASIC_STATE:SAI_OBJECT_TYPE_ROUTE_ENTRY:{\"dest\":\"2.2.2.0/24\",\"switch_id\":\"oid:0x21000000000000\",\"vr\":\"oid:0x3000000000022\"}"
 
 #sleep 10000

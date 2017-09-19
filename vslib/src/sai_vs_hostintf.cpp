@@ -29,13 +29,6 @@ sai_status_t vs_send_hostif_packet(
     return SAI_STATUS_NOT_IMPLEMENTED;
 }
 
-// TODO we can make this as a macro, and use only name of acual internal method
-// then we will know that all metadata is ok for attributes
-
-// TODO should this functionality be controlled from config.ini?
-// since when doing reply only with syncd we don't need actual interfaces
-// hostif to be created
-
 sai_status_t vs_create_hostif_int(
         _In_ sai_object_type_t object_type,
         _Out_ sai_object_id_t *hostif_id,
@@ -44,6 +37,11 @@ sai_status_t vs_create_hostif_int(
         _In_ const sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vs_hostif_use_tap_device == false)
+    {
+        return SAI_STATUS_SUCCESS;
+    }
 
     // TODO validate input params, colistions, dulicates etc
 
