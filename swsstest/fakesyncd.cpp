@@ -155,7 +155,7 @@ void thread_fun(int tapidx, int tapfd)
     {
         struct pcap_pkthdr header;
 
-        unsigned const char * packet = pcap_next(handle, &header); // blocking /
+        unsigned const char * packet = pcap_next(handle, &header); // blocking for 1 sec timeout
     
         if (packet == NULL)
         {
@@ -174,14 +174,19 @@ void thread_fun(int tapidx, int tapfd)
 
         printf("\n");
 
-        // inject packet to tap device
-        int ret;
-        if ((ret = pcap_sendpacket(fp, packet, header.len) )== -1)
-        {
-            printf("FAILED to send packet on %s\n", tapdev);
-        }
+        int wr = write(tapfd, packet, header.len);
 
-        printf("sent packet %d to %s\n", ret, tapdev);
+        printf("wr %d\n", wr);
+        //continue;
+
+        //// inject packet to tap device
+        //int ret;
+        //if ((ret = pcap_sendpacket(fp, packet, header.len) )== -1)
+        //{
+        //    printf("FAILED to send packet on %s\n", tapdev);
+        //}
+
+        //printf("sent packet %d to %s\n", ret, tapdev);
     }
 
     printf("exit thread %s\n", dev);
@@ -221,7 +226,7 @@ int main()
 
         SWSS_LOG_INFO("creating hostif %s", name.c_str());
 
-        int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP| IFF_MULTI_QUEUE);
+        int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP| IFF_MULTI_QUEUE|IFF_NO_PI);
 
         if (tapfd < 0)
         {
