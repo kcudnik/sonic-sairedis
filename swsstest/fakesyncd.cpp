@@ -97,7 +97,7 @@ int ifup(const char *dev)
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (sockfd < 0)
-            return -1;
+        return -1;
 
     memset(&ifr, 0, sizeof ifr);
 
@@ -138,7 +138,7 @@ void thread_fun(int tapidx, int tapfd)
 
     pcap_t *fp;
 
-    fp = pcap_open_live(tapdev, BUFSIZ, 1, 1000, errbuf);
+    fp = pcap_open_live(tapdev, BUFSIZ, 0, 1000, errbuf);
 
     if (fp == NULL)
     {
@@ -155,8 +155,13 @@ void thread_fun(int tapidx, int tapfd)
     {
         struct pcap_pkthdr header;
 
-        unsigned const char * packet = pcap_next(handle, &header); // blocking for 1 sec timeout
-    
+        unsigned const char * packet;
+        
+        {
+            SWSS_LOG_TIMER("pcap_next");
+            packet = pcap_next(handle, &header); // blocking for 1 sec timeout
+        }
+
         if (packet == NULL)
         {
             continue;
@@ -165,18 +170,24 @@ void thread_fun(int tapidx, int tapfd)
         // TODO check packet source mac address and potentially
         // send fdb_event notification
 
-        printf("got packet len %d on %s\n", header.len, dev);
+//        printf("got packet len %d on %s\n", header.len, dev);
 
         for (int j = 0; j < header.len; ++j)
         {
-            printf("%02x", packet[j]);
+        //    printf("%02x", packet[j]);
         }
 
-        printf("\n");
+        //printf("\n");
 
-        int wr = write(tapfd, packet, header.len);
+        int wr ;
+        
+        {
+            SWSS_LOG_TIMER("write");
+            
+            wr = write(tapfd, packet, header.len);
+        }
 
-        printf("wr %d\n", wr);
+        // printf("wr %d\n", wr);
         //continue;
 
         //// inject packet to tap device
@@ -197,7 +208,27 @@ void thread_fun(int tapidx, int tapfd)
 
 void thread_fun_tap(int devidx, int tapfd)
 {
-    char buffer[0x2000];
+    std::string vethname = "sw1eth" + std::to_string(devidx);
+
+    const char *dev = vethname.c_str();
+
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    pcap_t *handle;
+
+    handle = pcap_open_live(dev, BUFSIZ, 1, 300, errbuf);
+
+    if (handle == NULL)
+    {
+        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", dev, errbuf);
+
+        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
+        return;
+    }
+
+    printf("started packet forward for %s\n", dev);
+
+    unsigned char buffer[0x2000];
 
     while (1)
     {
@@ -206,17 +237,38 @@ void thread_fun_tap(int devidx, int tapfd)
         if (nread < 0)
         {
             perror("Reading from interface");
-            
+
             return;
         }
 
-        printf("Read %d bytes from device %d\n", nread, devidx);
+        //printf("Read %d %d \n", nread, devidx);
+
+        for (int j = 0; j < nread; ++j)
+        {
+          //  printf("%02x", buffer[j]); // also arp reply
+        }
+
+        //printf("\n");
+
+        // inject packet to tap device
+        //
+        {SWSS_LOG_TIMER("sendpacket");
+        int ret;
+        if ((ret = pcap_sendpacket(handle, buffer, nread) )== -1)
+        {
+            printf("FAILED to send packet on %s\n", dev);
+        }
+        }
+
+        //printf("sent packet %d to %s\n", ret, dev);
     }
 }
 
 int main()
 {
     SWSS_LOG_ENTER();
+
+    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
     for (int i = 0; i < 128; i+=4)
     {
@@ -226,7 +278,7 @@ int main()
 
         SWSS_LOG_INFO("creating hostif %s", name.c_str());
 
-        int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP| IFF_MULTI_QUEUE|IFF_NO_PI);
+        int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP| IFF_MULTI_QUEUE | IFF_NO_PI);
 
         if (tapfd < 0)
         {
@@ -253,13 +305,13 @@ int main()
 
         ifup(name.c_str());
 
-         std::thread th(thread_fun, i, tapfd);
+        std::thread th(thread_fun, i, tapfd);
 
-         th.detach();
+        th.detach();
 
-         std::thread tapth(thread_fun_tap, i, tapfd);
+        std::thread tapth(thread_fun_tap, i, tapfd);
 
-         tapth.detach();
+        tapth.detach();
     }
 
     // not just sleep and read/write from tap interfaces
