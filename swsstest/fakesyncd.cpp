@@ -108,7 +108,7 @@ int ifup(const char *dev)
     return ioctl(sockfd, SIOCSIFFLAGS, &ifr);
 }
 
-void thread_fun(int tapidx, int tapfd)
+void thread_fun(int tapidx, int tapfd, pcap_t* fp)
 {
     // TODO for each interface we need swXethX for EthernetY
     // that will transport packets in both directions
@@ -119,34 +119,9 @@ void thread_fun(int tapidx, int tapfd)
     const char *dev = vethname.c_str();
     const char *tapdev = tapname.c_str();
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    pcap_t *handle;
-
-    // or use raw sockets https://gist.github.com/austinmarton/2862515
-    handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
-
-    if (handle == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", dev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return;
-    }
 
     printf("started packet forward for %s\n", dev);
 
-    pcap_t *fp;
-
-    fp = pcap_open_live(tapdev, BUFSIZ, 0, 1000, errbuf);
-
-    if (fp == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", tapdev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", tapdev, errbuf);
-        return;
-    }
 
     // TODO start receiving thread
     // TODO later on we could have only 2 threads for all interfaces
@@ -159,7 +134,7 @@ void thread_fun(int tapidx, int tapfd)
         
         {
             SWSS_LOG_TIMER("pcap_next");
-            packet = pcap_next(handle, &header); // blocking for 1 sec timeout
+            packet = pcap_next(fp, &header); // blocking for 1 sec timeout
         }
 
         if (packet == NULL)
@@ -202,29 +177,15 @@ void thread_fun(int tapidx, int tapfd)
 
     printf("exit thread %s\n", dev);
 
-
-    pcap_close(handle);
 }
 
-void thread_fun_tap(int devidx, int tapfd)
+void thread_fun_tap(int devidx, int tapfd,  pcap_t *fp)
 {
     std::string vethname = "sw1eth" + std::to_string(devidx);
 
     const char *dev = vethname.c_str();
 
     char errbuf[PCAP_ERRBUF_SIZE];
-
-    pcap_t *handle;
-
-    handle = pcap_open_live(dev, BUFSIZ, 1, 300, errbuf);
-
-    if (handle == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", dev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return;
-    }
 
     printf("started packet forward for %s\n", dev);
 
@@ -254,7 +215,7 @@ void thread_fun_tap(int devidx, int tapfd)
         //
         {SWSS_LOG_TIMER("sendpacket");
         int ret;
-        if ((ret = pcap_sendpacket(handle, buffer, nread) )== -1)
+        if ((ret = pcap_sendpacket(fp, buffer, nread) )== -1)
         {
             printf("FAILED to send packet on %s\n", dev);
         }
@@ -305,11 +266,26 @@ int main()
 
         ifup(name.c_str());
 
-        std::thread th(thread_fun, i, tapfd);
+        char errbuf[PCAP_ERRBUF_SIZE];
+
+        pcap_t *fp;
+
+        fp = pcap_open_live(name.c_str(), BUFSIZ, 0, 1000, errbuf);
+
+        if (fp == NULL)
+        {
+            SWSS_LOG_ERROR("Couldn't open device %s: %s\n",name.c_str(), errbuf);
+
+            fprintf(stderr, "Couldn't open device %s: %s\n", name.c_str(), errbuf);
+            continue;
+        }
+
+
+        std::thread th(thread_fun, i, tapfd, fp);
 
         th.detach();
 
-        std::thread tapth(thread_fun_tap, i, tapfd);
+        std::thread tapth(thread_fun_tap, i, tapfd, fp);
 
         tapth.detach();
     }
