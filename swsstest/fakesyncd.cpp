@@ -124,7 +124,7 @@ void thread_fun(int tapidx, int tapfd)
     pcap_t *handle;
 
     // or use raw sockets https://gist.github.com/austinmarton/2862515
-    handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+    handle = pcap_open_live(dev, BUFSIZ, 0, 10, errbuf);
 
     if (handle == NULL)
     {
@@ -138,15 +138,15 @@ void thread_fun(int tapidx, int tapfd)
 
     pcap_t *fp;
 
-    fp = pcap_open_live(tapdev, BUFSIZ, 0, 1000, errbuf);
-
-    if (fp == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", tapdev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", tapdev, errbuf);
-        return;
-    }
+//    fp = pcap_open_live(tapdev, BUFSIZ, 0, 10, errbuf);
+//
+//    if (fp == NULL)
+//    {
+//        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", tapdev, errbuf);
+//
+//        fprintf(stderr, "Couldn't open device %s: %s\n", tapdev, errbuf);
+//        return;
+//    }
 
     // TODO start receiving thread
     // TODO later on we could have only 2 threads for all interfaces
@@ -187,7 +187,7 @@ void thread_fun(int tapidx, int tapfd)
             wr = write(tapfd, packet, header.len);
         }
 
-        // printf("wr %d\n", wr);
+         printf("wr %d %s -> %s\n", wr, dev, tapdev);
         //continue;
 
         //// inject packet to tap device
@@ -209,6 +209,7 @@ void thread_fun(int tapidx, int tapfd)
 void thread_fun_tap(int devidx, int tapfd)
 {
     std::string vethname = "sw1eth" + std::to_string(devidx);
+    std::string tapname = "Ethernet" + std::to_string(devidx); // could be port channel
 
     const char *dev = vethname.c_str();
 
@@ -216,7 +217,7 @@ void thread_fun_tap(int devidx, int tapfd)
 
     pcap_t *handle;
 
-    handle = pcap_open_live(dev, BUFSIZ, 1, 300, errbuf);
+    handle = pcap_open_live(dev, BUFSIZ, 0, 10, errbuf);
 
     if (handle == NULL)
     {
@@ -259,6 +260,8 @@ void thread_fun_tap(int devidx, int tapfd)
             printf("FAILED to send packet on %s\n", dev);
         }
         }
+
+        printf("send %s -> %s \n", tapname.c_str(), vethname.c_str());
 
         //printf("sent packet %d to %s\n", ret, dev);
     }

@@ -1143,7 +1143,9 @@ void hardReinit()
 {
     SWSS_LOG_ENTER();
 
-    SWSS_LOG_TIMER("hard reinit");
+    {
+        SWSS_LOG_TIMER("hard reinit");
+    }
 
     readAsicState();
 

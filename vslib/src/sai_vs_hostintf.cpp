@@ -14,6 +14,28 @@
 #include <net/if_arp.h>
 #include <unistd.h>
 
+#include <pcap.h>
+
+// TODO on hostif remove we should stop threads
+
+typedef struct _hostif_info_t
+{
+    pcap_t *veth_r;
+    pcap_t *veth_w;
+
+    int tapfd;
+
+    std::shared_ptr<std::thread> e2t;
+    std::shared_ptr<std::thread> t2e;
+
+    sai_object_id_t hostif_vid;
+
+    volatile bool run_thread;
+
+} hostif_info_t;
+
+std::map<std::string, std::shared_ptr<hostif_info_t>> hostif_info_map;
+
 #define MAX_INTERFACE_NAME_LEN IFNAMSIZ
 
 sai_status_t vs_recv_hostif_packet(
@@ -106,12 +128,155 @@ int vs_set_dev_mac_address(const char *dev, const sai_mac_t mac)
 
     if (err < 0)
     {
-        SWSS_LOG_ERROR("ioctl SIOCSIFHWADDR on socked %d %s failed, err %d", s, dev, err);
+        SWSS_LOG_ERROR("ioctl SIOCSIFHWADDR on socket %d %s failed, err %d", s, dev, err);
     }
 
     close(s);
 
     return err;
+}
+
+int ifup(const char *dev)
+{
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (s < 0)
+    {
+        SWSS_LOG_ERROR("failed to open socket: %d", s);
+
+        return -1;
+    }
+
+    struct ifreq ifr;
+
+    memset(&ifr, 0, sizeof ifr);
+
+    strncpy(ifr.ifr_name, dev , IFNAMSIZ);
+
+    ifr.ifr_flags |= IFF_UP;
+
+    int err = ioctl(s, SIOCSIFFLAGS, &ifr);
+
+    if (err < 0)
+    {
+        SWSS_LOG_ERROR("ioctl SIOCSIFFLAGS on socket %d %s failed, err %d", s, dev, err);
+    }
+
+    close(s);
+
+    return err;
+}
+
+void veth2tap_fun(std::shared_ptr<hostif_info_t> info)
+{
+    SWSS_LOG_ENTER();
+
+    while (info->run_thread)
+    {
+        struct pcap_pkthdr header;
+
+        unsigned const char *packet = pcap_next(info->veth_r, &header);
+
+        if (packet == NULL)
+        {
+            continue;
+        }
+
+        // TODO examine packet for mac and possible generate fdb_event
+
+        ssize_t wr = write(info->tapfd, packet, header.len);
+
+        if (wr < 0)
+        {
+            SWSS_LOG_ERROR("failed to write to tapfd: %d", info->tapfd);
+        }
+    }
+
+    pcap_close(info->veth_r);
+}
+
+void tap2veth_fun(std::shared_ptr<hostif_info_t> info)
+{
+    SWSS_LOG_ENTER();
+
+    unsigned char buffer[0x4000];
+
+    while (info->run_thread)
+    {
+        ssize_t nread = read(info->tapfd, buffer, sizeof(buffer));
+
+        if (nread < 0)
+        {
+            SWSS_LOG_ERROR("failed to read from tapfd: %d", info->tapfd);
+
+            break;
+        }
+
+        int ret = pcap_sendpacket(info->veth_w, buffer, (int)nread);
+
+        if (ret < 0)
+        {
+            SWSS_LOG_ERROR("failed to send packet via pcap from tapfd: %d", info->tapfd);
+        }
+    }
+
+    pcap_close(info->veth_w);
+}
+
+bool hostif_create_tap_veth_forwarding(
+        _In_ const std::string &tapname,
+        _In_ int tapfd)
+{
+    SWSS_LOG_ENTER();
+
+    // we assume here that veth devices were added by user before creating this
+    // host interface, vEthernetX will be used for packet transfer between ip
+    // namespaces
+
+    std::string vethname = "v" + tapname;
+
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    pcap_t *veth_r = pcap_open_live(vethname.c_str(), BUFSIZ, 0, 300, errbuf);
+
+    // open veth device for read and for write (we need 2 descriptiors since
+    // this is not thread safe)
+
+    if (veth_r == NULL)
+    {
+        SWSS_LOG_ERROR("Couldn't open device %s: %s", vethname.c_str(), errbuf);
+
+        return false;
+    }
+
+    pcap_t *veth_w = pcap_open_live(vethname.c_str(), BUFSIZ, 0, 300, errbuf);
+
+    if (veth_w == NULL)
+    {
+        SWSS_LOG_ERROR("Couldn't open device %s: %s", vethname.c_str(), errbuf);
+
+        pcap_close(veth_r);
+
+        return false;
+    }
+
+    std::shared_ptr<hostif_info_t> info;
+
+    hostif_info_map[tapname] = info;
+
+    info->veth_r     = veth_r;
+    info->veth_w     = veth_w;
+    info->tapfd      = tapfd;
+    info->run_thread = true;
+    info->e2t        = std::make_shared<std::thread>(veth2tap_fun, info);
+    info->t2e        = std::make_shared<std::thread>(tap2veth_fun, info);
+
+    info->e2t->detach();
+    info->t2e->detach();
+
+    SWSS_LOG_NOTICE("setup forward rule for %s succeeded", tapname.c_str());
+
+    return true;
 }
 
 sai_status_t vs_create_hostif_int(
@@ -239,13 +404,30 @@ sai_status_t vs_create_hostif_int(
         close(tapfd);
 
         return SAI_STATUS_FAILURE;
+    }
 
+    err = ifup(name.c_str());
+
+    if (err < 0)
+    {
+        SWSS_LOG_ERROR("failed to bring ifup %s", name.c_str());
+
+        close(tapfd);
+
+        return SAI_STATUS_FAILURE;
+    }
+
+    if (!hostif_create_tap_veth_forwarding(name, tapfd))
+    {
+        SWSS_LOG_ERROR("forwarding rule on %s was not added", name.c_str());
     }
 
     // TODO what about FDB entries notifications, they also should
     // be generated if new mac addres will show up on the interface/arp table
 
-    SWSS_LOG_INFO("created tap interface %d", name.c_str());
+    // TODO IP address should be assigned when router interface is created
+
+    SWSS_LOG_INFO("created tap interface %s", name.c_str());
 
     return vs_generic_create(object_type,
             hostif_id,

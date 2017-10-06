@@ -2067,7 +2067,7 @@ sai_status_t processBulkEvent(
 
     if (isInitViewMode())
     {
-        SWSS_LOG_ERROR("bulk api is not supported in init view mode", api);
+        SWSS_LOG_ERROR("bulk api %d is not supported in init view mode", api);
         exit_and_notify(EXIT_FAILURE);
     }
 

@@ -45,12 +45,12 @@ libsaivs_la_SOURCES = \
 					  sai_vs_switch_MLNX2700.cpp
 
 libsaivs_la_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
-libsaivs_la_LIBADD = -lhiredis -lswsscommon
+libsaivs_la_LIBADD = -lhiredis -lswsscommon -lpcap
 
 bin_PROGRAMS = tests
 
 tests_SOURCES = tests.cpp
 tests_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
-tests_LDADD = -lhiredis -lswsscommon -lpthread -L$(top_srcdir)/vslib/src/.libs -lsaivs -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta
+tests_LDADD = -lhiredis -lswsscommon -lpthread -lpcap -L$(top_srcdir)/vslib/src/.libs -lsaivs -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta
 
 TESTS = tests

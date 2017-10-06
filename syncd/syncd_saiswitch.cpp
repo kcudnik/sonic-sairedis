@@ -538,7 +538,7 @@ std::vector<sai_port_stat_t> SaiSwitch::saiGetSupportedCounters() const
         supportedCounters.push_back(counter);
     }
 
-    SWSS_LOG_NOTICE("supported %zu of %d",
+    SWSS_LOG_NOTICE("supported %zu of %zu",
             supportedCounters.size(),
             sai_metadata_enum_sai_port_stat_t.valuescount);
 

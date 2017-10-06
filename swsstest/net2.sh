@@ -18,7 +18,10 @@ set -e
 
 # remove all namespaces 
 
-ip -all netns delete
+#ip -all netns delete
+ip netns list | while read ns; do
+ip netns delete $ns
+done
 
 # setup switch namespace
 

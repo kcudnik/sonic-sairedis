@@ -148,7 +148,7 @@ int main(int argc, char **argv)
     status = switch_api->remove_switch(switch_id);
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("remove switch 0x%x failed: 0x%x", switch_id, status);
+        SWSS_LOG_ERROR("remove switch 0x%lx failed: 0x%x", switch_id, status);
     }
 
     status = sai_api_uninitialize();
