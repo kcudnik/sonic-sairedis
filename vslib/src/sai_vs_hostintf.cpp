@@ -8,22 +8,23 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/socket.h>
-#include <linux/if.h>
+#include <net/if.h>
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
 #include <net/if_arp.h>
 #include <unistd.h>
-
-#include <pcap.h>
+#include <net/ethernet.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <linux/if_packet.h>
+#include <net/if_arp.h>
 
 // TODO on hostif remove we should stop threads
 
 typedef struct _hostif_info_t
 {
-    pcap_t *veth_r;
-    pcap_t *veth_w;
-
     int tapfd;
+    int packet_socket;
 
     std::shared_ptr<std::thread> e2t;
     std::shared_ptr<std::thread> t2e;
@@ -171,28 +172,28 @@ void veth2tap_fun(std::shared_ptr<hostif_info_t> info)
 {
     SWSS_LOG_ENTER();
 
+    unsigned char buffer[0x4000];
+
     while (info->run_thread)
     {
-        struct pcap_pkthdr header;
+        // TODO convert to non blocking using select
 
-        unsigned const char *packet = pcap_next(info->veth_r, &header);
+        ssize_t size = read(info->packet_socket, buffer, sizeof(buffer));
 
-        if (packet == NULL)
+        if (size < 0)
         {
-            continue;
+            SWSS_LOG_ERROR("failed to read from socket %d", info->packet_socket);
+            break;
         }
 
         // TODO examine packet for mac and possible generate fdb_event
 
-        ssize_t wr = write(info->tapfd, packet, header.len);
-
-        if (wr < 0)
+        if (write(info->tapfd, buffer, size) < 0)
         {
-            SWSS_LOG_ERROR("failed to write to tapfd: %d", info->tapfd);
+            SWSS_LOG_ERROR("failed to write to tap device %d", info->tapfd);
+            break;
         }
     }
-
-    pcap_close(info->veth_r);
 }
 
 void tap2veth_fun(std::shared_ptr<hostif_info_t> info)
@@ -203,24 +204,23 @@ void tap2veth_fun(std::shared_ptr<hostif_info_t> info)
 
     while (info->run_thread)
     {
-        ssize_t nread = read(info->tapfd, buffer, sizeof(buffer));
+        // TODO convert to non blocking using select
 
-        if (nread < 0)
+        ssize_t size = read(info->tapfd, buffer, sizeof(buffer));
+
+        if (size < 0)
         {
             SWSS_LOG_ERROR("failed to read from tapfd: %d", info->tapfd);
 
             break;
         }
 
-        int ret = pcap_sendpacket(info->veth_w, buffer, (int)nread);
-
-        if (ret < 0)
+        if (write(info->packet_socket, buffer, (int)size) < 0)
         {
-            SWSS_LOG_ERROR("failed to send packet via pcap from tapfd: %d", info->tapfd);
+            SWSS_LOG_ERROR("failed to write to socker %d", info->packet_socket);
+            break;
         }
     }
-
-    pcap_close(info->veth_w);
 }
 
 bool hostif_create_tap_veth_forwarding(
@@ -235,27 +235,41 @@ bool hostif_create_tap_veth_forwarding(
 
     std::string vethname = "v" + tapname;
 
-    char errbuf[PCAP_ERRBUF_SIZE];
+    int packet_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
-    pcap_t *veth_r = pcap_open_live(vethname.c_str(), BUFSIZ, 0, 300, errbuf);
-
-    // open veth device for read and for write (we need 2 descriptiors since
-    // this is not thread safe)
-
-    if (veth_r == NULL)
+    if (packet_socket < 0)
     {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s", vethname.c_str(), errbuf);
+        SWSS_LOG_ERROR("failed to open packet socket, errno: %d", errno);
 
         return false;
     }
 
-    pcap_t *veth_w = pcap_open_live(vethname.c_str(), BUFSIZ, 0, 300, errbuf);
+    // bind to device
 
-    if (veth_w == NULL)
+    struct sockaddr_ll sock_address;
+
+    memset(&sock_address, 0, sizeof(sock_address));
+
+    sock_address.sll_family = PF_PACKET;
+    sock_address.sll_protocol = htons(ETH_P_ALL);
+    sock_address.sll_ifindex = if_nametoindex(vethname.c_str());
+
+    if (sock_address.sll_ifindex == 0)
     {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s", vethname.c_str(), errbuf);
+        SWSS_LOG_ERROR("failed to get interface index for %s", vethname.c_str());
 
-        pcap_close(veth_r);
+        close(packet_socket);
+
+        return false;
+    }
+
+    printf("index = %d %s\n", sock_address.sll_ifindex, vethname.c_str());
+
+    if (bind(packet_socket, (struct sockaddr*) &sock_address, sizeof(sock_address)) < 0)
+    {
+        SWSS_LOG_ERROR("bind failed on %s", vethname.c_str());
+
+        close(packet_socket);
 
         return false;
     }
@@ -264,12 +278,11 @@ bool hostif_create_tap_veth_forwarding(
 
     hostif_info_map[tapname] = info;
 
-    info->veth_r     = veth_r;
-    info->veth_w     = veth_w;
-    info->tapfd      = tapfd;
-    info->run_thread = true;
-    info->e2t        = std::make_shared<std::thread>(veth2tap_fun, info);
-    info->t2e        = std::make_shared<std::thread>(tap2veth_fun, info);
+    info->packet_socket = packet_socket;
+    info->tapfd         = tapfd;
+    info->run_thread    = true;
+    info->e2t           = std::make_shared<std::thread>(veth2tap_fun, info);
+    info->t2e           = std::make_shared<std::thread>(tap2veth_fun, info);
 
     info->e2t->detach();
     info->t2e->detach();
