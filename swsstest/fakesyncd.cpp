@@ -3,13 +3,18 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/socket.h>
-#include <linux/if.h>
+//#include <linux/if.h>
+#include <net/if.h>
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
 #include <net/if_arp.h>
 #include <unistd.h>
-
-#include <pcap.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <linux/if_tun.h>
+#include <arpa/inet.h>
+#include <linux/if_packet.h>
+#include <net/ethernet.h>
 
 #include "swss/logger.h"
 
@@ -17,7 +22,8 @@
 
 #include <thread>
 
-#define MAX_INTERFACE_NAME_LEN IFNAMSIZ
+#include <pcap.h>
+#include <stdint.h>
 
 int vs_create_tap_device(const char *dev, int flags)
 {
@@ -108,128 +114,87 @@ int ifup(const char *dev)
     return ioctl(sockfd, SIOCSIFFLAGS, &ifr);
 }
 
-void thread_fun(int tapidx, int tapfd)
+int promisc(int socket, const char *dev)
 {
-    // TODO for each interface we need swXethX for EthernetY
-    // that will transport packets in both directions
+    struct ifreq ifr;
 
+    strncpy(ifr.ifr_name, dev, IFNAMSIZ - 1);
+
+    int ret = ioctl(socket, SIOCGIFFLAGS, &ifr);
+
+    if (ret < 0);
+    {
+        SWSS_LOG_ERROR("failed to get SIOCGIFFLAGS for %s", dev);
+
+        return ret;
+    }
+
+    ifr.ifr_flags |= IFF_PROMISC;
+
+    ret = ioctl(socket, SIOCSIFFLAGS, &ifr);
+
+    if (ret < 0)
+    {
+        SWSS_LOG_ERROR("failed to set SIOCSIFFLAGS for %s", dev);
+
+        return ret;
+    }
+
+    return 0;
+}
+
+void thread_fun(int tapidx, int tapfd, int packet_socket)
+{
     std::string vethname = "sw1eth" + std::to_string(tapidx);
     std::string tapname = "Ethernet" + std::to_string(tapidx); // could be port channel
 
     const char *dev = vethname.c_str();
     const char *tapdev = tapname.c_str();
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    pcap_t *handle;
-
-    // or use raw sockets https://gist.github.com/austinmarton/2862515
-    handle = pcap_open_live(dev, BUFSIZ, 0, 10, errbuf);
-
-    if (handle == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", dev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return;
-    }
+    // TODO read from socket
 
     printf("started packet forward for %s\n", dev);
 
-    pcap_t *fp;
-
-//    fp = pcap_open_live(tapdev, BUFSIZ, 0, 10, errbuf);
-//
-//    if (fp == NULL)
-//    {
-//        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", tapdev, errbuf);
-//
-//        fprintf(stderr, "Couldn't open device %s: %s\n", tapdev, errbuf);
-//        return;
-//    }
-
-    // TODO start receiving thread
-    // TODO later on we could have only 2 threads for all interfaces
+    unsigned char buffer[0x4000];
 
     while (1)
     {
-        struct pcap_pkthdr header;
+        ssize_t ret = read(packet_socket, buffer, sizeof(buffer));
 
-        unsigned const char * packet;
-        
+        if (ret < 0)
         {
-            SWSS_LOG_TIMER("pcap_next");
-            packet = pcap_next(handle, &header); // blocking for 1 sec timeout
+            printf("failed to read from socket");
+            break;
         }
 
-        if (packet == NULL)
+        if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
         {
-            continue;
+            printf("send %s -> %s ", dev, tapdev);
+
+            printf("rd ");
+            for (int j = 0; j < (int)ret; ++j)
+                printf("%02x", buffer[j]);
+            printf("\n");
         }
 
-        // TODO check packet source mac address and potentially
-        // send fdb_event notification
+        int wr = write(tapfd, buffer, ret);
 
-//        printf("got packet len %d on %s\n", header.len, dev);
-
-        for (int j = 0; j < header.len; ++j)
+        if (wr < 0)
         {
-        //    printf("%02x", packet[j]);
+            printf("failed to write to interface\n");
+            break;
         }
-
-        //printf("\n");
-
-        int wr ;
-        
-        {
-            SWSS_LOG_TIMER("write");
-            
-            wr = write(tapfd, packet, header.len);
-        }
-
-         printf("wr %d %s -> %s\n", wr, dev, tapdev);
-        //continue;
-
-        //// inject packet to tap device
-        //int ret;
-        //if ((ret = pcap_sendpacket(fp, packet, header.len) )== -1)
-        //{
-        //    printf("FAILED to send packet on %s\n", tapdev);
-        //}
-
-        //printf("sent packet %d to %s\n", ret, tapdev);
     }
-
-    printf("exit thread %s\n", dev);
-
-
-    pcap_close(handle);
 }
 
-void thread_fun_tap(int devidx, int tapfd)
+void thread_fun_tap(int devidx, int tapfd, int packet_socket)
 {
     std::string vethname = "sw1eth" + std::to_string(devidx);
     std::string tapname = "Ethernet" + std::to_string(devidx); // could be port channel
 
     const char *dev = vethname.c_str();
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    pcap_t *handle;
-
-    handle = pcap_open_live(dev, BUFSIZ, 0, 10, errbuf);
-
-    if (handle == NULL)
-    {
-        SWSS_LOG_ERROR("Couldn't open device %s: %s\n", dev, errbuf);
-
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return;
-    }
-
-    printf("started packet forward for %s\n", dev);
-
-    unsigned char buffer[0x2000];
+    unsigned char buffer[0x4000];
 
     while (1)
     {
@@ -242,28 +207,24 @@ void thread_fun_tap(int devidx, int tapfd)
             return;
         }
 
-        //printf("Read %d %d \n", nread, devidx);
-
-        for (int j = 0; j < nread; ++j)
+        if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
         {
-          //  printf("%02x", buffer[j]); // also arp reply
+            printf("send %s -> %s ", tapname.c_str(), vethname.c_str());
+
+            printf("wr ");
+            for (int j = 0; j < nread; ++j)
+              printf("%02x", buffer[j]); // also arp reply
+            printf("\n");
         }
 
-        //printf("\n");
 
-        // inject packet to tap device
-        //
-        {SWSS_LOG_TIMER("sendpacket");
-        int ret;
-        if ((ret = pcap_sendpacket(handle, buffer, nread) )== -1)
+        int wr = write(packet_socket, buffer, nread);
+
+        if (wr < 0)
         {
-            printf("FAILED to send packet on %s\n", dev);
+            printf("failed to write packet to %s\n", dev);
+            break;
         }
-        }
-
-        printf("send %s -> %s \n", tapname.c_str(), vethname.c_str());
-
-        //printf("sent packet %d to %s\n", ret, dev);
     }
 }
 
@@ -308,11 +269,55 @@ int main()
 
         ifup(name.c_str());
 
-        std::thread th(thread_fun, i, tapfd);
+        int packet_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+
+        if (packet_socket < 0)
+        {
+            printf("failed to open packet socket, errno: %d\n", errno);
+
+            exit(1);
+        }
+
+        std::string vethname = "sw1eth" + std::to_string(i);
+
+        //if (promisc(packet_socket, name.c_str()) < 0)
+        //{
+        //    printf("failed to set promisc mode on %s\n", name.c_str());
+        //    exit(1);
+        //}
+
+        // bind to device
+
+        struct sockaddr_ll sock_address;
+
+        memset(&sock_address, 0, sizeof(sock_address));
+
+        sock_address.sll_family = PF_PACKET;
+        sock_address.sll_protocol = htons(ETH_P_ALL);
+        sock_address.sll_ifindex = if_nametoindex(vethname.c_str());
+
+        if (sock_address.sll_ifindex == 0)
+        {
+            printf("failed to get interface index for %s\n", vethname.c_str());
+            continue;
+        }
+
+        printf("index = %d %s\n", sock_address.sll_ifindex, vethname.c_str());
+
+        if (bind(packet_socket, (struct sockaddr*) &sock_address, sizeof(sock_address)) < 0)
+        {
+            printf("bind failed on %s\n", vethname.c_str());
+
+            exit(1);
+        }
+
+        printf("packet socked opened for %s\n", name.c_str());
+
+        std::thread th(thread_fun, i, tapfd, packet_socket);
 
         th.detach();
 
-        std::thread tapth(thread_fun_tap, i, tapfd);
+        std::thread tapth(thread_fun_tap, i, tapfd, packet_socket);
 
         tapth.detach();
     }
