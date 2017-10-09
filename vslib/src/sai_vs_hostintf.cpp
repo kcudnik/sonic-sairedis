@@ -263,7 +263,7 @@ bool hostif_create_tap_veth_forwarding(
         return false;
     }
 
-    printf("index = %d %s\n", sock_address.sll_ifindex, vethname.c_str());
+    SWSS_LOG_INFO("interface index = %d %s\n", sock_address.sll_ifindex, vethname.c_str());
 
     if (bind(packet_socket, (struct sockaddr*) &sock_address, sizeof(sock_address)) < 0)
     {
@@ -274,7 +274,7 @@ bool hostif_create_tap_veth_forwarding(
         return false;
     }
 
-    std::shared_ptr<hostif_info_t> info;
+    std::shared_ptr<hostif_info_t> info = std::make_shared<hostif_info_t>();
 
     hostif_info_map[tapname] = info;
 
@@ -379,7 +379,7 @@ sai_status_t vs_create_hostif_int(
 
     SWSS_LOG_INFO("creating hostif %s", name.c_str());
 
-    int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP);
+    int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI);
 
     if (tapfd < 0)
     {
