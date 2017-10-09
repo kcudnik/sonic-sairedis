@@ -66,9 +66,14 @@ done
 echo -e $colorGreen DONE $colorDefault
 exit 0
 
+# TODO remove arp set
+# TODO combine test2 and net2 to single test
+# TODO add create hostif
+# TODO add ping test
+
 echo -e $colorGreen populate static ARP $colorDefault
 seq 1 2 63| while read all; do 
-HW=`echo $all|perl -ne 'printf("52:54:00:00:00:%02x\n",$_)'`; sudo arp -s 10.0.0.$all $HW;
+HW=`echo $all|perl -ne 'printf("52:54:00:00:00:%02x\n",$_)'`; arp -s 10.0.0.$all $HW;
 echo $HW
 done
 

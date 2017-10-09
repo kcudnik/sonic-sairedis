@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <net/ethernet.h>
+#include <net/if_arp.h>
 
 #include "swss/logger.h"
 
@@ -167,15 +168,15 @@ void thread_fun(int tapidx, int tapfd, int packet_socket)
             break;
         }
 
-        if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
-        {
-            printf("send %s -> %s ", dev, tapdev);
+        //if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
+        //{
+        //    printf("send %s -> %s ", dev, tapdev);
 
-            printf("rd ");
-            for (int j = 0; j < (int)ret; ++j)
-                printf("%02x", buffer[j]);
-            printf("\n");
-        }
+        //    printf("rd ");
+        //    for (int j = 0; j < (int)ret; ++j)
+        //        printf("%02x", buffer[j]);
+        //    printf("\n");
+        //}
 
         int wr = write(tapfd, buffer, ret);
 
@@ -207,15 +208,15 @@ void thread_fun_tap(int devidx, int tapfd, int packet_socket)
             return;
         }
 
-        if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
-        {
-            printf("send %s -> %s ", tapname.c_str(), vethname.c_str());
+        //if (buffer[0] != 0x33 &&buffer[1]!= 0x33)
+        //{
+        //    printf("send %s -> %s ", tapname.c_str(), vethname.c_str());
 
-            printf("wr ");
-            for (int j = 0; j < nread; ++j)
-              printf("%02x", buffer[j]); // also arp reply
-            printf("\n");
-        }
+        //    printf("wr ");
+        //    for (int j = 0; j < nread; ++j)
+        //      printf("%02x", buffer[j]); // also arp reply
+        //    printf("\n");
+        //}
 
 
         int wr = write(packet_socket, buffer, nread);
