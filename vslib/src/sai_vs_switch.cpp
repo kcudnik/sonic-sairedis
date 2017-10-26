@@ -107,6 +107,9 @@ class LinkMsg : public swss::NetMsg
                 return;
             }
 
+            // TODO check if up/down state changed since link could be modified in different way
+            // and state will set up (like change mtu)
+
             sai_port_oper_status_notification_t data;
 
             data.port_id = port_id;
