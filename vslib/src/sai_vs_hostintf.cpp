@@ -419,16 +419,16 @@ sai_status_t vs_create_hostif_int(
         return SAI_STATUS_FAILURE;
     }
 
-    err = ifup(name.c_str());
+   // err = ifup(name.c_str());
 
-    if (err < 0)
-    {
-        SWSS_LOG_ERROR("failed to bring ifup %s", name.c_str());
+   // if (err < 0)
+   // {
+   //     SWSS_LOG_ERROR("failed to bring ifup %s", name.c_str());
 
-        close(tapfd);
+   //     close(tapfd);
 
-        return SAI_STATUS_FAILURE;
-    }
+   //     return SAI_STATUS_FAILURE;
+   // }
 
     if (!hostif_create_tap_veth_forwarding(name, tapfd))
     {

@@ -83,7 +83,7 @@ done
 
 echo -e $colorGreen Starting Redis DB in switch namespace $colorDefault
 
-$NS /etc/rc3.d/S20redis_6379 restart
+$NS /etc/rc3.d/S02redis_6379 restart
 
 sleep 2
 
