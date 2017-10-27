@@ -64,6 +64,12 @@ class LinkMsg : public swss::NetMsg
             unsigned int    if_flags = rtnl_link_get_flags(link); // IFF_LOWER_UP and IFF_RUNNING
             const char*     if_name  = rtnl_link_get_name(link);
 
+            if (if_name[0] != 'v')
+            {
+                SWSS_LOG_INFO("skipping newlink for %s", if_name);
+                return;
+            }
+
             SWSS_LOG_NOTICE("newlink: ifindex: %d, ifflags: 0x%x, ifname: %s",
                     if_index,
                     if_flags,
