@@ -20,6 +20,8 @@
  * Function will get shared object for switch state.  This function is thread
  * safe and it's only intended to use inside threads.
  *
+ * @param switch_id Switch ID
+ *
  * @return SwitchState object or null ptr if not found.
  */
 std::shared_ptr<SwitchState> vs_get_switch_state(
@@ -37,6 +39,29 @@ std::shared_ptr<SwitchState> vs_get_switch_state(
     }
 
     return it->second;
+}
+
+void update_port_oper_status(
+        _In_ sai_object_id_t port_id,
+        _In_ sai_port_oper_status_t port_oper_status)
+{
+    MUTEX();
+
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+
+    attr.id = SAI_PORT_ATTR_OPER_STATUS;
+    attr.value.s32 = port_oper_status;
+
+    sai_status_t status = vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("failed to update port status %s: %s",
+                sai_serialize_object_id(port_id).c_str(),
+                sai_serialize_port_oper_status(port_oper_status).c_str());
+    }
 }
 
 class LinkMsg : public swss::NetMsg
@@ -113,15 +138,27 @@ class LinkMsg : public swss::NetMsg
                 return;
             }
 
-            // TODO check if up/down state changed since link could be modified in different way
-            // and state will set up (like change mtu)
-
             sai_port_oper_status_notification_t data;
 
             data.port_id = port_id;
             data.port_state = (if_flags & IFF_LOWER_UP) ? SAI_PORT_OPER_STATUS_UP : SAI_PORT_OPER_STATUS_DOWN;
 
-            // TODO update switch state for that port under mutex
+            attr.id = SAI_PORT_ATTR_OPER_STATUS;
+
+            if (vs_port_api.get_port_attribute(port_id, 1, &attr) != SAI_STATUS_SUCCESS)
+            {
+                SWSS_LOG_ERROR("failed to get port attribute SAI_PORT_ATTR_OPER_STATUS");
+            }
+            else
+            {
+                if ((sai_port_oper_status_t)attr.value.s32 == data.port_state)
+                {
+                    SWSS_LOG_DEBUG("port oper status didn't changed, will not send notification");
+                    return;
+                }
+            }
+
+            update_port_oper_status(port_id, data.port_state);
 
             SWSS_LOG_DEBUG("executing callback SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY for port %s: %s",
                     sai_serialize_object_id(data.port_id).c_str(),
