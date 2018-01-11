@@ -211,7 +211,37 @@ void veth2tap_fun(std::shared_ptr<hostif_info_t> info)
              * https://github.com/torvalds/linux/commit/1bd4978a88ac2589f3105f599b1d404a312fb7f6
              */
 
-            if (errno != ENETDOWN && errno != EIO)
+            if (errno == EIO)
+            {
+                struct ifreq ifr;
+
+                memset(&ifr, 0, sizeof ifr);
+
+                strncpy(ifr.ifr_name, info->name.c_str(), IFNAMSIZ);
+
+                int err = ioctl(info->tapfd, SIOCGIFFLAGS, &ifr);
+
+                if (err < 0)
+                {
+                    SWSS_LOG_ERROR("ioctl SIOCGIFFLAGS on fd %d %s failed, errno %d",
+                            info->tapfd, info->name.c_str(), err);
+                }
+                else
+                {
+                    if ((ifr.ifr_flags & IFF_UP) == IFF_UP)
+                    {
+                        // we got EIO but interface is UP, something is wrong
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                continue;
+            }
+
+            if (errno != ENETDOWN)
             {
                 SWSS_LOG_ERROR("failed to write to tap device fd %d, errno(%d): %s",
                         info->tapfd, errno, strerror(errno));
