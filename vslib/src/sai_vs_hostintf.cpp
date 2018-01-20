@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <linux/if_packet.h>
 #include <net/if_arp.h>
+#include <linux/if_ether.h>
 
 // TODO on hostif remove we should stop threads
 
@@ -36,9 +37,135 @@ typedef struct _hostif_info_t
 
     std::string name;
 
+    sai_object_id_t portid;
+
 } hostif_info_t;
 
 std::map<std::string, std::shared_ptr<hostif_info_t>> hostif_info_map;
+
+typedef struct _frame_info_t
+{
+    sai_mac_t src;
+
+    uint16_t vlanid;
+
+    sai_object_id_t portid;
+
+    uint32_t timestamp;
+
+    bool operator<(const _frame_info_t& other) const
+    {
+        int res = memcmp(src, other.src, sizeof(sai_mac_t));
+
+        if (res < 0)
+            return true;
+
+        if (res > 0)
+            return false;
+
+        return vlanid < other.vlanid;
+    }
+
+    bool operator() (const _frame_info_t& lhs, const _frame_info_t & rhs) const
+    {
+        return lhs < rhs;
+    }
+
+} frame_info_t;
+
+std::set<frame_info_t> fdbs;
+
+void generate_fdb_notification(
+        _In_ fame_info_t &fi,
+        _In_ const std::shared_ptr<hostif_info_t> &info)
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_ERROR("not implemented");
+
+
+    // TODO add fdb aging thread
+    // TODO test this
+}
+
+void process_packet_for_fdb_event(
+        _In_ const uint8_t *buffer,
+        _In_ size_t size,
+        _In_ const std::shared_ptr<hostif_info_t> &info)
+{
+    MUTEX();
+
+    SWSS_LOG_ENTER();
+
+    uint32_t frametime = (uint32_t)time(NULL);
+
+    /*
+     * We add +2 in case if frame contains 1Q VLAN tag.
+     */
+
+    if (size < (sizeof(ethhdr) + 2))
+    {
+        SWSS_LOG_WARN("ethernet frame is too small: %zu", size);
+        return;
+    }
+
+    const ethhdr *eh = (const ethhdr*)buffer;
+
+    uint16_t proto = htons(eh->h_proto);
+
+    uint16_t vlanid = 1;
+
+    if (proto == ETH_P_IP)
+    {
+        // IP frame, we need to get vlan if from port
+        // TODO get default PORT vlan
+    }
+    else if (proto == ETH_P_8021Q)
+    {
+        // this is tagged frame, get vlan id from frame
+
+        uint16_t tci = htons(eh->h_proto);
+ 
+        vlanid = tci & 0xfff;
+
+        if (vlanid == 0 || vlanid == 0xfff)
+        {
+            SWSS_LOG_WARN("invalid vlanid %u in ethernet frame on %s", vlanid, info->name.c_str());
+            return;
+        }
+    }
+    else
+    {
+        SWSS_LOG_WARN("unknown ethernet protocol: 0x%x on %s", proto, info->name.c_str());
+        return;
+    }
+
+    // source mac + vlan id is a key
+
+    frame_info_t fi;
+
+    fi.vlanid = vlanid;
+    fi.portid = info->portid;
+    fi.timestamp = frametime;
+
+    memcpy(fi.src, eh->h_source, sizeof(sai_mac_t));
+
+    // TODO chck if this key is already present
+    // TODO should key be per bridge or global?
+
+    std::set<frame_info_t>::iterator it = fdbs.find(fi);
+
+    if (it == fdbs.end())
+    {
+        // TODO generate fdb notification
+
+        SWSS_LOG_NOTICE("noticed new mac on %s", info->name.c_str());
+
+        generate_fdb_notification(fi, info);
+    }
+
+    fdbs.insert(fi);
+}
 
 #define MAX_INTERFACE_NAME_LEN IFNAMSIZ
 
@@ -204,7 +331,7 @@ void veth2tap_fun(std::shared_ptr<hostif_info_t> info)
             continue;
         }
 
-        // TODO examine packet for mac and possible generate fdb_event
+        process_packet_for_fdb_event(buffer, size, info);
 
         if (write(info->tapfd, buffer, size) < 0)
         {
@@ -260,7 +387,8 @@ void tap2veth_fun(std::shared_ptr<hostif_info_t> info)
 
 bool hostif_create_tap_veth_forwarding(
         _In_ const std::string &tapname,
-        _In_ int tapfd)
+        _In_ int tapfd,
+        _In_ sai_object_id_t port_id)
 {
     SWSS_LOG_ENTER();
 
@@ -319,6 +447,7 @@ bool hostif_create_tap_veth_forwarding(
     info->e2t           = std::make_shared<std::thread>(veth2tap_fun, info);
     info->t2e           = std::make_shared<std::thread>(tap2veth_fun, info);
     info->name          = tapname;
+    info->portid        = port_id;
 
     info->e2t->detach();
     info->t2e->detach();
@@ -452,7 +581,7 @@ sai_status_t vs_create_hostif_int(
         return SAI_STATUS_FAILURE;
     }
 
-    if (!hostif_create_tap_veth_forwarding(name, tapfd))
+    if (!hostif_create_tap_veth_forwarding(name, tapfd, obj_id))
     {
         SWSS_LOG_ERROR("forwarding rule on %s was not added", name.c_str());
     }
