@@ -70,7 +70,7 @@ void processFdbInfo(
         // since this is only valid for 1D
         data.fdb_entry.bridge_id = SAI_NULL_OBJECT_ID;
     }
-    if (data.fdb_entry.bridge_type == SAI_FDB_ENTRY_BRIDGE_TYPE_1D)
+    else if (data.fdb_entry.bridge_type == SAI_FDB_ENTRY_BRIDGE_TYPE_1D)
     {
         // since this is only valid for 1Q
         data.fdb_entry.vlan_id = 0;
@@ -97,15 +97,15 @@ void processFdbInfo(
         return;
     }
 
+    std::string s = sai_serialize_fdb_event_ntf(1, &data);
+
+    // TODO to debug
+    SWSS_LOG_NOTICE("calling user fdb event callback: %s", s.c_str());
+
     sai_fdb_event_notification_fn ntf = (sai_fdb_event_notification_fn)attr.value.ptr;
 
     if (ntf != NULL)
     {
-        std::string s = sai_serialize_fdb_event_ntf(1, &data);
-
-        // TODO to debug
-        SWSS_LOG_NOTICE("calling user fdb event callback: %s", s.c_str());
-
         ntf(1, &data);
     }
 }
@@ -218,43 +218,57 @@ void process_packet_for_fdb_event(
 
     uint16_t vlan_id = DEFAULT_VLAN_NUMBER;
 
-    if (proto == ETH_P_IP)
+    switch (proto)
     {
-        // IP frame, we need to get vlan if from port
+        case ETH_P_IP:
+        case ETH_P_IPV6:
+        case ETH_P_ARP:
+        case ETH_P_RARP:
 
-        sai_attribute_t attr;
+            {
+                // IP frame, we need to get vlan if from port
 
-        attr.id = SAI_PORT_ATTR_PORT_VLAN_ID;
+                sai_attribute_t attr;
 
-        sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_PORT, info->portid, 1, &attr);
+                attr.id = SAI_PORT_ATTR_PORT_VLAN_ID;
 
-        if (status != SAI_STATUS_SUCCESS)
-        {
-            SWSS_LOG_WARN("failed to get port vlan id from port %s",
-                    sai_serialize_object_id(info->portid).c_str());
-            return;
-        }
+                sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_PORT, info->portid, 1, &attr);
 
-        vlan_id = attr.value.u16;
-    }
-    else if (proto == ETH_P_8021Q)
-    {
-        // this is tagged frame, get vlan id from frame
+                if (status != SAI_STATUS_SUCCESS)
+                {
+                    SWSS_LOG_WARN("failed to get port vlan id from port %s",
+                            sai_serialize_object_id(info->portid).c_str());
+                    return;
+                }
 
-        uint16_t tci = htons(eh->h_proto);
+                vlan_id = attr.value.u16;
 
-        vlan_id = tci & 0xfff;
+                break;
+            }
 
-        if (vlan_id == 0 || vlan_id == 0xfff)
-        {
-            SWSS_LOG_WARN("invalid vlan id %u in ethernet frame on %s", vlan_id, info->name.c_str());
-            return;
-        }
-    }
-    else
-    {
-        SWSS_LOG_WARN("unknown ethernet protocol: 0x%x on %s", proto, info->name.c_str());
-        return;
+        case ETH_P_8021Q:
+
+            {
+                // this is tagged frame, get vlan id from frame
+
+                uint16_t tci = htons(eh->h_proto);
+
+                vlan_id = tci & 0xfff;
+
+                if (vlan_id == 0 || vlan_id == 0xfff)
+                {
+                    SWSS_LOG_WARN("invalid vlan id %u in ethernet frame on %s", vlan_id, info->name.c_str());
+                    return;
+                }
+
+                break;
+            }
+
+        default:
+            {
+                SWSS_LOG_WARN("unknown ethernet protocol: 0x%x on %s", proto, info->name.c_str());
+                return;
+            }
     }
 
     // we have vlan and mac addres which is KEY, so just see if that is already defined
@@ -289,9 +303,13 @@ void process_packet_for_fdb_event(
 
     findBridgeForPort(info->portid, fi.fdb_entry.bridge_id, fi.bridge_port_id, fi.fdb_entry.bridge_type);
 
+    // TODO if bridge port is not found then don't add it ?
+
     g_fdb_info_set.insert(fi);
 
-    SWSS_LOG_NOTICE("learned new mac on %s: %s", info->name.c_str(), sai_serialize_fdb_entry(fi.fdb_entry).c_str());
+    SWSS_LOG_NOTICE("learned new mac on %s: %s",
+            info->name.c_str(),
+            sai_serialize_fdb_entry(fi.fdb_entry).c_str());
 
     processFdbInfo(fi, SAI_FDB_EVENT_LEARNED);
 }

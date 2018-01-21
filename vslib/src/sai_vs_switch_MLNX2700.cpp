@@ -212,6 +212,11 @@ static sai_status_t create_ports()
         attr.value.s32 = SAI_PORT_OPER_STATUS_DOWN;
 
         CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
+
+        attr.id = SAI_PORT_ATTR_PORT_VLAN_ID;
+        attr.value.u32 = DEFAULT_VLAN_NUMBER;
+
+        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
     }
 
     return SAI_STATUS_SUCCESS;
