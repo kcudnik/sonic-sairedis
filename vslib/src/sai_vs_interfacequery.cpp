@@ -2,6 +2,7 @@
 #include "sai_vs_internal.h"
 #include "sai_vs_state.h"
 #include <string.h>
+#include <unistd.h>
 
 #include "swss/notificationconsumer.h"
 #include "swss/select.h"
@@ -11,11 +12,14 @@ bool                    g_vs_hostif_use_tap_device = false;
 sai_vs_switch_type_t    g_vs_switch_type = SAI_VS_SWITCH_TYPE_NONE;
 std::recursive_mutex    g_recursive_mutex;
 
-bool                                        g_unittestChannelRun;
+volatile bool                               g_unittestChannelRun;
 swss::SelectableEvent                       g_unittestChannelThreadEvent;
 std::shared_ptr<std::thread>                g_unittestChannelThread;
 std::shared_ptr<swss::NotificationConsumer> g_unittestChannelNotificationConsumer;
 std::shared_ptr<swss::DBConnector>          g_dbNtf;
+
+volatile bool                               g_fdbAgingThreadRun;
+std::shared_ptr<std::thread>                g_fdbAgingThread;
 
 void handleUnittestChannelOp(
         _In_ const std::string &op,
@@ -202,6 +206,65 @@ void unittestChannelThreadProc()
     SWSS_LOG_NOTICE("exit VS unittest channel thread");
 }
 
+// TODO where from get this?
+#define DEFAULT_FDB_AGE_TIMEOUT 2
+
+void processAgedFdbInfo(
+        _In_ fdb_info_t &fi)
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_ERROR("not implemented");
+
+    // TODO remove from metadata db (by call notification?)
+    // TODO also call user notification from switch NOTIFY
+
+    SWSS_LOG_NOTICE("removed fdb entry"); // TODO to debug
+}
+
+void processFdbEntriesForAging()
+{
+    MUTEX();
+
+    SWSS_LOG_ENTER();
+
+    uint32_t current = (uint32_t)time(NULL);
+
+    // find aged fdb entries
+    
+    for (auto it = g_fdb_info_set.begin(); it != g_fdb_info_set.end();)
+    {
+        if ((current - it->timestamp) >= DEFAULT_FDB_AGE_TIMEOUT)
+        {
+            fdb_info_t fi = *it;
+
+            it = g_fdb_info_set.erase(it);
+
+            processAgedFdbInfo(fi);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void fdbAgingThreadProc()
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_NOTICE("starting fdb aging thread");
+
+    while (g_fdbAgingThreadRun)
+    {
+        sleep(1);
+
+        processFdbEntriesForAging();
+    }
+
+    SWSS_LOG_NOTICE("ending fdb aging thread");
+}
+
 /**
  * @brief Serviec method table.
  *
@@ -310,6 +373,12 @@ sai_status_t sai_api_initialize(
 
     g_unittestChannelThread = std::make_shared<std::thread>(std::thread(unittestChannelThreadProc));
 
+    g_fdb_info_set.clear();
+
+    g_fdbAgingThreadRun = true;
+
+    g_fdbAgingThread = std::make_shared<std::thread>(std::thread(fdbAgingThreadProc));
+
     g_api_initialized = true;
 
     return SAI_STATUS_SUCCESS;
@@ -336,6 +405,10 @@ sai_status_t sai_api_uninitialize(void)
     g_unittestChannelThreadEvent.notify();
 
     g_unittestChannelThread->join();
+
+    g_fdbAgingThreadRun = false;
+
+    g_fdbAgingThread->join();
 
     g_api_initialized = false;
 

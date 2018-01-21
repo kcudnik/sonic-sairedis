@@ -103,6 +103,42 @@ typedef std::map<sai_object_type_t, std::map<std::string, AttrHash>> ObjectHash;
 
 #define DEFAULT_VLAN_NUMBER 1
 
+typedef struct _fdb_info_t
+{
+    sai_mac_t src;
+
+    uint16_t vlanid;
+
+    sai_object_id_t portid;
+
+    sai_object_id_t switchid;
+
+    sai_fdb_entry_t fdbentry;
+
+    uint32_t timestamp;
+
+    bool operator<(const _fdb_info_t& other) const
+    {
+        int res = memcmp(src, other.src, sizeof(sai_mac_t));
+
+        if (res < 0)
+            return true;
+
+        if (res > 0)
+            return false;
+
+        return vlanid < other.vlanid;
+    }
+
+    bool operator() (const _fdb_info_t& lhs, const _fdb_info_t & rhs) const
+    {
+        return lhs < rhs;
+    }
+
+} fdb_info_t;
+
+extern std::set<fdb_info_t> g_fdb_info_set;
+
 class SwitchState
 {
     public:

@@ -43,49 +43,45 @@ typedef struct _hostif_info_t
 
 std::map<std::string, std::shared_ptr<hostif_info_t>> hostif_info_map;
 
-typedef struct _frame_info_t
-{
-    sai_mac_t src;
+std::set<fdb_info_t> g_g_fdb_info_set;
 
-    uint16_t vlanid;
-
-    sai_object_id_t portid;
-
-    uint32_t timestamp;
-
-    bool operator<(const _frame_info_t& other) const
-    {
-        int res = memcmp(src, other.src, sizeof(sai_mac_t));
-
-        if (res < 0)
-            return true;
-
-        if (res > 0)
-            return false;
-
-        return vlanid < other.vlanid;
-    }
-
-    bool operator() (const _frame_info_t& lhs, const _frame_info_t & rhs) const
-    {
-        return lhs < rhs;
-    }
-
-} frame_info_t;
-
-std::set<frame_info_t> fdbs;
-
-void generate_fdb_notification(
-        _In_ fame_info_t &fi,
+void processFdbInfoLearned(
+        _In_ fdb_info_t &fi,
         _In_ const std::shared_ptr<hostif_info_t> &info)
 {
     SWSS_LOG_ENTER();
 
     SWSS_LOG_ERROR("not implemented");
 
+    // TODO call user notification from switch NOTIFY
+    
+    // for looking on bridge port 
+    // auto &objectHash = g_switch_state_map.at(switch_id)->objectHash.at(object_type);
 
-    // TODO add fdb aging thread
-    // TODO test this
+    sai_attribute_t attrs[2];
+
+    attrs[0].id = SAI_FDB_ENTRY_ATTR_TYPE;
+    attrs[0].value.s32 = SAI_FDB_ENTRY_TYPE_DYNAMIC;
+
+    attrs[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
+    attrs[1].value.oid = 0; // TODO need to get bridge port id
+
+    sai_fdb_event_notification_data_t data;
+
+    data.event_type = SAI_FDB_EVENT_LEARNED;
+
+    data.fdb_entry.switch_id = fi.switchid;
+    data.fdb_entry.mac_address = fi.src;
+    data.fdb_entry.vlan_id = fi.vlanid;
+    data.fdb_entry.bridge_type = 0; // TODO
+    data.fdb_entry.bridge_id; // TODO
+    
+    data.attr_count = 2;
+    data.attr_list = &attrs;
+
+    meta_sai_on_fdb_event(1, &data);
+
+    // TODO call user callback
 }
 
 void process_packet_for_fdb_event(
@@ -118,14 +114,28 @@ void process_packet_for_fdb_event(
     if (proto == ETH_P_IP)
     {
         // IP frame, we need to get vlan if from port
-        // TODO get default PORT vlan
+
+        sai_attribute_t attr;
+
+        attr.id = SAI_PORT_ATTR_PORT_VLAN_ID;
+
+        sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_PORT, info->portid, 1, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            SWSS_LOG_WARN("failed to get port vlan id from port %s",
+                    sai_serialize_object_id(info->portid).c_str());
+            return;
+        }
+
+        vlanid = attr.value.u16;
     }
     else if (proto == ETH_P_8021Q)
     {
         // this is tagged frame, get vlan id from frame
 
         uint16_t tci = htons(eh->h_proto);
- 
+
         vlanid = tci & 0xfff;
 
         if (vlanid == 0 || vlanid == 0xfff)
@@ -140,31 +150,46 @@ void process_packet_for_fdb_event(
         return;
     }
 
+    sai_object_id_t switchid = sai_switch_id_query(info->portid);
+
+    if (switchid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_WARN("got NULL switch if for port %s",
+                sai_serialize_object_id(info->portid));
+        return;
+    }
+
     // source mac + vlan id is a key
 
-    frame_info_t fi;
+    fdb_info_t fi;
 
     fi.vlanid = vlanid;
     fi.portid = info->portid;
+    fi.switchid = switchid;
     fi.timestamp = frametime;
 
     memcpy(fi.src, eh->h_source, sizeof(sai_mac_t));
 
     // TODO chck if this key is already present
     // TODO should key be per bridge or global?
+    // xxxx
+    // TODO bridge port may not exists if it was removed
+    // else we need to get bridge port type and bridge_id
 
-    std::set<frame_info_t>::iterator it = fdbs.find(fi);
+    std::set<fdb_info_t>::iterator it = g_fdb_info_set.find(fi);
 
-    if (it == fdbs.end())
+    if (it == g_fdb_info_set.end())
     {
         // TODO generate fdb notification
 
         SWSS_LOG_NOTICE("noticed new mac on %s", info->name.c_str());
 
-        generate_fdb_notification(fi, info);
+        processFdbInfoLearned(fi, info);
     }
 
-    fdbs.insert(fi);
+    // TODO maybe we should not update everything, just timestamp
+    // since we may have fdb_entry inside? for convinience
+    g_fdb_info_set.insert(fi);
 }
 
 #define MAX_INTERFACE_NAME_LEN IFNAMSIZ
