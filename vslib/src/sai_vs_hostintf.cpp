@@ -43,20 +43,13 @@ typedef struct _hostif_info_t
 
 std::map<std::string, std::shared_ptr<hostif_info_t>> hostif_info_map;
 
-std::set<fdb_info_t> g_g_fdb_info_set;
+std::set<fdb_info_t> g_fdb_info_set;
 
-void processFdbInfoLearned(
-        _In_ fdb_info_t &fi,
-        _In_ const std::shared_ptr<hostif_info_t> &info)
+void processFdbInfo(
+        _In_ const fdb_info_t &fi,
+        _In_ sai_fdb_event_t fdb_event)
 {
     SWSS_LOG_ENTER();
-
-    SWSS_LOG_ERROR("not implemented");
-
-    // TODO call user notification from switch NOTIFY
-    
-    // for looking on bridge port 
-    // auto &objectHash = g_switch_state_map.at(switch_id)->objectHash.at(object_type);
 
     sai_attribute_t attrs[2];
 
@@ -64,24 +57,138 @@ void processFdbInfoLearned(
     attrs[0].value.s32 = SAI_FDB_ENTRY_TYPE_DYNAMIC;
 
     attrs[1].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
-    attrs[1].value.oid = 0; // TODO need to get bridge port id
+    attrs[1].value.oid = fi.bridge_port_id;
 
     sai_fdb_event_notification_data_t data;
 
-    data.event_type = SAI_FDB_EVENT_LEARNED;
+    data.event_type = fdb_event;
 
-    data.fdb_entry.switch_id = fi.switchid;
-    data.fdb_entry.mac_address = fi.src;
-    data.fdb_entry.vlan_id = fi.vlanid;
-    data.fdb_entry.bridge_type = 0; // TODO
-    data.fdb_entry.bridge_id; // TODO
-    
+    data.fdb_entry = fi.fdb_entry;
+
+    if (data.fdb_entry.bridge_type == SAI_FDB_ENTRY_BRIDGE_TYPE_1Q)
+    {
+        // since this is only valid for 1D
+        data.fdb_entry.bridge_id = SAI_NULL_OBJECT_ID;
+    }
+    if (data.fdb_entry.bridge_type == SAI_FDB_ENTRY_BRIDGE_TYPE_1D)
+    {
+        // since this is only valid for 1Q
+        data.fdb_entry.vlan_id = 0;
+    }
+    else
+    {
+        SWSS_LOG_WARN("unknown bridge type %d", data.fdb_entry.bridge_type);
+    }
+
     data.attr_count = 2;
-    data.attr_list = &attrs;
+    data.attr = attrs;
 
+    // update metadata DB
     meta_sai_on_fdb_event(1, &data);
 
-    // TODO call user callback
+    sai_attribute_t attr;
+
+    attr.id = SAI_SWITCH_ATTR_FDB_EVENT_NOTIFY;
+
+    sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_SWITCH, data.fdb_entry.switch_id, 1, &attr);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        return;
+    }
+
+    sai_fdb_event_notification_fn ntf = (sai_fdb_event_notification_fn)attr.value.ptr;
+
+    if (ntf != NULL)
+    {
+        std::string s = sai_serialize_fdb_event_ntf(1, &data);
+
+        // TODO to debug
+        SWSS_LOG_NOTICE("calling user fdb event callback: %s", s.c_str());
+
+        ntf(1, &data);
+    }
+}
+
+void findBridgeForPort(
+        _In_ sai_object_id_t port_id,
+        _Inout_ sai_object_id_t &bridge_id,
+        _Inout_ sai_object_id_t &bridge_port_id,
+        _Inout_ sai_fdb_entry_bridge_type_t &bridge_type)
+{
+    SWSS_LOG_ENTER();
+
+    bridge_id = SAI_NULL_OBJECT_ID;
+    bridge_port_id = SAI_NULL_OBJECT_ID;
+    bridge_type = SAI_FDB_ENTRY_BRIDGE_TYPE_1Q;
+
+    sai_object_id_t switch_id = sai_switch_id_query(port_id);
+
+    auto &objectHash = g_switch_state_map.at(switch_id)->objectHash.at(SAI_OBJECT_TYPE_BRIDGE_PORT);
+
+    // iterate via all bridge ports to find match on port id
+
+    for (auto it = objectHash.begin(); it != objectHash.end(); ++it)
+    {
+        sai_object_id_t bpid;
+
+        sai_deserialize_object_id(it->first, bpid);
+
+        sai_attribute_t attr;
+
+        attr.id = SAI_BRIDGE_PORT_ATTR_PORT_ID;
+
+        sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_BRIDGE_PORT, bpid, 1, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            continue;
+        }
+
+        if (port_id != attr.value.oid)
+        {
+            // this is not expected port
+            continue;
+        }
+
+        bridge_port_id = bpid;
+
+        SWSS_LOG_DEBUG("found bridge port %s for port %s",
+                sai_serialize_object_id(bridge_port_id).c_str(),
+                sai_serialize_object_id(port_id).c_str());
+
+        attr.id = SAI_BRIDGE_PORT_ATTR_BRIDGE_ID;
+
+        status = vs_generic_get(SAI_OBJECT_TYPE_BRIDGE_PORT, bridge_port_id, 1, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            break;
+        }
+
+        bridge_id = attr.value.oid;
+
+        SWSS_LOG_DEBUG("found bridge %s for port %s",
+                sai_serialize_object_id(bridge_id).c_str(),
+                sai_serialize_object_id(port_id).c_str());
+
+        attr.id = SAI_BRIDGE_ATTR_TYPE;
+
+        status = vs_generic_get(SAI_OBJECT_TYPE_BRIDGE, bridge_id, 1, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            break;
+        }
+
+        bridge_type = (sai_fdb_entry_bridge_type_t)attr.value.s32;
+
+        SWSS_LOG_DEBUG("bridge %s type is %d",
+                sai_serialize_object_id(bridge_id).c_str(),
+                bridge_type);
+
+        break;
+    }
 }
 
 void process_packet_for_fdb_event(
@@ -109,7 +216,7 @@ void process_packet_for_fdb_event(
 
     uint16_t proto = htons(eh->h_proto);
 
-    uint16_t vlanid = 1;
+    uint16_t vlan_id = DEFAULT_VLAN_NUMBER;
 
     if (proto == ETH_P_IP)
     {
@@ -128,7 +235,7 @@ void process_packet_for_fdb_event(
             return;
         }
 
-        vlanid = attr.value.u16;
+        vlan_id = attr.value.u16;
     }
     else if (proto == ETH_P_8021Q)
     {
@@ -136,11 +243,11 @@ void process_packet_for_fdb_event(
 
         uint16_t tci = htons(eh->h_proto);
 
-        vlanid = tci & 0xfff;
+        vlan_id = tci & 0xfff;
 
-        if (vlanid == 0 || vlanid == 0xfff)
+        if (vlan_id == 0 || vlan_id == 0xfff)
         {
-            SWSS_LOG_WARN("invalid vlanid %u in ethernet frame on %s", vlanid, info->name.c_str());
+            SWSS_LOG_WARN("invalid vlan id %u in ethernet frame on %s", vlan_id, info->name.c_str());
             return;
         }
     }
@@ -150,46 +257,43 @@ void process_packet_for_fdb_event(
         return;
     }
 
-    sai_object_id_t switchid = sai_switch_id_query(info->portid);
-
-    if (switchid == SAI_NULL_OBJECT_ID)
-    {
-        SWSS_LOG_WARN("got NULL switch if for port %s",
-                sai_serialize_object_id(info->portid));
-        return;
-    }
-
-    // source mac + vlan id is a key
+    // we have vlan and mac addres which is KEY, so just see if that is already defined
 
     fdb_info_t fi;
 
-    fi.vlanid = vlanid;
-    fi.portid = info->portid;
-    fi.switchid = switchid;
-    fi.timestamp = frametime;
+    fi.port_id = info->portid;
+    fi.fdb_entry.vlan_id = vlan_id;
 
-    memcpy(fi.src, eh->h_source, sizeof(sai_mac_t));
-
-    // TODO chck if this key is already present
-    // TODO should key be per bridge or global?
-    // xxxx
-    // TODO bridge port may not exists if it was removed
-    // else we need to get bridge port type and bridge_id
+    memcpy(fi.fdb_entry.mac_address, eh->h_source, sizeof(sai_mac_t));
 
     std::set<fdb_info_t>::iterator it = g_fdb_info_set.find(fi);
 
-    if (it == g_fdb_info_set.end())
+    if (it != g_fdb_info_set.end())
     {
-        // TODO generate fdb notification
+        // this key was found, update timestamp
+        // and since iterator is const we need to reinsert
 
-        SWSS_LOG_NOTICE("noticed new mac on %s", info->name.c_str());
+        fi = *it;
 
-        processFdbInfoLearned(fi, info);
+        fi.timestamp = frametime;
+
+        g_fdb_info_set.insert(fi);
+
+        return;
     }
 
-    // TODO maybe we should not update everything, just timestamp
-    // since we may have fdb_entry inside? for convinience
+    // key was not found, get additional information
+
+    fi.timestamp = frametime;
+    fi.fdb_entry.switch_id = sai_switch_id_query(info->portid);
+
+    findBridgeForPort(info->portid, fi.fdb_entry.bridge_id, fi.bridge_port_id, fi.fdb_entry.bridge_type);
+
     g_fdb_info_set.insert(fi);
+
+    SWSS_LOG_NOTICE("learned new mac on %s: %s", info->name.c_str(), sai_serialize_fdb_entry(fi.fdb_entry).c_str());
+
+    processFdbInfo(fi, SAI_FDB_EVENT_LEARNED);
 }
 
 #define MAX_INTERFACE_NAME_LEN IFNAMSIZ

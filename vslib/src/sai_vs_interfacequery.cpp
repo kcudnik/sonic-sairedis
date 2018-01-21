@@ -206,22 +206,6 @@ void unittestChannelThreadProc()
     SWSS_LOG_NOTICE("exit VS unittest channel thread");
 }
 
-// TODO where from get this?
-#define DEFAULT_FDB_AGE_TIMEOUT 2
-
-void processAgedFdbInfo(
-        _In_ fdb_info_t &fi)
-{
-    SWSS_LOG_ENTER();
-
-    SWSS_LOG_ERROR("not implemented");
-
-    // TODO remove from metadata db (by call notification?)
-    // TODO also call user notification from switch NOTIFY
-
-    SWSS_LOG_NOTICE("removed fdb entry"); // TODO to debug
-}
-
 void processFdbEntriesForAging()
 {
     MUTEX();
@@ -231,16 +215,38 @@ void processFdbEntriesForAging()
     uint32_t current = (uint32_t)time(NULL);
 
     // find aged fdb entries
-    
+
     for (auto it = g_fdb_info_set.begin(); it != g_fdb_info_set.end();)
     {
-        if ((current - it->timestamp) >= DEFAULT_FDB_AGE_TIMEOUT)
+        sai_attribute_t attr;
+
+        attr.id = SAI_SWITCH_ATTR_FDB_AGING_TIME;
+
+        sai_status_t status = vs_generic_set(SAI_OBJECT_TYPE_SWITCH, it->fdb_entry.switch_id, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            SWSS_LOG_WARN("failed to get FDB aging time for switch %s",
+                    sai_serialize_object_id(it->fdb_entry.switch_id));
+
+            continue;
+        }
+
+        uint32_t aging_time = attr.value.u32;
+
+        if (aging_time == 0)
+        {
+            // aging is disabled
+            continue;
+        }
+
+        if ((current - it->timestamp) >= aging_time)
         {
             fdb_info_t fi = *it;
 
-            it = g_fdb_info_set.erase(it);
+            processFdbInfo(fi, SAI_FDB_EVENT_AGED);
 
-            processAgedFdbInfo(fi);
+            it = g_fdb_info_set.erase(it);
         }
         else
         {

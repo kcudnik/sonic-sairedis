@@ -105,21 +105,17 @@ typedef std::map<sai_object_type_t, std::map<std::string, AttrHash>> ObjectHash;
 
 typedef struct _fdb_info_t
 {
-    sai_mac_t src;
+    sai_object_id_t port_id;
 
-    uint16_t vlanid;
+    sai_object_id_t bridge_port_id;
 
-    sai_object_id_t portid;
-
-    sai_object_id_t switchid;
-
-    sai_fdb_entry_t fdbentry;
+    sai_fdb_entry_t fdb_entry;
 
     uint32_t timestamp;
 
     bool operator<(const _fdb_info_t& other) const
     {
-        int res = memcmp(src, other.src, sizeof(sai_mac_t));
+        int res = memcmp(fdb_entry.mac_address, other.fdb_entry.mac_address, sizeof(sai_mac_t));
 
         if (res < 0)
             return true;
@@ -127,7 +123,7 @@ typedef struct _fdb_info_t
         if (res > 0)
             return false;
 
-        return vlanid < other.vlanid;
+        return fdb_entry.vlan_id < other.fdb_entry.vlan_id;
     }
 
     bool operator() (const _fdb_info_t& lhs, const _fdb_info_t & rhs) const
@@ -271,5 +267,9 @@ void vs_free_real_object_id(
 sai_object_id_t vs_create_real_object_id(
         _In_ sai_object_type_t object_type,
         _In_ sai_object_id_t switch_id);
+
+void processFdbInfo(
+        _In_ const fdb_info_t &fi,
+        _In_ sai_fdb_event_t fdb_event);
 
 #endif // __SAI_VS_STATE__
