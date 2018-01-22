@@ -307,10 +307,6 @@ void process_packet_for_fdb_event(
 
     g_fdb_info_set.insert(fi);
 
-    SWSS_LOG_NOTICE("learned new mac on %s: %s",
-            info->name.c_str(),
-            sai_serialize_fdb_entry(fi.fdb_entry).c_str());
-
     processFdbInfo(fi, SAI_FDB_EVENT_LEARNED);
 }
 
