@@ -4707,7 +4707,6 @@ void meta_sai_on_fdb_event_single(
             break;
 
         case SAI_FDB_EVENT_AGED:
-        case SAI_FDB_EVENT_FLUSHED:
 
             if (!object_exists(key_fdb))
             {
@@ -4716,6 +4715,12 @@ void meta_sai_on_fdb_event_single(
             }
 
             meta_generic_validation_post_remove(meta_key_fdb);
+
+            break;
+
+        case SAI_FDB_EVENT_FLUSHED:
+
+            SWSS_LOG_ERROR("not implemented");
 
             break;
 
