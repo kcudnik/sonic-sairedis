@@ -526,7 +526,7 @@ bool ntf_queue_t::enqueue(
 
     if (!(log_count % 1000))
     {
-        SWSS_LOG_NOTICE("Too many messages in queue (%ld), dropped %ld FDB events!",
+        SWSS_LOG_NOTICE("Too many messages in queue (%ld), dropped %d FDB events!",
                          queueStats(), (log_count+1));
     }
 
@@ -774,6 +774,6 @@ void check_notifications_pointers(
          * Here we translated pointer, just log it.
          */
 
-        SWSS_LOG_INFO("%s: %lp (orch) => %lp (syncd)", meta->attridname, prev, attr.value.ptr);
+        SWSS_LOG_INFO("%s: %p (orch) => %p (syncd)", meta->attridname, prev, attr.value.ptr);
     }
 }

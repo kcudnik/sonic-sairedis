@@ -45,43 +45,6 @@ sai_status_t internal_redis_get_stats_process(
     return status;
 }
 
-template <class T> struct stat_traits {};
-
-template <>
-struct stat_traits<sai_port_stat_t>
-{
-    typedef std::string (*serialize_stat)(sai_port_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_port_stat;
-};
-
-template <>
-struct stat_traits<sai_port_pool_stat_t>
-{
-    typedef std::string (*serialize_stat)(sai_port_pool_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_port_pool_stat;
-};
-
-template <>
-struct stat_traits<sai_queue_stat_t>
-{
-    typedef std::string (*serialize_stat)(sai_queue_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_queue_stat;
-};
-
-template <>
-struct stat_traits<sai_ingress_priority_group_stat_t>
-{
-    typedef std::string (*serialize_stat)(sai_ingress_priority_group_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_ingress_priority_group_stat;
-};
-
-template <>
-struct stat_traits<sai_tunnel_stat_t>
-{
-    typedef std::string (*serialize_stat)(sai_tunnel_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_tunnel_stat;
-};
-
 
 template <class T>
 std::vector<swss::FieldValueTuple> serialize_counter_id_list(
@@ -94,8 +57,6 @@ std::vector<swss::FieldValueTuple> serialize_counter_id_list(
 
     for (uint32_t i = 0; i < count; i++)
     {
-        std::string field = stat_traits<T>::serialize_stat_fn(counter_id_list[i]);
-        values.emplace_back(field, "");
     }
 
     return std::move(values);

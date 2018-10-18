@@ -1164,7 +1164,7 @@ void hardReinit()
     processSwitches();
 
     {
-        SWSS_LOG_TIMER("processing objects after switch create");
+    //SWSS_LOG_TIMER("processing objects after switch create");
 
         processFdbs();
         processNeighbors();

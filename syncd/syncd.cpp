@@ -2748,18 +2748,6 @@ void processFlexCounterGroupEvent(
                     FlexCounter::addQueueCounterPlugin(sha, groupName);
                 }
             }
-            else if (field == PORT_PLUGIN_FIELD)
-            {
-                auto shaStrings = swss::tokenize(value, ',');
-                for (const auto &sha : shaStrings)
-                {
-                    FlexCounter::addPortCounterPlugin(sha, groupName);
-                }
-            }
-            else if (field == FLEX_COUNTER_STATUS_FIELD)
-            {
-                FlexCounter::updateFlexCounterStatus(value, groupName);
-            }
             else
             {
                 SWSS_LOG_ERROR("Field is not supported %s", field.c_str());
@@ -3423,9 +3411,9 @@ int syncd_main(int argc, char **argv)
 
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
-    set_sai_api_loglevel();
+  //  set_sai_api_loglevel();
 
-    swss::Logger::linkToDbNative("syncd");
+   // swss::Logger::linkToDbNative("syncd");
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
