@@ -189,8 +189,25 @@ sub test_brcm_lag_comparison_logic
     play "lag_comparison_logic.rec";
 }
 
+sub test_brcm_remove_next_hop
+{
+    fresh_start;
+
+    # we expect this will succeed, test checks
+    # whether coparison logis on REMOVE operation
+    # is working correctly and reference count will
+    # be correct for each obejct when performing REMOVE
+
+    play "remove_next_hop.rec";
+    play "remove_next_hop.rec";
+    play "remove_next_hop.rec";
+    play "remove_next_hop.rec";
+    play "remove_next_hop.rec";
+}
+
 # RUN TESTS
 
+test_brcm_remove_next_hop;
 test_brcm_lag_comparison_logic;
 test_brcm_speed_init_apply;
 test_brcm_start_empty;
