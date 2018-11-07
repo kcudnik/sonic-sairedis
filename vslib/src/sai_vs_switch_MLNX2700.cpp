@@ -36,11 +36,11 @@ static sai_status_t set_switch_mac_address()
     return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, ss->getSwitchId(), &attr);
 }
 
-static sai_status_t set_default_notifications()
+static sai_status_t set_switch_default_attributes()
 {
     SWSS_LOG_ENTER();
 
-    SWSS_LOG_INFO("create default notifications");
+    SWSS_LOG_INFO("create switch default attributes");
 
     sai_attribute_t attr;
 
@@ -55,6 +55,16 @@ static sai_status_t set_default_notifications()
 
     attr.id = SAI_SWITCH_ATTR_FDB_AGING_TIME;
     attr.value.u32 = 0;
+
+    CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SWITCH, ss->getSwitchId(), &attr));
+
+    attr.id = SAI_SWITCH_ATTR_RESTART_WARM;
+    attr.value.booldata = false;
+
+    CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SWITCH, ss->getSwitchId(), &attr));
+
+    attr.id = SAI_SWITCH_ATTR_WARM_RECOVER;
+    attr.value.booldata = false;
 
     return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, ss->getSwitchId(), &attr);
 }
@@ -791,7 +801,7 @@ static sai_status_t initialize_default_objects()
     CHECK_STATUS(create_ingress_priority_groups());
     CHECK_STATUS(create_qos_queues());
     CHECK_STATUS(set_maximum_number_of_childs_per_scheduler_group());
-    CHECK_STATUS(set_default_notifications());
+    CHECK_STATUS(set_switch_default_attributes());
     CHECK_STATUS(create_scheduler_groups());
 
     return SAI_STATUS_SUCCESS;

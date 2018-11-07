@@ -23,6 +23,9 @@ std::shared_ptr<swss::DBConnector>          g_dbNtf;
 volatile bool                               g_fdbAgingThreadRun;
 std::shared_ptr<std::thread>                g_fdbAgingThread;
 
+const char *g_boot_type             = NULL;
+const char *g_warm_boot_read_file   = NULL;
+const char *g_warm_boot_write_file  = NULL;
 
 void channelOpEnableUnittests(
         _In_ const std::string &key,
@@ -505,6 +508,14 @@ sai_status_t sai_api_initialize(
 
         return SAI_STATUS_FAILURE;
     }
+
+    g_boot_type             = service_method_table->profile_get_value(0, SAI_KEY_BOOT_TYPE);
+    g_warm_boot_read_file   = service_method_table->profile_get_value(0, SAI_KEY_WARM_BOOT_READ_FILE);
+    g_warm_boot_write_file  = service_method_table->profile_get_value(0, SAI_KEY_WARM_BOOT_WRITE_FILE);
+
+    SWSS_LOG_NOTICE("boot type: %s", g_boot_type);
+    SWSS_LOG_NOTICE("warm boot read file: %s", g_warm_boot_read_file);
+    SWSS_LOG_NOTICE("warm boot write file: %s", g_warm_boot_write_file);
 
     std::string strType = type;
 
