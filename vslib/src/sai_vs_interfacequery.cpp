@@ -23,6 +23,8 @@ std::shared_ptr<swss::DBConnector>          g_dbNtf;
 volatile bool                               g_fdbAgingThreadRun;
 std::shared_ptr<std::thread>                g_fdbAgingThread;
 
+int g_vs_boot_type = SAI_VS_COLD_BOOT;
+
 const char *g_boot_type             = NULL;
 const char *g_warm_boot_read_file   = NULL;
 const char *g_warm_boot_write_file  = NULL;
@@ -513,9 +515,26 @@ sai_status_t sai_api_initialize(
     g_warm_boot_read_file   = service_method_table->profile_get_value(0, SAI_KEY_WARM_BOOT_READ_FILE);
     g_warm_boot_write_file  = service_method_table->profile_get_value(0, SAI_KEY_WARM_BOOT_WRITE_FILE);
 
-    SWSS_LOG_NOTICE("boot type: %s", g_boot_type);
-    SWSS_LOG_NOTICE("warm boot read file: %s", g_warm_boot_read_file);
-    SWSS_LOG_NOTICE("warm boot write file: %s", g_warm_boot_write_file);
+    std::string bt = (g_boot_type == NULL) ? "" : g_boot_type;
+
+    if (bt == "cold" || bt == "0")
+    {
+        g_vs_boot_type = SAI_VS_COLD_BOOT;
+    }
+    else if (bt == "warm" || bt == "1")
+    {
+        g_vs_boot_type = SAI_VS_WARM_BOOT;
+    }
+    else if (bt == "fast" || bt == "2")
+    {
+        g_vs_boot_type = SAI_VS_FAST_BOOT;
+    }
+    else
+    {
+        SWSS_LOG_ERROR("unsupported boot type: %s", g_boot_type);
+
+        return SAI_STATUS_FAILURE;
+    }
 
     std::string strType = type;
 

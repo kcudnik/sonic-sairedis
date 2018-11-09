@@ -77,17 +77,17 @@ void dumpSwitchDatabaseForWarmRestart(
             // if object don't have attributes, size can be zero
             if (o.second.size() == 0)
             {
-                dumpFile << sai_serialize_object_type(kvp.first) << ":" << o.first << " NULL:NULL" << std::endl;
+                dumpFile << sai_serialize_object_type(kvp.first) << " " << o.first << " NULL NULL" << std::endl;
             }
             else
             {
                 for (auto a: o.second)
                 {
-                    dumpFile << sai_serialize_object_type(kvp.first) << ":";
-                    dumpFile <<  o.first.c_str();
+                    dumpFile << sai_serialize_object_type(kvp.first) << " ";
+                    dumpFile << o.first.c_str();
                     dumpFile << " ";
                     dumpFile << a.first.c_str();
-                    dumpFile << ":";
+                    dumpFile << " ";
                     dumpFile << a.second->getAttrStrValue();
                     dumpFile << std::endl;
                 }
