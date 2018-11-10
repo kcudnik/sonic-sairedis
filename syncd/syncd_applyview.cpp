@@ -6159,9 +6159,26 @@ void populateExistingObjects(
             continue;
         }
 
+        // TODO this object in current view may have some attributes, we need to copy them
+        // to temp view, so they match on compare, or in case of those objects matched
+        // just ignore ops ? what about attributes with oids?
+        // moze byc problem bo np. jak stworzymy buffer, to on bedzei juz w current view
+        // ten buffer zostanie skopiowany do 'exsisting objects" to temp view
+        // teraz orchagent stworzy nowy buffer i zapisze go na miejsce istniejacego
+        // i w temp view bedziemy miec 2 buffery, a te z existing objects nie zostana usuniete
+        // bo orchagent powinien zrobic query czy taki buffer juz istnieje, bo on nawet nie ma pojecia
+        // o nim - moze do existing objects powinnismy zapisywac tylko takie obiekty ktorych orchagent
+        // nie robil query ? - znaczy tych nie zapisywac, miec je jako hidden
+        // to po translacji zostanie nam dodatkowy buffer, i te zasoby beda leaked za kazdym razem
+        // - musimy miec liste rid'ow ktore zapisalimy na samym poczatku na cold start 
+        // - wtedy mozemy okreslic czy taki obiekt moze byc usuniety czy nie, tylko dalej stworzy to problem
+        // ze bedzeimy miec 2 buffery w jednej chwili, bo tworzymy copy dummy, moze by nie kopiowac tych dummy
+        // z rid'ami kore na poczatku znalezlismy ? to wtedy taki buffer bylby not matched ale orchagent 
+        // moze zrobic query jego anyway i wtedy musi byc matched, hmm
+
         temporaryView.createDummyExistingObject(rid, vid);
 
-        SWSS_LOG_DEBUG("populate existing %s RID %s VID %s",
+        SWSS_LOG_NOTICE("populate existing %s RID %s VID %s",
                 sai_serialize_object_type(sai_object_type_query(rid)).c_str(),
                 sai_serialize_object_id(rid).c_str(),
                 sai_serialize_object_id(vid).c_str());
