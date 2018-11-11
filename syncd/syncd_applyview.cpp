@@ -5481,7 +5481,7 @@ bool performObjectSetTransition(
                 }
 
                // SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE
-               // SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID
+               // SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID*
                // SAI_SCHEDULER_GROUP_ATTR_PARENT_NODE
                // SAI_BRIDGE_PORT_ATTR_BRIDGE_ID
                //
@@ -5492,6 +5492,7 @@ bool performObjectSetTransition(
                 // TODO SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID is mandatory on create but also SET
                 // if attribute is set we and object is in MATCHED state then that means we are able to
                 // bring this attribute to default state not for all attributes!
+                // *SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID - is not any more mandatory on create, so default should be NULL
 
                 SWSS_LOG_ERROR("current attribute is mandatory on create, crate and set, and object MATCHED, FIXME %s %s:%s",
                         currentBestMatch->str_object_id.c_str(),
@@ -6173,6 +6174,12 @@ void populateExistingObjects(
         return;
     }
 
+    // XXX we have only 1 switch, so we can get away with this
+
+    auto sw = switches.begin()->second;
+
+    auto defaultExistingVids = sw->getDefaultDiscoveredVids();
+
     /*
      * If some objects that are existing objects on switch are not present in
      * temporary view, just populate them with empty values.  Since vid2rid
@@ -6218,35 +6225,48 @@ void populateExistingObjects(
             continue;
         }
 
-        // TODO this object in current view may have some attributes, we need to copy them
-        // to temp view, so they match on compare, or in case of those objects matched
-        // just ignore operations ? what about attributes with oids?
+        /*
+         * In case of warm boot, it may happen that user set some created
+         * objects on default existing objects, like for example buffer profile
+         * on ingress priority group.  In this case buffer profile should not
+         * be considered as matched object and copied to temporary view, since
+         * this object was not decault existing object (on 1st cold boot) so in
+         * this case it must be processed by comparison logic and matched with
+         * possible new buffer profile created in temporary view. This may
+         * happen if OA will not care what was set previously on ingress
+         * priority group and just create new buffer profile and assign it.  In
+         * this case we don't want any asic operations to happen.  Also if we
+         * would pass this buffer profile as existing to temporary view, it
+         * would not be matched by comparison logic, and in the result we will
+         * end up with 2 buffer profiles, which 1st of them will be not
+         * assigned anywhere and this will be memory leak.
+         *
+         * Also a bunch of new asic operations will be generated for setting
+         * new user created buffer profile.  Thats why we need default existing
+         * vid list to distinguish between user created and default switch
+         * created obejcts.
+         *
+         * For default existing objects, we don't need to copy attributes, since
+         * if user didn't set them, we want them to be back to default values.
+         *
+         * NOTE: If we are here, then this RID exists only in current view, and
+         * if this object contains any OID attributes, discovery logic queried
+         * them so they are also existing in current view.
+         */
 
-        // TODO this object in current view may have some attributes, we need to copy them
-        // to temp view, so they match on compare, or in case of those objects matched
-        // just ignore ops ? what about attributes with oids?
-        // moze byc problem bo np. jak stworzymy buffer, to on bedzei juz w current view
-        // ten buffer zostanie skopiowany do 'exsisting objects" to temp view
-        // teraz orchagent stworzy nowy buffer i zapisze go na miejsce istniejacego
-        // i w temp view bedziemy miec 2 buffery, a te z existing objects nie zostana usuniete
-        // bo orchagent powinien zrobic query czy taki buffer juz istnieje, bo on nawet nie ma pojecia
-        // o nim - moze do existing objects powinnismy zapisywac tylko takie obiekty ktorych orchagent
-        // nie robil query ? - znaczy tych nie zapisywac, miec je jako hidden
-        // to po translacji zostanie nam dodatkowy buffer, i te zasoby beda leaked za kazdym razem
-        // - musimy miec liste rid'ow ktore zapisalimy na samym poczatku na cold start
-        // - wtedy mozemy okreslic czy taki obiekt moze byc usuniety czy nie, tylko dalej stworzy to problem
-        // ze bedzeimy miec 2 buffery w jednej chwili, bo tworzymy copy dummy, moze by nie kopiowac tych dummy
-        // z rid'ami kore na poczatku znalezlismy ? to wtedy taki buffer bylby not matched ale orchagent
-        // moze zrobic query jego anyway i wtedy musi byc matched, hmm
-        //
-        // takze mamy tuta 2 bugi - jeden istniejace atrybuty
-        // 2gi - niepotrzebne operacje nie zmatchowane bo obiekty istnieja
-        // just ignore operations ? what about attributes with oids?
+        if (defaultExistingVids.find(vid) == defaultExistingVids.end())
+        {
+            SWSS_LOG_INFO("object is not on default existing list: %s RID %s VID %s",
+                    sai_serialize_object_type(sai_object_type_query(rid)).c_str(),
+                    sai_serialize_object_id(rid).c_str(),
+                    sai_serialize_object_id(vid).c_str());
+
+            continue;
+        }
 
         temporaryView.createDummyExistingObject(rid, vid);
 
-        SWSS_LOG_NOTICE("populate existing %s RID %s VID %s",
-        // SWSS_LOG_INFO("populate existing %s RID %s VID %s",
+        SWSS_LOG_INFO("populate existing %s RID %s VID %s",
                 sai_serialize_object_type(sai_object_type_query(rid)).c_str(),
                 sai_serialize_object_id(rid).c_str(),
                 sai_serialize_object_id(vid).c_str());

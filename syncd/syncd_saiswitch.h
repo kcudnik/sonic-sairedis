@@ -146,6 +146,13 @@ class SaiSwitch
                 _In_ sai_object_id_t rid,
                 _In_ sai_attr_id_t attr_id);
 
+        /**
+         * @biref Get default discovered VIDs.
+         *
+         * @return Set of default discovered VIDs after cold boot.
+         */
+        const std::set<sai_object_id_t>& getDefaultDiscoveredVids();
+
     private:
 
         /*
@@ -287,6 +294,16 @@ class SaiSwitch
 
         void helperPutDiscoveredRidsToRedis();
 
+        /**
+         * @brief Put default discovered VIDs to redis DB.
+         *
+         * This method will only be called after cold boot and it will save
+         * only VIDs that are present on the switch after swtich is initialized
+         * so it will contain only default objects. In case of warm boot this
+         * method will not be called.
+         */
+        void helperPutDefaultDiscoveredVidsToRedis() const;
+
         void helperInternalOids();
 
         /*
@@ -314,6 +331,8 @@ class SaiSwitch
          * m_defaultOidMap[0x17][SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID] == 0x16
          */
         std::unordered_map<sai_object_id_t, std::unordered_map<sai_attr_id_t, sai_object_id_t>> m_defaultOidMap;
+
+        std::set<sai_object_id_t> m_defaultDiscoveredVids;
 };
 
 extern std::map<sai_object_id_t, std::shared_ptr<SaiSwitch>> switches;

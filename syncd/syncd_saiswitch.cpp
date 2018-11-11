@@ -951,6 +951,93 @@ void SaiSwitch::helperDiscover()
     }
 }
 
+const std::set<sai_object_id_t>& SaiSwitch::getDefaultDiscoveredVids()
+{
+    SWSS_LOG_ENTER();
+
+    if (m_defaultDiscoveredVids.size() != 0)
+    {
+        return m_defaultDiscoveredVids;
+    }
+
+    SWSS_LOG_NOTICE("default discovered VIDs set is empty, reading DEFAULTVIDS");
+
+    auto hash = g_redisClient->hgetall(DEFAULTVIDS);
+
+    /*
+     * NOTE: some objects may not exists after 2nd restart, like VLAN_MEMBER or
+     * BRIDGE_PORT, since user could decide to remove them on previous boot.
+     */
+
+    for (auto kvp: hash)
+    {
+        auto strVid = kvp.first;
+
+        sai_object_id_t vid;
+        sai_deserialize_object_id(strVid, vid);
+
+        /*
+         * Just make sure that vid in DEFAULTVIDS is present in current vid2rid map
+         */
+
+        auto rid = g_redisClient->hget(VIDTORID, strVid);
+
+        if (rid == nullptr)
+        {
+            SWSS_LOG_INFO("no RID for VID %s, probably object was removed previously", strVid.c_str());
+        }
+
+        m_defaultDiscoveredVids.insert(vid);
+    }
+
+    SWSS_LOG_NOTICE("read %zu default existing objects", m_defaultDiscoveredVids.size());
+
+    if (m_defaultDiscoveredVids.size() == 0)
+    {
+        /*
+         * Normally this should be throw here, but we want to keep backward
+         * compatybility and don't break anything.
+         */
+
+        SWSS_LOG_WARN("default discovered VIDs set is empty, using discovered list");
+
+        for (sai_object_id_t rid: m_discovered_rids)
+        {
+            sai_object_id_t vid = translate_rid_to_vid(rid, m_switch_vid);
+
+            m_defaultDiscoveredVids.insert(vid);
+        }
+    }
+
+    return m_defaultDiscoveredVids;
+}
+
+void SaiSwitch::helperPutDefaultDiscoveredVidsToRedis() const
+{
+    SWSS_LOG_ENTER();
+
+    for (sai_object_id_t rid: m_discovered_rids)
+    {
+        sai_object_id_t vid = translate_rid_to_vid(rid, m_switch_vid);
+
+        sai_object_type_t objectType = sai_object_type_query(rid);
+
+        if (objectType == SAI_OBJECT_TYPE_NULL)
+        {
+            SWSS_LOG_THROW("sai_object_type_query returned NULL type for RID: %s",
+                    sai_serialize_object_id(rid).c_str());
+        }
+
+        std::string strObjectType = sai_serialize_object_type(objectType);
+
+        std::string strVid = sai_serialize_object_id(vid);
+
+        g_redisClient->hset(DEFAULTVIDS, strVid, strObjectType);
+    }
+
+    SWSS_LOG_NOTICE("put default discovered vids to redis");
+}
+
 void SaiSwitch::helperPutDiscoveredRidsToRedis()
 {
     SWSS_LOG_ENTER();
@@ -1030,6 +1117,24 @@ void SaiSwitch::helperPutDiscoveredRidsToRedis()
 
         redisSetDummyAsicStateForRealObjectId(rid);
     }
+
+    /*
+     * If we are here, this is probably COLD boot, since any previous boot
+     * would put lots of objects into redis DB (ports, queues, scheduler_groups
+     * etc), and since this is cold boot, we can put those discovered objects
+     * to cold boot objects map to redis DB. This will become handy when doing
+     * warm boot and figureing out which object is default created and which is
+     * user created, since after warm boot user could previously assign buffer
+     * profile on ingress priority group and this buffer profile will be
+     * discovered by sai discovery logic.
+     *
+     * Question is here whether we should put VID here or RID. And after cold
+     * boot when hard reinit logic happens, we need to remap them, also note
+     * that some object could be removed like VLAN members and they will not
+     * have existing corresponding OID.
+     */
+
+    helperPutDefaultDiscoveredVidsToRedis();
 }
 
 void SaiSwitch::helperInternalOids()
