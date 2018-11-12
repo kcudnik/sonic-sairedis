@@ -50,7 +50,7 @@ extern "C" {
 #define VIDCOUNTER                  "VIDCOUNTER"
 #define LANES                       "LANES"
 #define HIDDEN                      "HIDDEN"
-#define DEFAULTVIDS                 "DEFAULTVIDS"
+#define COLDVIDS                    "COLDVIDS"
 
 #define SAI_COLD_BOOT               0
 #define SAI_WARM_BOOT               1

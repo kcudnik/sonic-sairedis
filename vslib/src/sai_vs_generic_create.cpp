@@ -367,6 +367,38 @@ std::shared_ptr<SwitchState> vs_read_switch_database_for_warm_restart(
     return ss;
 }
 
+void vs_validate_switch_warm_boot_atributes(
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
+{
+    SWSS_LOG_ENTER();
+
+    /*
+     * When in warm boot, as init attributes on switch we only allow
+     * notifications and init attribute.  Actually we should check if
+     * notifications we pass are the same as the one that we have in dumped db,
+     * if not we should set missing one to NULL ptr.
+     */
+
+    for (uint32_t i = 0; i < attr_count; ++i)
+    {
+        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr_list[i].id);
+
+        if (meta == NULL)
+        {
+            SWSS_LOG_THROW("failed to find metadata for switch attribute %d", attr_list[i].id);
+        }
+
+        if (meta->attrid == SAI_SWITCH_ATTR_INIT_SWITCH)
+            continue;
+
+        if (meta->attrvaluetype == SAI_ATTR_VALUE_TYPE_POINTER)
+            continue;
+
+        SWSS_LOG_THROW("attribute %s ist not INIT and not notification, not supported in warm boot", meta->attridname);
+    }
+}
+
 sai_status_t internal_vs_generic_create(
         _In_ sai_object_type_t object_type,
         _In_ const std::string &serialized_object_id,
@@ -383,6 +415,8 @@ sai_status_t internal_vs_generic_create(
         if (g_vs_boot_type == SAI_VS_WARM_BOOT)
         {
             warmBootState = vs_read_switch_database_for_warm_restart(switch_id);
+
+            vs_validate_switch_warm_boot_atributes(attr_count, attr_list);
         }
 
         switch (g_vs_switch_type)
@@ -403,6 +437,9 @@ sai_status_t internal_vs_generic_create(
         if (warmBootState != nullptr)
         {
             vs_update_real_object_ids(warmBootState);
+
+            // TODO  maybe using only post_xxx methods will make the trick!
+            SWSS_LOG_ERROR("TODO metadata must be also updated with warm boot, FIXME");
         }
     }
 

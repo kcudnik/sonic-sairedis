@@ -4292,6 +4292,10 @@ bool isNonRemovableObject(
         return sw->isNonRemovableRid(rid);
     }
 
+    /*
+     * Object is non object id, like ROUTE_ENTRY etc, can be removed.
+     */
+
     return false;
 }
 
@@ -5361,8 +5365,6 @@ bool performObjectSetTransition(
          * values actually exists.
          */
 
-        bool isDefaultCreatedRid = false;
-
         if (currentBestMatch->isOidObject())
         {
             sai_object_id_t vid = currentBestMatch->getVid();
@@ -5379,9 +5381,7 @@ bool performObjectSetTransition(
 
                 auto sw = switches.begin()->second;
 
-                isDefaultCreatedRid = sw->isDefaultCreatedRid(rid);
-
-                if (isDefaultCreatedRid)
+                if (sw->isDiscoveredRid(rid))
                 {
                     SWSS_LOG_INFO("performing default on existing object VID %s: %s: %s, we need default dependency TREE, FIXME",
                             sai_serialize_object_id(vid).c_str(),
@@ -6178,7 +6178,7 @@ void populateExistingObjects(
 
     auto sw = switches.begin()->second;
 
-    auto defaultExistingVids = sw->getDefaultDiscoveredVids();
+    auto coldBootDiscoveredVids = sw->getColdBootDiscoveredVids();
 
     /*
      * If some objects that are existing objects on switch are not present in
@@ -6254,7 +6254,7 @@ void populateExistingObjects(
          * them so they are also existing in current view.
          */
 
-        if (defaultExistingVids.find(vid) == defaultExistingVids.end())
+        if (coldBootDiscoveredVids.find(vid) == coldBootDiscoveredVids.end())
         {
             SWSS_LOG_INFO("object is not on default existing list: %s RID %s VID %s",
                     sai_serialize_object_type(sai_object_type_query(rid)).c_str(),
@@ -6498,7 +6498,7 @@ sai_status_t syncdApplyView()
          * existing objects needs to be updated in the switch!
          */
 
-        const auto &existingObjects = sw->getExistingObjects();
+        const auto &existingObjects = sw->getDiscoveredRids();
 
         populateExistingObjects(current, temp, existingObjects);
 
@@ -6856,7 +6856,7 @@ sai_status_t asic_handle_generic(
 
                     auto sw = switches.begin()->second;
 
-                    if (sw->isDefaultCreatedRid(rid))
+                    if (sw->isDiscoveredRid(rid))
                     {
                         sw->removeExistingObjectReference(rid);
                     }
