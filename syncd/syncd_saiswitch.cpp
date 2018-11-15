@@ -950,6 +950,16 @@ void SaiSwitch::saiDiscover(
                 saiDiscover(oid, discovered); // recursion
             }
         }
+        else if (md->isoidattribute)
+        {
+            /*
+             * On warm boot discover it may be possible that some ACL entries will be discovered
+             * using SAI_ACL_TABLE_ATTR_ENTRY_LIST, and then we need to query each acl entry
+             * attribute.
+             */
+
+            SWSS_LOG_WARN("not handled in disocver: %s, FIXME", md->attridname);
+        }
     }
 }
 
