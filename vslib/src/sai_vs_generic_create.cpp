@@ -400,7 +400,9 @@ void vs_validate_switch_warm_boot_atributes(
 }
 
 void vs_update_local_metadata(
-        _In_ sai_object_id_t switch_id)
+        _In_ sai_object_id_t switch_id,
+        _In_ uint32_t attr_count,
+        _In_ const sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
 
@@ -412,11 +414,6 @@ void vs_update_local_metadata(
      */
 
     auto &objectHash = g_switch_state_map.at(switch_id)->objectHash;//.at(object_type);
-
-    // first create switch
-    // first we need to create all "oid" objects to have reference base
-    // then set all object attributes on those oids
-    // then create all non oid like route etc.
 
     /*
      * First update switch, since all non switch objects will be using
@@ -531,13 +528,17 @@ void vs_update_local_metadata(
     }
 
     /*
-     * Since this method is called inside internal_vs_generic_create next
-     * meta_generic_validation_post_create will be called after success return
-     * of meta_sai_create_oid and it would fail since we already created switch
-     * so we need to notify metadata that this is warm boot.
+     * Since on warm boot user will pass new updated pointers we need to update
+     * them.
      */
 
-    meta_warm_boot_notify();
+    mk.objecttype = SAI_OBJECT_TYPE_SWITCH;
+    mk.objectkey.key.object_id = switch_id;
+
+    for (uint32_t i = 0; i < attr_count; i++)
+    {
+        meta_generic_validation_post_set(mk, attr_list[i]);
+    }
 }
 
 sai_status_t internal_vs_generic_create(
@@ -579,7 +580,7 @@ sai_status_t internal_vs_generic_create(
         {
             vs_update_real_object_ids(warmBootState);
 
-            vs_update_local_metadata(switch_id);
+            vs_update_local_metadata(switch_id, attr_count, attr_list);
         }
     }
 

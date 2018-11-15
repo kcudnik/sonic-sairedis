@@ -294,13 +294,32 @@ sai_status_t vs_create_switch(
 
     SWSS_LOG_ENTER();
 
-    sai_status_t status = meta_sai_create_oid(
-            SAI_OBJECT_TYPE_SWITCH,
-            switch_id,
-            SAI_NULL_OBJECT_ID, // no switch id since we create switch
-            attr_count,
-            attr_list,
-            &vs_generic_create);
+    sai_status_t status;
+
+    if (g_vs_boot_type == SAI_VS_WARM_BOOT)
+    {
+        /*
+         * On warm boot, skip metadata since metadata will be rebuilded on warm
+         * boot.
+         */
+
+        status = vs_generic_create(
+                SAI_OBJECT_TYPE_SWITCH,
+                switch_id,
+                SAI_NULL_OBJECT_ID,
+                attr_count,
+                attr_list);
+    }
+    else
+    {
+        status = meta_sai_create_oid(
+                SAI_OBJECT_TYPE_SWITCH,
+                switch_id,
+                SAI_NULL_OBJECT_ID, // no switch id since we create switch
+                attr_count,
+                attr_list,
+                &vs_generic_create);
+    }
 
     if (status == SAI_STATUS_SUCCESS)
     {
