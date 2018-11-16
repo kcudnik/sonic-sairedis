@@ -3314,18 +3314,36 @@ std::shared_ptr<SaiObj> findCurrentBestMatchUsingGraphPath(
 
             auto curObj = currentView.oOids.at(tmpObj->getVid());
 
-            auto curAttr = curObj->tryGetSaiAttr(gpe[index].attrid);
-
-            if (curAttr == nullptr)
-                continue;
-
             SWSS_LOG_WARN("we have match, now iterate graph up to stack: %s", curObj->str_object_type.c_str());
 
             bool shouldSkip = false;
+                
+            auto curAttr = curObj->tryGetSaiAttr(gpe[index].attrid);
 
-            for (int idx = index - 1; idx >= 0; index--)
+            for (int idx = index; idx >= 0; idx--)
             {
-                SWSS_LOG_WARN("attr proc: %s, idx = %d", curAttr->getAttrMetadata()->attridname, idx);
+                SWSS_LOG_NOTICE("idx = %d", idx);
+                // on 0 we need base object type which is not on the gpe list
+                if (curObj->getObjectType() != gpe[idx].objecttype)
+                {
+                    shouldSkip = true;
+
+                    SWSS_LOG_ERROR("wrong object type: %s vs %s",
+                            sai_serialize_object_type(curObj->getObjectType()).c_str(),
+                            sai_serialize_object_type(gpe[idx].objecttype).c_str());
+                    break;
+                }
+
+                curAttr = curObj->tryGetSaiAttr(gpe[idx].attrid);
+
+                if (curAttr == nullptr)
+                {
+                    SWSS_LOG_NOTICE("cur att is null on ot: %s",
+                            sai_serialize_object_type(curObj->getObjectType()).c_str());
+                    shouldSkip = true;
+                    break;
+                }
+
 
                 if (curAttr->getAttrMetadata()->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
                 {
@@ -3349,36 +3367,22 @@ std::shared_ptr<SaiObj> findCurrentBestMatchUsingGraphPath(
                 SWSS_LOG_NOTICE("val = %s", sai_serialize_object_type(curObj->getObjectType()).c_str());
 
                 // we could make different object types on the attribute, but type must match
-
-                // on 0 we need base object type which is not on the gpe list
-                if (curObj->getObjectType() != gpe[idx].objecttype)
-                {
-                    shouldSkip = true;
-
-                    SWSS_LOG_ERROR("wrong object type: %s vs %s",
-                            sai_serialize_object_type(curObj->getObjectType()).c_str(),
-                            sai_serialize_object_type(gpe[idx].objecttype).c_str());
-                    break;
-                }
-
-                curAttr = curObj->tryGetSaiAttr(gpe[idx].attrid);
-
-                if (curAttr == nullptr)
-                {
-                    SWSS_LOG_NOTICE("attr is null");
-                    shouldSkip = true;
-                    break;
-                }
-
-                if (idx == 0)
-                    break;
             }
 
             if (shouldSkip)
                 continue;
 
+            // XXX check i currAttr() oid is type of candidate oids
+
+            curObj = currentView.oOids.at(curAttr->getOid());
+
+            SWSS_LOG_NOTICE("candidate ot: %s cur ot: %s",
+                    candidateObjects.at(0).obj->str_object_type.c_str(),
+                    curObj->str_object_type.c_str());
+
             for (auto c: candidateObjects)
             {
+                SWSS_LOG_NOTICE("0x%lx vs 0x%lx", c.obj->getVid(), curAttr->getOid());
                 if (c.obj->getVid() != curAttr->getOid())
                     continue;
 
@@ -3389,6 +3393,7 @@ std::shared_ptr<SaiObj> findCurrentBestMatchUsingGraphPath(
                 return c.obj;
             }
 
+            SWSS_LOG_NOTICE("not found candidate");
             continue;
         }
 
@@ -3411,6 +3416,10 @@ std::shared_ptr<SaiObj> findCurrentBestMatchUsingGraphPath(
             SWSS_LOG_WARN("recurisive failed");
             continue;
         }
+
+        SWSS_LOG_NOTICE("recursive success");
+
+        return obj;
     }
 
     SWSS_LOG_ERROR("loop expired");
