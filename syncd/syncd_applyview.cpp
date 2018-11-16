@@ -3211,6 +3211,252 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForHostifTrapGroup(
     return nullptr;
 }
 
+typedef struct _sai_graph_path_t {
+
+    /**
+     * @brief Object type on which we want to check the path.
+     */
+    sai_object_type_t   objecttype;
+
+    
+} sai_graph_path_t;
+
+typedef struct _sai_graph_path_entry_t {
+
+    /**
+     * @brief Object type on which we need to look for previous object.
+     */
+    sai_object_type_t objecttype;
+
+    /**
+     * @brief Object attribute id on which we need to loog for previous object.
+     */
+    sai_attr_id_t   attrid;
+
+} sai_graph_path_entry_t;
+
+std::shared_ptr<SaiObj> findCurrentBestMatchUsingGraphPath(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
+        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects,
+        _In_ const sai_graph_path_entry_t* gpe,
+        _In_ int gpe_count,
+        _In_ int index)
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_NOTICE("candidates: %zu, gpe count: %d, index: %d", candidateObjects.size(), gpe_count, index);
+
+    if (gpe_count < 1)
+    {
+        SWSS_LOG_ERROR("gpe_counter is %d", gpe_count);
+
+        return nullptr;
+    }
+
+    auto meta = sai_metadata_get_attr_metadata(gpe[index].objecttype, gpe[index].attrid);
+
+    if (meta == NULL)
+    {
+        SWSS_LOG_ERROR("failed to find metadata for ot: %s, attrid: %d",
+                sai_serialize_object_type(gpe[index].objecttype).c_str(),
+                gpe[index].attrid);
+
+        return nullptr;
+    }
+
+    // TODO on meta we should check whether is allowed object type on that param, and whether is oid object type
+
+    // this is going down the graph
+    // we need to figure out whether we want to go down or up
+
+    const auto tmpObjects = temporaryView.getObjectsByObjectType(gpe[index].objecttype);
+
+    SWSS_LOG_NOTICE("iterate for: %s, tmp objects: %zu", meta->attridname, tmpObjects.size());
+
+    for (auto tmpObj: tmpObjects)
+    {
+        auto tmpAttr = tmpObj->tryGetSaiAttr(gpe[index].attrid);
+
+        if (tmpAttr == nullptr)
+            continue;
+
+        if (tmpAttr->getAttrMetadata()->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+        {
+            SWSS_LOG_ERROR("%s is not OID attribute", tmpAttr->getAttrMetadata()->attridname);
+
+            return nullptr;
+        }
+
+        if (tmpAttr->getOid() != temporaryObj->getVid())
+        {
+            SWSS_LOG_NOTICE("tmp object is not the same: 0x%lx vs 0x%lx", tmpAttr->getOid(), temporaryObj->getVid());
+            continue;
+        }
+
+        SWSS_LOG_NOTICE("object is same; index %d vs gpe_count -1: %d", index, gpe_count-1);
+
+        if (index == (gpe_count - 1))
+        {
+            SWSS_LOG_NOTICE("last on list");
+
+            if (tmpObj->getObjectStatus() != SAI_OBJECT_STATUS_MATCHED)
+            {
+                SWSS_LOG_ERROR("object status is not matched!");
+                continue;
+            }
+
+            // ok so this is the last object in graph path, then it must be matched
+            // jak idizemy w gore grafu to mamy tylko 1 match
+            // ale jak idziemy w dol to mozemy miec kilka matchy jak port i lag member - 
+            // mozemy miec kilka lag member matchy na konkretny port bo relacja jest odwrotna
+
+            auto curObj = currentView.oOids.at(tmpObj->getVid());
+
+            auto curAttr = curObj->tryGetSaiAttr(gpe[index].attrid);
+
+            if (curAttr == nullptr)
+                continue;
+
+            SWSS_LOG_WARN("we have match, now iterate graph up to stack: %s", curObj->str_object_type.c_str());
+
+            bool shouldSkip = false;
+
+            for (int idx = index - 1; idx >= 0; index--)
+            {
+                SWSS_LOG_WARN("attr proc: %s, idx = %d", curAttr->getAttrMetadata()->attridname, idx);
+
+                if (curAttr->getAttrMetadata()->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
+                {
+                    SWSS_LOG_ERROR("attr is not oid");
+                    return nullptr;
+                }
+
+                if (curAttr->getOid() == SAI_NULL_OBJECT_ID)
+                {
+                    // attr is not set
+                    SWSS_LOG_NOTICE("attr is val null");
+                    shouldSkip = true;
+                    break;
+                }
+
+                // if going recursivly up will we nee tmpobjects here ? probably not, since we only rollback current objects
+                // this rollback also would need to be implemented recursivly
+
+                curObj = currentView.oOids.at(curAttr->getOid());
+
+                SWSS_LOG_NOTICE("val = %s", sai_serialize_object_type(curObj->getObjectType()).c_str());
+
+                // we could make different object types on the attribute, but type must match
+
+                // on 0 we need base object type which is not on the gpe list
+                if (curObj->getObjectType() != gpe[idx].objecttype)
+                {
+                    shouldSkip = true;
+
+                    SWSS_LOG_ERROR("wrong object type: %s vs %s",
+                            sai_serialize_object_type(curObj->getObjectType()).c_str(),
+                            sai_serialize_object_type(gpe[idx].objecttype).c_str());
+                    break;
+                }
+
+                curAttr = curObj->tryGetSaiAttr(gpe[idx].attrid);
+
+                if (curAttr == nullptr)
+                {
+                    SWSS_LOG_NOTICE("attr is null");
+                    shouldSkip = true;
+                    break;
+                }
+
+                if (idx == 0)
+                    break;
+            }
+
+            if (shouldSkip)
+                continue;
+
+            for (auto c: candidateObjects)
+            {
+                if (c.obj->getVid() != curAttr->getOid())
+                    continue;
+
+                SWSS_LOG_WARN("found best match based for %s and on %s",
+                        c.obj->str_object_id.c_str(),
+                        tmpObj->str_object_id.c_str());
+
+                return c.obj;
+            }
+
+            continue;
+        }
+
+        SWSS_LOG_NOTICE("going recursive");
+
+        // XXX going recursiv up the graph we also can have multiple objects to match on temporay object
+        // lik lag members 
+
+        auto obj = findCurrentBestMatchUsingGraphPath(
+                currentView,
+                temporaryView,
+                tmpObj, // switched object type
+                candidateObjects,
+                gpe,
+                gpe_count,
+                index + 1);
+
+        if (obj == nullptr)
+        {
+            SWSS_LOG_WARN("recurisive failed");
+            continue;
+        }
+    }
+
+    SWSS_LOG_ERROR("loop expired");
+    return nullptr;
+}
+
+std::shared_ptr<SaiObj> findCurrentBestMatchForBufferProfile(
+        _In_ const AsicView &currentView,
+        _In_ const AsicView &temporaryView,
+        _In_ const std::shared_ptr<const SaiObj> &temporaryObj,
+        _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_NOTICE("looking for buffer profile");
+
+    sai_graph_path_t gp;
+
+    // buffer_profile -> queue
+    
+    gp.objecttype = SAI_OBJECT_TYPE_BUFFER_PROFILE;
+
+    sai_graph_path_entry_t gpe[1];
+
+    gpe[0].objecttype = SAI_OBJECT_TYPE_QUEUE;
+    gpe[0].attrid = SAI_QUEUE_ATTR_BUFFER_PROFILE_ID;
+
+    if (gp.objecttype != temporaryObj->getObjectType())
+    {
+        SWSS_LOG_WARN("not found graph path for %s",
+                sai_serialize_object_type(temporaryObj->getObjectType()).c_str());
+
+        return nullptr;
+    }
+
+    return findCurrentBestMatchUsingGraphPath(
+            currentView,
+            temporaryView,
+            temporaryObj,
+            candidateObjects,
+            gpe,
+            1,
+            0);
+}
+
+
 std::shared_ptr<SaiObj> findCurrentBestMatchForBufferPool(
         _In_ const AsicView &currentView,
         _In_ const AsicView &temporaryView,
@@ -3218,6 +3464,37 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForBufferPool(
         _In_ const std::vector<sai_object_compare_info_t> &candidateObjects)
 {
     SWSS_LOG_ENTER();
+
+    sai_graph_path_t gp;
+
+    // buffer_pool -> buffer_profile -> queue
+
+    gp.objecttype = SAI_OBJECT_TYPE_BUFFER_POOL;
+
+    sai_graph_path_entry_t gpe[2];
+
+    gpe[0].objecttype = SAI_OBJECT_TYPE_BUFFER_PROFILE;
+    gpe[0].attrid = SAI_BUFFER_PROFILE_ATTR_POOL_ID;
+
+    gpe[1].objecttype = SAI_OBJECT_TYPE_QUEUE;
+    gpe[1].attrid = SAI_QUEUE_ATTR_BUFFER_PROFILE_ID;
+
+    if (gp.objecttype != temporaryObj->getObjectType())
+    {
+        SWSS_LOG_WARN("not found graph path for %s",
+                sai_serialize_object_type(temporaryObj->getObjectType()).c_str());
+
+        return nullptr;
+    }
+
+    return findCurrentBestMatchUsingGraphPath(
+            currentView,
+            temporaryView,
+            temporaryObj,
+            candidateObjects,
+            gpe,
+            2,
+            0);
 
     /*
      * For buffer pool using buffer profile which could be set on ingress
@@ -3386,6 +3663,10 @@ std::shared_ptr<SaiObj> findCurrentBestMatchForGenericObjectUsingGraph(
 
         case SAI_OBJECT_TYPE_BUFFER_POOL:
             candidate = findCurrentBestMatchForBufferPool(currentView, temporaryView, temporaryObj, candidateObjects);
+            break;
+
+        case SAI_OBJECT_TYPE_BUFFER_PROFILE:
+            candidate = findCurrentBestMatchForBufferProfile(currentView, temporaryView, temporaryObj, candidateObjects);
             break;
 
         default:
@@ -7319,32 +7600,32 @@ void executeOperationsOnAsic(
 
         currentView.dumpVidToAsicOperatioId();
 
-        SWSS_LOG_NOTICE("NOT optimized operations");
+        //SWSS_LOG_NOTICE("NOT optimized operations");
 
-        for (const auto &op: currentView.asicGetOperations())
-        {
-            const std::string &key = kfvKey(*op.op);
-            const std::string &opp = kfvOp(*op.op);
+        //for (const auto &op: currentView.asicGetOperations())
+        //{
+        //    const std::string &key = kfvKey(*op.op);
+        //    const std::string &opp = kfvOp(*op.op);
 
-            SWSS_LOG_NOTICE("%s: %s", opp.c_str(), key.c_str());
+        //    SWSS_LOG_NOTICE("%s: %s", opp.c_str(), key.c_str());
 
-            const auto &values = kfvFieldsValues(*op.op);
+        //    const auto &values = kfvFieldsValues(*op.op);
 
-            for (auto v: values)
-            {
-                SWSS_LOG_NOTICE("- %s %s", fvField(v).c_str(), fvValue(v).c_str());
-            }
-        }
+        //    for (auto v: values)
+        //    {
+        //        SWSS_LOG_NOTICE("- %s %s", fvField(v).c_str(), fvValue(v).c_str());
+        //    }
+        //}
 
-        SWSS_LOG_NOTICE("optimized operations!");
+        //SWSS_LOG_NOTICE("optimized operations!");
 
-        for (const auto &op: currentView.asicGetWithOptimizedRemoveOperations())
-        {
-            const std::string &key = kfvKey(*op.op);
-            const std::string &opp = kfvOp(*op.op);
+        //for (const auto &op: currentView.asicGetWithOptimizedRemoveOperations())
+        //{
+        //    const std::string &key = kfvKey(*op.op);
+        //    const std::string &opp = kfvOp(*op.op);
 
-            SWSS_LOG_NOTICE("%s: %s", opp.c_str(), key.c_str());
-        }
+        //    SWSS_LOG_NOTICE("%s: %s", opp.c_str(), key.c_str());
+        //}
 
         //for (const auto &op: currentView.asicGetOperations())
         for (const auto &op: currentView.asicGetWithOptimizedRemoveOperations())
