@@ -299,6 +299,9 @@ sub test_brcm_buffer_pool
 
     play "full_buffer.rec";
     play "full_buffer_second.rec",0;
+    play "full_buffer_second.rec",0;
+    play "full_buffer_second.rec",0;
+    play "full_buffer_second.rec",0;
 }
 
 sub test_brcm_warm_boot_full
@@ -373,8 +376,38 @@ sub test_brcm_config_acl
     play "config_acl2.rec", 0;
 }
 
+sub test_brcm_buffer_profile
+{
+    fresh_start;
+
+    # we expect no operations on asic, and all buffer pools will be matched correctly
+
+    play "buffer_profile.rec";
+    play "buffer_profile.rec",0;
+    play "buffer_profile.rec",0;
+    play "buffer_profile.rec",0;
+    play "buffer_profile.rec",0;
+}
+
+sub test_brcm_buffer_pool2
+{
+    fresh_start;
+
+    # we expect no operations on asic, and all buffer pools will be matched correctly
+
+    play "buffer_pool.rec";
+    play "buffer_pool.rec",0;
+    play "buffer_pool.rec",0;
+    play "buffer_pool.rec",0;
+    play "buffer_pool.rec",0;
+}
+
 # RUN TESTS
 
+test_brcm_buffer_profile;
+test_brcm_buffer_pool2;
+    exit;
+test_brcm_buffer_pool;
 test_brcm_config_acl;
 
 test_brcm_warm_boot_full_empty;
@@ -382,7 +415,6 @@ test_brcm_warm_boot_small_buffer;
 test_brcm_warm_boot_empty;
 test_brcm_warm_boot_full;
 
-test_brcm_buffer_pool;
 test_brcm_acl_tables;
 test_brcm_qos_map_order;
 test_brcm_lag_no_members;
