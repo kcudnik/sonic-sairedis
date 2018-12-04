@@ -75,6 +75,13 @@ std::set<sai_object_id_t> initViewRemovedVidSet;
  */
 volatile bool g_asicInitViewMode = false;
 
+
+/*
+ * Used by notifications. In pre shutdown stage we will only print
+ * notifications to syslog for future analysis, but not send them.
+ */
+volatile bool g_pre_shutdown_stage = false;
+
 /*
  * SAI switch global needed for RPC server and for remove_switch
  */
@@ -3647,6 +3654,7 @@ int syncd_main(int argc, char **argv)
                 SWSS_LOG_NOTICE("drained queue");
 
                 shutdownType = handleRestartQuery(*restartQuery);
+
                 if (shutdownType != SYNCD_RESTART_TYPE_PRE_SHUTDOWN)
                 {
                     // break out the event handling loop to shutdown syncd
@@ -3692,6 +3700,8 @@ int syncd_main(int argc, char **argv)
                     s.addSelectable(restartQuery.get());
 
                     SWSS_LOG_NOTICE("switched to PRE_SHUTDOWN, from now on accepting only shurdown requests");
+
+                    g_pre_shutdown_stage = true;
                 }
                 else
                 {
