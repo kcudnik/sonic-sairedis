@@ -12,6 +12,17 @@ void send_notification(
 {
     SWSS_LOG_ENTER();
 
+    if (g_pre_shutdown_stage)
+    {
+        /*
+         * If we are in pre shutdown stage we just need to log notifications
+         * for future analysis.
+         */
+
+        SWSS_LOG_NOTICE("PRE_SHUTDOWN NTF: %s %s", op.c_str(), data.c_str());
+        return;
+    }
+
     SWSS_LOG_INFO("%s %s", op.c_str(), data.c_str());
 
     notifications->send(op, data, entry);
