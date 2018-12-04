@@ -3659,7 +3659,6 @@ int syncd_main(int argc, char **argv)
                 SWSS_LOG_TIMER("warm pre-shutdown");
 
                 FlexCounter::removeAllCounters();
-                stopNotificationsProcessingThread();
 
                 sai_attribute_t attr;
 
