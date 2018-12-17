@@ -527,7 +527,7 @@ bool ntf_queue_t::enqueue(
 
     if (!(log_count % 1000))
     {
-        SWSS_LOG_NOTICE("Too many messages in queue (%ld), dropped %ld FDB events!",
+        SWSS_LOG_NOTICE("Too many messages in queue (%zu), dropped %d FDB events!",
                          queueStats(), (log_count+1));
     }
 
@@ -663,6 +663,57 @@ void ntf_process_function()
 
 std::shared_ptr<std::thread> ntf_process_thread;
 
+std::shared_ptr<std::thread> delayed_fdb_thread;
+
+void delayed_fdb()
+{
+    SWSS_LOG_WARN("waiting for send delayed fdb notification");
+
+    sleep(10);
+
+    SWSS_LOG_WARN("sending delayed fdb notification");
+
+    sai_fdb_event_notification_data_t ntf;
+
+    memset(&ntf, 0, sizeof(ntf));
+
+    ntf.event_type = SAI_FDB_EVENT_LEARNED;
+
+    // since we are using this on virtual swtich we can hard code those values
+    // since they will be deterministic and here are RID value
+    
+    sai_mac_t mac = {0x24,0x8A,0x07,0x4C,0xF5,0x26};
+
+    memcpy(ntf.fdb_entry.mac_address, mac, 6);
+
+    ntf.fdb_entry.switch_id = 0x2100000000;
+    ntf.fdb_entry.bv_id = 0x2600000001; // vlan 1000
+
+    sai_attribute_t attrs[2];
+
+    attrs[0].id = SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID;
+    attrs[0].value.oid = 0x3a00000001;
+    attrs[1].id = SAI_FDB_ENTRY_ATTR_TYPE;
+    attrs[1].value.s32 = SAI_FDB_ENTRY_TYPE_DYNAMIC;
+
+    ntf.attr_count = 1;
+    ntf.attr = attrs;
+
+    on_fdb_event(1, &ntf);
+
+    // since this query don't come from switch, we need to put it ther
+
+
+    sai_status_t status = sai_metadata_sai_fdb_api->create_fdb_entry(&ntf.fdb_entry, 2, attrs);
+
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("failed to insert: %s", sai_serialize_status(status).c_str());
+    }
+
+    SWSS_LOG_WARN("sent");
+}
+
 void startNotificationsProcessingThread()
 {
     SWSS_LOG_ENTER();
@@ -670,6 +721,8 @@ void startNotificationsProcessingThread()
     runThread = true;
 
     ntf_process_thread = std::make_shared<std::thread>(ntf_process_function);
+
+    delayed_fdb_thread = std::make_shared<std::thread>(delayed_fdb);
 }
 
 void stopNotificationsProcessingThread()
@@ -775,6 +828,6 @@ void check_notifications_pointers(
          * Here we translated pointer, just log it.
          */
 
-        SWSS_LOG_INFO("%s: %lp (orch) => %lp (syncd)", meta->attridname, prev, attr.value.ptr);
+        SWSS_LOG_INFO("%s: %p (orch) => %p (syncd)", meta->attridname, prev, attr.value.ptr);
     }
 }
