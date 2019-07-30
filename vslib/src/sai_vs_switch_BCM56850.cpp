@@ -144,6 +144,14 @@ static sai_status_t create_default_1q_bridge()
     return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_id, &attr);
 }
 
+// SAI_OBJECT_TYPE_PORT
+//
+// objects that will be removed/created bys internal sai when
+// port is removed/created
+// SAI_OBJECT_TYPE_SCHEDULER_GROUP
+// SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP
+// SAI_OBJECT_TYPE_QUEUE
+
 static sai_status_t create_ports()
 {
     SWSS_LOG_ENTER();
@@ -577,6 +585,11 @@ static sai_status_t create_scheduler_group_tree(
 
         sai_attribute_t attr;
 
+        attr.id = SAI_SCHEDULER_GROUP_ATTR_PORT_ID;
+        attr.value.oid = port_id;
+
+        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SCHEDULER_GROUP, sg_0, &attr));
+
         attr.id = SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT;
         attr.value.u32 = 2;
 
@@ -602,6 +615,11 @@ static sai_status_t create_scheduler_group_tree(
         sai_object_id_t sg_1 = sgs.at(1);
 
         sai_attribute_t attr;
+
+        attr.id = SAI_SCHEDULER_GROUP_ATTR_PORT_ID;
+        attr.value.oid = port_id;
+
+        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SCHEDULER_GROUP, sg_1, &attr));
 
         attr.id = SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT;
         attr.value.u32 = 8;
@@ -656,6 +674,11 @@ static sai_status_t create_scheduler_group_tree(
         sai_object_id_t sg_2 = sgs.at(2);
 
         sai_attribute_t attr;
+
+        attr.id = SAI_SCHEDULER_GROUP_ATTR_PORT_ID;
+        attr.value.oid = port_id;
+
+        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SCHEDULER_GROUP, sg_2, &attr));
 
         attr.id = SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT;
         attr.value.u32 = 2;
@@ -1334,6 +1357,8 @@ sai_status_t vs_create_port_BCM56850(
 {
     SWSS_LOG_ENTER();
 
+    // this method is post create action on generic create object
+
     sai_attribute_t attr;
 
     attr.id = SAI_PORT_ATTR_ADMIN_STATE;
@@ -1346,6 +1371,8 @@ sai_status_t vs_create_port_BCM56850(
 
     /* create qos queues */
     create_qos_queues_per_port(switch_id, port_id);
+
+    // TODO create scheduler groups per port 
 
     return SAI_STATUS_SUCCESS;
 }
