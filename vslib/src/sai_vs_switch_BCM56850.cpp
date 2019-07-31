@@ -1373,6 +1373,8 @@ sai_status_t vs_create_port_BCM56850(
     create_qos_queues_per_port(switch_id, port_id);
 
     // TODO create scheduler groups per port 
+    //
+    // TODO also check lanes when port create
 
     return SAI_STATUS_SUCCESS;
 }

@@ -173,10 +173,6 @@ bool vs_check_object_default_state(
         if (meta->isreadonly)
             continue;
 
-        // this can be create_and_set
-        //if (meta->ismandatoryoncreate)
-         //   continue;
-
         if (!meta->isoidattribute)
             continue;
 
@@ -228,8 +224,6 @@ bool vs_check_object_default_state(
         }
 
         status = vs_generic_get(object_type, object_id, 1, &attr);
-
-        // TODO we probably can ignore error statuses on objects that are not implemented
 
         switch (status)
         {
@@ -307,7 +301,8 @@ bool vs_check_object_list_default_state(
 }
 
 sai_status_t vs_check_port_dependencies(
-            _In_ sai_object_id_t port_id)
+        _In_ sai_object_id_t port_id,
+        _Out_ std::vector<sai_object_id_t>& dep)
 {
     SWSS_LOG_ENTER();
 
@@ -391,23 +386,11 @@ sai_status_t vs_check_port_dependencies(
     SWSS_LOG_NOTICE("all depending objects on port %s are in default state",
                 sai_serialize_object_id(port_id).c_str());
 
-    // TODO check objects references count
-    // will internal meta_* check do that for us ???
+    dep.insert(dep.end(), queues.begin(), queues.end());
+    dep.insert(dep.end(), ipgs.begin(), ipgs.end());
+    dep.insert(dep.end(), sg.begin(), sg.end());
 
-
-//    SAI_PORT_ATTR_QOS_QUEUE_LIST
- //   vs_check_object_default_state(
-// SAI_OBJECT_TYPE_PORT
-//
-// objects that will be removed/created bys internal sai when
-// port is removed/created
-// SAI_OBJECT_TYPE_SCHEDULER_GROUP
-// SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP
-// SAI_OBJECT_TYPE_QUEUE
-
-    return SAI_STATUS_FAILURE;
-
-
+    return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t vs_remove_port(
@@ -416,29 +399,56 @@ sai_status_t vs_remove_port(
     MUTEX();
     SWSS_LOG_ENTER();
 
-    sai_status_t status = vs_check_port_dependencies(port_id);
+    std::vector<sai_object_id_t> dep;
+
+    sai_status_t status = vs_check_port_dependencies(port_id, dep);
 
     if (status != SAI_STATUS_SUCCESS)
     {
+        return status;
     }
 
-    return SAI_STATUS_FAILURE;
-    // remove port
-    //
-    // check vs if port is ok, metadata should have it's own checks
-    // we also need to check reference count on each of those 3 objects
-                                
-    return meta_sai_remove_oid(
+    // NOTE: we shold check references on depending objects to see if it's safe
+    // to remove every object but we count on metadata references count to do
+    // that for us
+
+    status = meta_sai_remove_oid(
             (sai_object_type_t)SAI_OBJECT_TYPE_PORT,
             port_id,
             &vs_generic_remove);
 
-    // TODO after port removal, remove all those depending objects 
-    //
-    // TODO  since metadata is used to count references, can we just
-    // TODO we will probably need to adjust local metadata database ? - or just call remove on each object?
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("failed to remove port: %s",
+                sai_serialize_object_id(port_id).c_str());
 
-    // call remove ?
+        return status;
+    }
+
+    SWSS_LOG_NOTICE("port %s was successfully removed, removing depending objects now",
+            sai_serialize_object_id(port_id).c_str());
+
+    for (auto oid: dep)
+    {
+        status = meta_sai_remove_oid(
+                sai_object_type_query(oid),
+                oid,
+                &vs_generic_remove);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            // we can't continue, there is a bug somewhere if we can't remove
+            // port related objects: queues, ipgs, sg
+          
+            SWSS_LOG_THROW("FATAL: failed to removed port related oid: %s: %s, bug!",
+                    sai_serialize_object_type(sai_object_type_query(oid)).c_str(),
+                    sai_serialize_object_id(oid).c_str());
+        }
+    }
+
+    SWSS_LOG_NOTICE("successfully removed all %zu port related objects", dep.size());
+
+    return SAI_STATUS_SUCCESS;
 }
 
 VS_SET(PORT,port);

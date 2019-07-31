@@ -19,6 +19,7 @@ extern "C" {
 #include <unordered_map>
 
 #define DEF_SAI_WARM_BOOT_DATA_FILE "/var/warmboot/sai-warmboot.bin"
+#define MAX_OBJLIST_LEN 128
 
 /**
  * @brief Global mutex for thread synchronization
@@ -1202,6 +1203,122 @@ bool is_set_attribute_workaround(
     return false;
 }
 
+void get_port_related_objects(
+        _In_ sai_object_id_t port_rid,
+        _Out_ std::vector<sai_object_id_t>& related)
+{
+    SWSS_LOG_ENTER();
+
+    related.clear();
+
+    sai_object_meta_key_t meta_key;
+
+    meta_key.objecttype = SAI_OBJECT_TYPE_PORT;
+    meta_key.objectkey.key.object_id = port_rid;
+
+    sai_attr_id_t attrs[3] = {
+        SAI_PORT_ATTR_QOS_QUEUE_LIST,
+        SAI_PORT_ATTR_QOS_SCHEDULER_GROUP_LIST,
+        SAI_PORT_ATTR_INGRESS_PRIORITY_GROUP_LIST
+    };
+
+    auto info = sai_metadata_get_object_type_info(SAI_OBJECT_TYPE_PORT);
+
+    for (size_t i = 0; i < sizeof(attrs)/sizeof(sai_attr_id_t); i++)
+    {
+        std::vector<sai_object_id_t> objlist;
+
+        objlist.resize(MAX_OBJLIST_LEN);
+
+        sai_attribute_t attr;
+
+        attr.id = attrs[i];
+
+        attr.value.objlist.count = MAX_OBJLIST_LEN;
+        attr.value.objlist.list = objlist.data();
+
+        auto status = info->get(&meta_key, 1, &attr);
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            SWSS_LOG_THROW("failed to obtain related obejcts for port rid %s: %s, attr id: %d",
+                    sai_serialize_object_id(port_rid).c_str(),
+                    sai_serialize_status(status).c_str(),
+                    attr.id);
+        }
+
+        objlist.resize(attr.value.objlist.count);
+
+        related.insert(related.end(), objlist.begin(), objlist.end());
+    }
+
+    SWSS_LOG_NOTICE("obtained %zu port %s related RIDs",
+            related.size(),
+            sai_serialize_object_id(port_rid).c_str());
+}
+
+void post_port_remove(
+        _In_ std::shared_ptr<SaiSwitch> sw,
+        _In_ const std::vector<sai_object_id_t>& relatedRids)
+{
+    SWSS_LOG_ENTER();
+
+    /*
+     * Port was successfully removed from vendor SAI,
+     * we need to remove queues, ipgs and sg from:
+     *
+     * - redis ASIC DB
+     * - discovered existing objects in saiswitch class
+     * - local vid2rid map
+     * - redis RIDTOVID map
+     */
+
+    for (auto rid: relatedRids)
+    {
+        // remove from existing objects
+
+        if (sw->isDiscoveredRid(rid))
+        {
+            sw->removeExistingObjectReference(rid);
+        }
+
+        // remove from RID2VID and VID2RID map in redis
+
+        std::string str_rid = sai_serialize_object_id(rid);
+
+        auto pvid = g_redisClient->hget(RIDTOVID, str_rid);
+
+        if (pvid == nullptr)
+        {
+            SWSS_LOG_THROW("expected rid %s to be present in RIDTOVID", str_rid.c_str());
+        }
+
+        std::string str_vid = *pvid;
+
+        sai_object_id_t vid;
+        sai_deserialize_object_id(str_vid, vid);
+
+        g_redisClient->hdel(VIDTORID, str_vid);
+        g_redisClient->hdel(RIDTOVID, str_rid);
+
+        // remove from local vid2rid and rid2vid map
+        
+        remove_rid_and_vid_from_local(rid, vid);
+
+        // remove from ASIC DB
+
+        sai_object_type_t ot = redis_sai_object_type_query(vid); 
+
+        std::string key = sai_serialize_object_type(ot) + ":" + str_vid;
+
+        SWSS_LOG_INFO("removing ASIC DB key: %s", key.c_str());
+
+        g_redisClient->del(key);
+    }
+
+    SWSS_LOG_NOTICE("post port remove actions succeeded");
+}
+
 sai_status_t handle_generic(
         _In_ sai_object_type_t object_type,
         _In_ const std::string &str_object_id,
@@ -1333,6 +1450,14 @@ sai_status_t handle_generic(
 
                 meta_key.objectkey.key.object_id = rid;
 
+                std::vector<sai_object_id_t> related;
+
+                if (object_type == SAI_OBJECT_TYPE_PORT)
+                {
+                    // collect queus, ipgs, sg that belogs to port
+                    get_port_related_objects(rid, related); 
+                }
+
                 sai_status_t status = info->remove(&meta_key);
 
                 if (status == SAI_STATUS_SUCCESS)
@@ -1351,6 +1476,10 @@ sai_status_t handle_generic(
 
                         remove_rid_and_vid_from_local(rid, object_id);
                     }
+
+                    // TODO remove all related objets from REDIS DB and also
+                    // from existing object references since at this point
+                    // they are no longer valid
 
                     if (object_type == SAI_OBJECT_TYPE_SWITCH)
                     {
@@ -1386,6 +1515,9 @@ sai_status_t handle_generic(
                         {
                             switches.at(switch_vid)->removeExistingObjectReference(rid);
                         }
+
+                        if (object_type == SAI_OBJECT_TYPE_PORT)
+                            post_port_remove(switches.at(switch_vid), related);
                     }
                 }
 
