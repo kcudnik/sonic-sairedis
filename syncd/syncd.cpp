@@ -1454,6 +1454,17 @@ sai_status_t handle_generic(
 
                 if (object_type == SAI_OBJECT_TYPE_PORT)
                 {
+                    if (isInitViewMode())
+                    {
+                        // reason for this is that if user will remove port,
+                        // and the create new one in init view mode, then this
+                        // new port is not actually created so when for example
+                        // quering new queues for new created port, there are
+                        // not there, since no actual port create was issued on
+                        // the ASIC
+                        SWSS_LOG_THROW("port object can't be removed in init view mode");
+                    }
+
                     // collect queus, ipgs, sg that belogs to port
                     get_port_related_objects(rid, related); 
                 }

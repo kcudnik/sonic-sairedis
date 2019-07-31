@@ -390,6 +390,11 @@ sai_status_t vs_check_port_dependencies(
     dep.insert(dep.end(), ipgs.begin(), ipgs.end());
     dep.insert(dep.end(), sg.begin(), sg.end());
 
+    // TODO there may be issues with bridge ports created on that port
+    // if they are not removed before port remove
+    
+    // TODO port list needs to be updated
+
     return SAI_STATUS_SUCCESS;
 }
 
