@@ -1768,7 +1768,7 @@ bool meta_is_object_in_default_state(
 
         if (md.isreadonly)
             continue;
-            
+
         if (!md.isoidattribute)
             continue;
 
@@ -1835,7 +1835,7 @@ sai_status_t meta_port_remove_validation(
 
         return SAI_STATUS_FAILURE;
     }
-    
+
     if (!meta_is_object_in_default_state(port_id))
     {
         SWSS_LOG_ERROR("port %s is not in default state, can't remove",

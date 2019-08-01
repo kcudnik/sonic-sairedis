@@ -1302,12 +1302,12 @@ void post_port_remove(
         g_redisClient->hdel(RIDTOVID, str_rid);
 
         // remove from local vid2rid and rid2vid map
-        
+
         remove_rid_and_vid_from_local(rid, vid);
 
         // remove from ASIC DB
 
-        sai_object_type_t ot = redis_sai_object_type_query(vid); 
+        sai_object_type_t ot = redis_sai_object_type_query(vid);
 
         std::string key = sai_serialize_object_type(ot) + ":" + str_vid;
 
@@ -1499,7 +1499,7 @@ sai_status_t handle_generic(
                     }
 
                     // collect queues, ipgs, sg that belong to port
-                    get_port_related_objects(rid, related); 
+                    get_port_related_objects(rid, related);
                 }
 
                 sai_status_t status = info->remove(&meta_key);
@@ -3282,7 +3282,7 @@ bool processFlexCounterEvent(
     {
         std::lock_guard<std::mutex> lock(g_mutex);
         if (!try_translate_vid_to_rid(vid, rid))
-        { 
+        {
             SWSS_LOG_WARN("port VID %s, was not found (probably port was removed/splitted) and will remove from counters now",
               sai_serialize_object_id(vid).c_str());
             return false;

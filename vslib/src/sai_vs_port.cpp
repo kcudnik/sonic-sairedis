@@ -193,7 +193,7 @@ bool vs_check_object_default_state(
 
         if (meta->objecttype == SAI_OBJECT_TYPE_QUEUE && meta->attrid == SAI_QUEUE_ATTR_PARENT_SCHEDULER_NODE)
             continue;
-        
+
         if (meta->objecttype == SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP && meta->attrid == SAI_INGRESS_PRIORITY_GROUP_ATTR_PORT)
             continue;
 
@@ -216,7 +216,7 @@ bool vs_check_object_default_state(
         else if (meta->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_LIST)
         {
             objlist.resize(MAX_OBJLIST_LEN);
-            
+
             attr.value.objlist.count = MAX_OBJLIST_LEN;
             attr.value.objlist.list = objlist.data();
         }
@@ -261,7 +261,7 @@ bool vs_check_object_default_state(
 
                 return false;
             }
-            
+
         }
         else if (meta->attrvaluetype == SAI_ATTR_VALUE_TYPE_OBJECT_LIST)
         {
@@ -354,7 +354,7 @@ sai_status_t vs_check_port_dependencies(
                 sai_serialize_object_id(port_id).c_str());
 
     // obtain objects to examine
- 
+
     std::vector<sai_object_id_t> queues;
     std::vector<sai_object_id_t> ipgs;
     std::vector<sai_object_id_t> sg;
@@ -398,7 +398,7 @@ sai_status_t vs_check_port_dependencies(
     // TODO there may be issues with bridge ports created on that port if they
     // are not removed before port remove, this needs to be addressed for warm
     // boot support
-    
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -450,7 +450,7 @@ sai_status_t vs_remove_port(
         {
             // we can't continue, there is a bug somewhere if we can't remove
             // port related objects: queues, ipgs, sg
-          
+
             SWSS_LOG_THROW("FATAL: failed to removed port related oid: %s: %s, bug!",
                     sai_serialize_object_type(sai_object_type_query(oid)).c_str(),
                     sai_serialize_object_id(oid).c_str());

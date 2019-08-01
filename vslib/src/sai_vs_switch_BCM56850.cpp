@@ -1230,7 +1230,7 @@ static sai_status_t refresh_port_list(
 
     // since now port can be added or removed, we need to update port list
     // dynamically
-    
+
     sai_attribute_t attr;
 
     attr.id = SAI_SWITCH_ATTR_CPU_PORT;
@@ -1251,7 +1251,7 @@ static sai_status_t refresh_port_list(
         sai_deserialize_object_id(it.first, port_id);
 
         // don't put CPU port id on the list
- 
+
         if (port_id == cpu_port_id)
             continue;
 
