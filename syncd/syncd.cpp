@@ -1422,7 +1422,7 @@ sai_status_t handle_generic(
                     {
                         // reason for this is that if user will create port,
                         // new port is not actually created so when for example
-                        // quering new queues for new created port, there are
+                        // querying new queues for new created port, there are
                         // not there, since no actual port create was issued on
                         // the ASIC
                         SWSS_LOG_THROW("port object can't be created in init view mode");
@@ -1492,13 +1492,13 @@ sai_status_t handle_generic(
                         // reason for this is that if user will remove port,
                         // and the create new one in init view mode, then this
                         // new port is not actually created so when for example
-                        // quering new queues for new created port, there are
+                        // querying new queues for new created port, there are
                         // not there, since no actual port create was issued on
                         // the ASIC
                         SWSS_LOG_THROW("port object can't be removed in init view mode");
                     }
 
-                    // collect queus, ipgs, sg that belogs to port
+                    // collect queues, ipgs, sg that belong to port
                     get_port_related_objects(rid, related); 
                 }
 
@@ -1521,7 +1521,7 @@ sai_status_t handle_generic(
                         remove_rid_and_vid_from_local(rid, object_id);
                     }
 
-                    // TODO remove all related objets from REDIS DB and also
+                    // TODO remove all related objects from REDIS DB and also
                     // from existing object references since at this point
                     // they are no longer valid
 

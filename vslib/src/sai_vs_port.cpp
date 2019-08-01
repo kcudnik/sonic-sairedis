@@ -197,9 +197,9 @@ bool vs_check_object_default_state(
         if (meta->objecttype == SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP && meta->attrid == SAI_INGRESS_PRIORITY_GROUP_ATTR_PORT)
             continue;
 
-        // here we have only oid/objlist attrs and we expect each of this
+        // here we have only oid/object list attrs and we expect each of this
         // attribute will be in default state which for oid is usually NULL,
-        // and for objlist is empty
+        // and for object list is empty
 
         sai_attribute_t attr;
 
@@ -288,7 +288,7 @@ bool vs_check_object_default_state(
         }
     }
 
-    // TODO leter there can be issue when we for example add extra queues to
+    // TODO later there can be issue when we for example add extra queues to
     // the port those new queues should be removed by user first before
     // removing port, and currently we don't have a way to differentiate those
 
@@ -417,7 +417,7 @@ sai_status_t vs_remove_port(
         return status;
     }
 
-    // NOTE: we shold check references on depending objects to see if it's safe
+    // NOTE: we should check references on depending objects to see if it's safe
     // to remove every object but we count on metadata references count to do
     // that for us
 

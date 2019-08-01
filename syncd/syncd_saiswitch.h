@@ -186,8 +186,8 @@ class SaiSwitch
         /**
          * @brief On post port create.
          *
-         * Perfroms actions needed after port createdion. Will discovert new
-         * queues, ipgs and scheduler groups that belog to new created port,
+         * Performs actions needed after port creation. Will discover new
+         * queues, ipgs and scheduler groups that belong to new created port,
          * and updated ASIC DB accordingly.
          */
         void onPostPortCreate(

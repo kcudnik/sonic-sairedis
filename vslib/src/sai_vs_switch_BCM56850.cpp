@@ -145,14 +145,6 @@ static sai_status_t create_default_1q_bridge()
     return vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_id, &attr);
 }
 
-// SAI_OBJECT_TYPE_PORT
-//
-// objects that will be removed/created bys internal sai when
-// port is removed/created
-// SAI_OBJECT_TYPE_SCHEDULER_GROUP
-// SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP
-// SAI_OBJECT_TYPE_QUEUE
-
 static sai_status_t create_ports()
 {
     SWSS_LOG_ENTER();
@@ -1274,7 +1266,7 @@ static sai_status_t refresh_port_list(
      * OID or always different, and what is order of those new oids on the
      * PORT_LIST attribute.
      *
-     * This needs to be investigated, and to reflect exct behaviour here.
+     * This needs to be investigated, and to reflect exact behaviour here.
      * Currently we just sort all the port oids.
      */
 
@@ -1426,7 +1418,7 @@ sai_status_t vs_create_port_BCM56850(
 
     CHECK_STATUS(create_scheduler_groups_per_port(switch_id, port_id));
 
-    // TODO should bridge ports should also be created when new port is creted?
+    // TODO should bridge ports should also be created when new port is created?
     // this needs to be checked on real ASIC and updated here
 
     return SAI_STATUS_SUCCESS;

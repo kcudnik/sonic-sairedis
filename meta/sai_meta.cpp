@@ -45,7 +45,7 @@ bool meta_unittests_enabled()
 }
 
 /**
- * @brief Port map to related obejcts set.
+ * @brief Port map to related objects set.
  *
  * Key in map is port OID, and value is set of related objects ids
  * like queues, ipgs and scheduler groups.
@@ -3584,7 +3584,7 @@ void meta_post_port_get(
 
     /*
      * User may or may not query one of below attributes to get some port
-     * objects, and those obejcts are special since when user decide to remove
+     * objects, and those objects are special since when user decide to remove
      * port, then those object will be removed automatically by vendor SAI, and
      * this action needs to be reflected here too, so if user will remove port,
      * those objects would need to be remove from local database too.
@@ -3593,7 +3593,7 @@ void meta_post_port_get(
      * objects are user created, for example if user will create some extra
      * queues with specific port, and then query queues list, those extra
      * queues would need to be explicitly removed first by user, otherwise this
-     * logic here will also consider those user creatd queues as switch
+     * logic here will also consider those user created queues as switch
      * default, and it will remove them when port will be removed.  Such action
      * should be prevented.
      */
