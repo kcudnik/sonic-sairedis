@@ -394,8 +394,6 @@ sai_status_t vs_check_port_dependencies(
     // are not removed before port remove, this needs to be addressed for warm
     // boot support
     
-    // TODO port list needs to be updated
-
     return SAI_STATUS_SUCCESS;
 }
 
@@ -436,10 +434,12 @@ sai_status_t vs_remove_port(
 
     for (auto oid: dep)
     {
-        status = meta_sai_remove_oid(
+        // meta_sai_remove_oid automatically removed related oids internally
+        // so we just need to execute remove for virtual switch db
+
+        status = vs_generic_remove(
                 sai_object_type_query(oid),
-                oid,
-                &vs_generic_remove);
+                oid);
 
         if (status != SAI_STATUS_SUCCESS)
         {

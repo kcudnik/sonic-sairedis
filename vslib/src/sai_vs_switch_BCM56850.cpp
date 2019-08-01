@@ -1279,7 +1279,7 @@ static sai_status_t refresh_port_list(
 
     CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_SWITCH, switch_object_id, &attr));
 
-    SWSS_LOG_NOTICE("refrehed port list, current port number: %zu + cpu", port_list.size());
+    SWSS_LOG_NOTICE("refreshed port list, current port number: %zu, not counting cpu port", port_list.size());
 
     return SAI_STATUS_SUCCESS;
 }
@@ -1320,8 +1320,6 @@ sai_status_t refresh_read_only_BCM56850(
 
             case SAI_SWITCH_ATTR_NUMBER_OF_ECMP_GROUPS:
                 return SAI_STATUS_SUCCESS;
-
-                // since now port can be removed/added, we need to refresh port list
 
             case SAI_SWITCH_ATTR_PORT_NUMBER:
             case SAI_SWITCH_ATTR_PORT_LIST:
