@@ -461,7 +461,7 @@ static sai_status_t create_qos_queues()
 
     for (auto &port_id : port_list)
     {
-        create_qos_queues_per_port(switch_object_id, port_id);
+        CHECK_STATUS(create_qos_queues_per_port(switch_object_id, port_id));
     }
 
     return SAI_STATUS_SUCCESS;
@@ -512,10 +512,9 @@ static sai_status_t create_ingress_priority_groups()
 
     sai_object_id_t switch_object_id = ss->getSwitchId();
 
-    //
     for (auto &port_id : port_list)
     {
-        create_ingress_priority_groups_per_port(switch_object_id, port_id);
+        CHECK_STATUS(create_ingress_priority_groups_per_port(switch_object_id, port_id));
     }
 
     return SAI_STATUS_SUCCESS;
@@ -697,11 +696,11 @@ static sai_status_t create_scheduler_group_tree(
     return SAI_STATUS_SUCCESS;
 }
 
-static sai_status_t create_scheduler_groups()
+static sai_status_t create_scheduler_groups_per_port(
+        _In_ sai_object_id_t switch_id,
+        _In_ sai_object_id_t port_id)
 {
     SWSS_LOG_ENTER();
-
-    SWSS_LOG_INFO("create scheduler groups");
 
     uint32_t port_sgs_count = 13; // brcm default
 
@@ -711,40 +710,57 @@ static sai_status_t create_scheduler_groups()
     // solution when we will start using different "profiles"
     // currently this is good enough
 
-    for (const auto &port_id : port_list)
+    sai_attribute_t attr;
+
+    attr.id = SAI_PORT_ATTR_QOS_NUMBER_OF_SCHEDULER_GROUPS;
+    attr.value.u32 = port_sgs_count;
+
+    CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
+
+    // scheduler groups per port
+
+    std::vector<sai_object_id_t> sgs;
+
+    for (uint32_t i = 0; i < port_sgs_count; ++i)
     {
-        sai_attribute_t attr;
+        sai_object_id_t sg_id;
 
-        attr.id = SAI_PORT_ATTR_QOS_NUMBER_OF_SCHEDULER_GROUPS;
-        attr.value.u32 = port_sgs_count;
+        CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_SCHEDULER_GROUP, &sg_id, ss->getSwitchId(), 0, NULL));
 
-        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
-
-        // scheduler groups per port
-
-        std::vector<sai_object_id_t> sgs;
-
-        for (uint32_t i = 0; i < port_sgs_count; ++i)
-        {
-            sai_object_id_t sg_id;
-
-            CHECK_STATUS(vs_generic_create(SAI_OBJECT_TYPE_SCHEDULER_GROUP, &sg_id, ss->getSwitchId(), 0, NULL));
-
-            sgs.push_back(sg_id);
-        }
-
-        attr.id = SAI_PORT_ATTR_QOS_SCHEDULER_GROUP_LIST;
-        attr.value.objlist.count = port_sgs_count;
-        attr.value.objlist.list = sgs.data();
-
-        CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
-
-        CHECK_STATUS(create_scheduler_group_tree(sgs, port_id));
+        sgs.push_back(sg_id);
     }
 
+    attr.id = SAI_PORT_ATTR_QOS_SCHEDULER_GROUP_LIST;
+    attr.value.objlist.count = port_sgs_count;
+    attr.value.objlist.list = sgs.data();
+
+    CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
+
+    CHECK_STATUS(create_scheduler_group_tree(sgs, port_id));
+
+    // TODO
     // SAI_SCHEDULER_GROUP_ATTR_CHILD_COUNT // sched_groups + count
     // scheduler group are organized in tree and on the bottom there are queues
     // order matters in returning api
+
+    return SAI_STATUS_SUCCESS;
+}
+
+static sai_status_t create_scheduler_groups()
+{
+    SWSS_LOG_ENTER();
+
+    SWSS_LOG_INFO("create scheduler groups");
+
+    // TODO scheduler groups size may change when we will modify sg or ports
+
+    sai_object_id_t switch_object_id = ss->getSwitchId();
+
+    for (auto &port_id : port_list)
+    {
+        CHECK_STATUS(create_scheduler_groups_per_port(switch_object_id, port_id));
+    }
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -1402,17 +1418,16 @@ sai_status_t vs_create_port_BCM56850(
 
     CHECK_STATUS(vs_generic_set(SAI_OBJECT_TYPE_PORT, port_id, &attr));
 
-    /* create priority groups */
-    create_ingress_priority_groups_per_port(switch_id, port_id);
+    // attributes are not required since they will be set outside this function
 
-    /* create qos queues */
-    create_qos_queues_per_port(switch_id, port_id);
+    CHECK_STATUS(create_ingress_priority_groups_per_port(switch_id, port_id));
 
-    // TODO create scheduler groups per port 
-    //
-    // TODO also check lanes when port create
+    CHECK_STATUS(create_qos_queues_per_port(switch_id, port_id));
+
+    CHECK_STATUS(create_scheduler_groups_per_port(switch_id, port_id));
+
+    // TODO should bridge ports should also be created when new port is creted?
+    // this needs to be checked on real ASIC and updated here
 
     return SAI_STATUS_SUCCESS;
 }
-
-

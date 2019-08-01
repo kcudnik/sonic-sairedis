@@ -1317,6 +1317,20 @@ void post_port_remove(
     }
 
     SWSS_LOG_NOTICE("post port remove actions succeeded");
+
+    // TODO lane map must be updated (for warm boot)
+}
+
+void post_port_create(
+        _In_ std::shared_ptr<SaiSwitch> sw,
+        _In_ sai_object_id_t port_rid,
+        _In_ sai_object_id_t port_vid)
+{
+    SWSS_LOG_ENTER();
+
+    sw->onPostPortCreate(port_rid, port_vid);
+
+    // TODO lane map must be updated (for warm boot)
 }
 
 sai_status_t handle_generic(
@@ -1402,6 +1416,19 @@ sai_status_t handle_generic(
                     }
                 }
 
+                if (object_type == SAI_OBJECT_TYPE_PORT)
+                {
+                    if (isInitViewMode())
+                    {
+                        // reason for this is that if user will create port,
+                        // new port is not actually created so when for example
+                        // quering new queues for new created port, there are
+                        // not there, since no actual port create was issued on
+                        // the ASIC
+                        SWSS_LOG_THROW("port object can't be created in init view mode");
+                    }
+                }
+
                 sai_status_t status = info->create(&meta_key, switch_id, attr_count, attr_list);
 
                 if (status == SAI_STATUS_SUCCESS)
@@ -1423,7 +1450,6 @@ sai_status_t handle_generic(
                      */
 
                     {
-
                         g_redisClient->hset(VIDTORID, str_vid, str_rid);
                         g_redisClient->hset(RIDTOVID, str_rid, str_vid);
 
@@ -1437,6 +1463,13 @@ sai_status_t handle_generic(
                         on_switch_create(switch_id);
                         gSwitchId = real_object_id;
                         SWSS_LOG_NOTICE("Initialize gSwitchId with ID = 0x%lx", gSwitchId);
+                    }
+
+                    if (object_type == SAI_OBJECT_TYPE_PORT)
+                    {
+                        sai_object_id_t switch_vid = redis_sai_switch_id_query(object_id);
+
+                        post_port_create(switches.at(switch_vid), real_object_id, object_id);
                     }
                 }
 
@@ -1528,7 +1561,9 @@ sai_status_t handle_generic(
                         }
 
                         if (object_type == SAI_OBJECT_TYPE_PORT)
+                        {
                             post_port_remove(switches.at(switch_vid), related);
+                        }
                     }
                 }
 

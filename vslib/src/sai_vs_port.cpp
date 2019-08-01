@@ -46,6 +46,11 @@ sai_status_t vs_create_port(
     {
         vs_create_port_MLNX2700(*port_id, switch_id);
     }
+    else
+    {
+        SWSS_LOG_ERROR("unknown switch type: %d", g_vs_switch_type);
+        return SAI_STATUS_FAILURE;
+    }
 
     return SAI_STATUS_SUCCESS;
 }

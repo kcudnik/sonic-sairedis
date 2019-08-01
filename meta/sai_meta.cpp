@@ -1819,8 +1819,6 @@ sai_status_t meta_port_remove_validation(
 
     sai_object_id_t port_id = meta_key.objectkey.key.object_id;
 
-    SWSS_LOG_WARN("need to validate related objects if it's safe to remove: 0x%lx", port_id);
-
     auto it = map_port_to_related_set.find(port_id);
 
     if (it == map_port_to_related_set.end())
@@ -1830,6 +1828,14 @@ sai_status_t meta_port_remove_validation(
         return SAI_STATUS_SUCCESS;
     }
 
+    if (object_reference_count(port_id) != 0)
+    {
+        SWSS_LOG_ERROR("port %s reference count is not zero, can't remove",
+                sai_serialize_object_id(port_id).c_str());
+
+        return SAI_STATUS_FAILURE;
+    }
+    
     if (!meta_is_object_in_default_state(port_id))
     {
         SWSS_LOG_ERROR("port %s is not in default state, can't remove",
@@ -1840,6 +1846,15 @@ sai_status_t meta_port_remove_validation(
 
     for (auto oid: it->second)
     {
+        if (object_reference_count(oid) != 0)
+        {
+            SWSS_LOG_ERROR("port %s related object %s reference count is not zero, can't remove",
+                    sai_serialize_object_id(port_id).c_str(),
+                    sai_serialize_object_id(oid).c_str());
+
+            return SAI_STATUS_FAILURE;
+        }
+
         if (!meta_is_object_in_default_state(oid))
         {
             SWSS_LOG_ERROR("port related object %s is not in default state, can't remove",
