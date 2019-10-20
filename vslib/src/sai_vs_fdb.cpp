@@ -154,19 +154,19 @@ sai_status_t internal_vs_flush_fdb_entries(
                     break;
             }
 
-            if (attr_count == 0)
-            {
-                // no attributes - then we want to remove all fdb entries
+           // if (attr_count == 0)
+           // {
+           //     // no attributes - then we want to remove all fdb entries
 
-                // TODO - if we have 1 switch, than we can just clear this set here
-                // but when multiple switches will be used, then this needs to be fixed
-                g_fdb_info_set.clear();
+           //     // TODO - if we have 1 switch, than we can just clear this set here
+           //     // but when multiple switches will be used, then this needs to be fixed
+           //     g_fdb_info_set.clear();
 
-                it = fdbs.erase(it);
-                continue;
-            }
+           //     it = fdbs.erase(it);
+           //     continue;
+           // }
 
-            SWSS_LOG_THROW("handling flushing fdb attributes is not implemented yet, FIXME");
+           // SWSS_LOG_THROW("handling flushing fdb attributes is not implemented yet, FIXME");
 
             // update fdb info set
 
@@ -174,8 +174,34 @@ sai_status_t internal_vs_flush_fdb_entries(
 
             memset(&fi, 0, sizeof(fi)); // will set vlan to 0, but we need that information !
             // vlan must be populated here but from where?
+            //
+            // if fdb entry has vlan ID then we can try to get vlan number from taht ! if it has bridge then vlan can be zero
+            // bo jesli to bylby konkretny bridge, to na bridguy moze byc tylko 1 mac address o danym numerze
+            // a jak ramka przyleci z vlanu ktorego nei ma to ignore poiwnno byc przy learn
 
             sai_deserialize_fdb_entry(it->first, fi.fdb_entry);
+
+            if (sai_object_type_query(fi.fdb_entry.bv_id) == SAI_OBJECT_TYPE_VLAN)
+            {
+                sai_attribute_t attr;
+
+                attr.id = SAI_VLAN_ATTR_VLAN_ID;
+
+                sai_status_t status = vs_generic_get(SAI_OBJECT_TYPE_VLAN, fi.fdb_entry.bv_id, 1, &attr);
+
+                if (status != SAI_STATUS_SUCCESS)
+                {
+                    SWSS_LOG_ERROR("failed to get vlan_id for vlan object: %s",
+                            sai_serialize_object_id(fi.fdb_entry.bv_id).c_str());
+
+                    return SAI_STATUS_FAILURE;
+                }
+
+                SWSS_LOG_WARN("got vlan id %d", attr.value.u16);
+
+                fi.vlan_id = attr.value.u16;
+                // TODO get bv_id - check if this is vlan, if yes - then get vlan id and put 
+            }
 
             auto fit = g_fdb_info_set.find(fi);
 

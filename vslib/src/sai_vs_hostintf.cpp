@@ -227,6 +227,8 @@ void findBridgeVlanForPortVlan(
 
     // iterate via all bridge ports to find match on port id
 
+    bool bv_id_set = false;
+
     for (auto it = objectHash.begin(); it != objectHash.end(); ++it)
     {
         sai_object_id_t bpid;
@@ -291,6 +293,7 @@ void findBridgeVlanForPortVlan(
                     sai_serialize_object_id(bridge_id).c_str(),
                     attr.value.s32);
             bv_id = bridge_id;
+            bv_id_set = true;
         }
         else
         {
@@ -317,12 +320,20 @@ void findBridgeVlanForPortVlan(
                 if (vlan_id == attr.value.u16)
                 {
                     bv_id = vlan_oid;
+                    bv_id_set = true;
                     break;
                 }
             }
         }
 
         break;
+    }
+
+    if (!bv_id_set)
+    {
+        SWSS_LOG_WARN("failed to find bv_id for vlan %d and port_id %s",
+                vlan_id,
+                sai_serialize_object_id(port_id).c_str());
     }
 }
 
@@ -592,6 +603,8 @@ void process_packet_for_fdb_event(
 
     if (fi.fdb_entry.bv_id == SAI_NULL_OBJECT_ID)
     {
+        SWSS_LOG_WARN("skipping mac lear for %s, since BV_ID was not found for mac", sai_serialize_fdb_entry(fi.fdb_entry).c_str());
+
         // bridge was not found, skip mac learning
     SWSS_LOG_WARN("5");
         return;
