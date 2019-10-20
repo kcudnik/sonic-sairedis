@@ -466,6 +466,8 @@ void handle_fdb_event(
     uint32_t count;
     sai_fdb_event_notification_data_t *fdbevent = NULL;
 
+    SWSS_LOG_WARN("fdb event: %s", data.c_str());
+
     sai_deserialize_fdb_event_ntf(data, count, &fdbevent);
 
     process_on_fdb_event(count, fdbevent);
