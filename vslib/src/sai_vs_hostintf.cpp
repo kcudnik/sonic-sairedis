@@ -181,10 +181,8 @@ void processFdbInfo(
 
     sai_fdb_event_notification_fn ntf = (sai_fdb_event_notification_fn)attr.value.ptr;
 
-    SWSS_LOG_WARN("7");
     if (ntf != NULL)
     {
-    SWSS_LOG_WARN("8");
         ntf(1, &data);
     }
 }
@@ -466,8 +464,6 @@ void process_packet_for_fdb_event(
 
     SWSS_LOG_ENTER();
 
-    SWSS_LOG_WARN("pkt on %s", info->name.c_str());
-
     uint32_t frametime = (uint32_t)time(NULL);
 
     /*
@@ -539,7 +535,6 @@ void process_packet_for_fdb_event(
             if (isLagOrPortRifBased(lag_id))
             {
                 // this lag is router interface based, skip mac learning
-    SWSS_LOG_WARN("2");
                 return;
             }
         }
@@ -557,7 +552,8 @@ void process_packet_for_fdb_event(
                 return;
             }
 
-            vlan_id = attr.value.u16; // untagged port vlan (default is 1, but may be changed)
+            // untagged port vlan (default is 1, but may change setting port attr)
+            vlan_id = attr.value.u16;
         }
     }
 
@@ -565,7 +561,6 @@ void process_packet_for_fdb_event(
     {
         SWSS_LOG_DEBUG("port %s is rif based, skip mac learning",
                 sai_serialize_object_id(info->portid).c_str());
-    SWSS_LOG_WARN("3");
         return;
     }
 
@@ -603,16 +598,17 @@ void process_packet_for_fdb_event(
 
     if (fi.fdb_entry.bv_id == SAI_NULL_OBJECT_ID)
     {
-        SWSS_LOG_WARN("skipping mac lear for %s, since BV_ID was not found for mac", sai_serialize_fdb_entry(fi.fdb_entry).c_str());
+        SWSS_LOG_WARN("skipping mac learn for %s, since BV_ID was not found for mac",
+                sai_serialize_fdb_entry(fi.fdb_entry).c_str());
 
         // bridge was not found, skip mac learning
-    SWSS_LOG_WARN("5");
         return;
     }
 
+    SWSS_LOG_INFO("inserting to fdb_info set: %s, vid: %d",
+            sai_serialize_fdb_entry(fi.fdb_entry).c_str(),
+            fi.vlan_id);
 
-    // !! inserted vlan is vlan 1 !!
-    SWSS_LOG_WARN("inserting to fdb_info set: %s, vid: %d", sai_serialize_fdb_entry(fi.fdb_entry).c_str(), fi.vlan_id);
     g_fdb_info_set.insert(fi);
 
     processFdbInfo(fi, SAI_FDB_EVENT_LEARNED);

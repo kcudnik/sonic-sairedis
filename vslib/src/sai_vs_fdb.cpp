@@ -75,29 +75,6 @@ sai_status_t internal_vs_flush_fdb_entries(
 {
     SWSS_LOG_ENTER();
 
-    if (attr_count != 0)
-    {
-        SWSS_LOG_THROW("handling flushing fdb attributes is not implemented yet, FIXME");
-
-        /*
-         * There is as issue here, if we want to flush by specific attiributes,
-         * then only a subset of fdb entreis will be flushed, but currently we
-         * can't tell directly from single fdb_entry what vlan it belogs (in
-         * g_switch_state_map), so vlan is set to ZERO but normally vlan
-         * entries are created with default port vlan (can be 1 or other if
-         * frame is tagged), so searching right fdb entry (mac+vlan) in
-         * g_fdb_info_set will fail, and this will prevent removing that entry
-         * from this map, which will result leter on LEARNING new event with
-         * the same mac if flush operation was performed.  This needs to be
-         * fixed, we need vlan id for fdb entry, or search only for mac address
-         * and allow any vlan, but this can lead to differnt issues.
-         */
-
-        return SAI_STATUS_NOT_IMPLEMENTED;
-    }
-
-    SWSS_LOG_WARN("got fdb flush event");
-
     /*
      * There are 3 databases for fdb entries, one is in metadata and second is
      * in g_fdb_info_set and third is local virtual switch. Second one holds
@@ -154,30 +131,16 @@ sai_status_t internal_vs_flush_fdb_entries(
                     break;
             }
 
-           // if (attr_count == 0)
-           // {
-           //     // no attributes - then we want to remove all fdb entries
-
-           //     // TODO - if we have 1 switch, than we can just clear this set here
-           //     // but when multiple switches will be used, then this needs to be fixed
-           //     g_fdb_info_set.clear();
-
-           //     it = fdbs.erase(it);
-           //     continue;
-           // }
-
-           // SWSS_LOG_THROW("handling flushing fdb attributes is not implemented yet, FIXME");
-
             // update fdb info set
 
             fdb_info_t fi;
 
-            memset(&fi, 0, sizeof(fi)); // will set vlan to 0, but we need that information !
-            // vlan must be populated here but from where?
-            //
-            // if fdb entry has vlan ID then we can try to get vlan number from taht ! if it has bridge then vlan can be zero
-            // bo jesli to bylby konkretny bridge, to na bridguy moze byc tylko 1 mac address o danym numerze
-            // a jak ramka przyleci z vlanu ktorego nei ma to ignore poiwnno byc przy learn
+            // will set vlan to 0, we need to recreate that information
+            memset(&fi, 0, sizeof(fi));
+
+            // If fdb entry has bv_id set to vlan object type then we can try to get vlan number from
+            // taht object and populate vlan_id in fdb_info. If bv_id is bridge object type then vlan
+            // must be zero, sicen there can be only 1 (assuming) mac address on a given bridge.
 
             sai_deserialize_fdb_entry(it->first, fi.fdb_entry);
 
@@ -197,21 +160,17 @@ sai_status_t internal_vs_flush_fdb_entries(
                     return SAI_STATUS_FAILURE;
                 }
 
-                SWSS_LOG_WARN("got vlan id %d", attr.value.u16);
+                SWSS_LOG_INFO("got vlan id %d", attr.value.u16);
 
                 fi.vlan_id = attr.value.u16;
-                // TODO get bv_id - check if this is vlan, if yes - then get vlan id and put 
             }
 
             auto fit = g_fdb_info_set.find(fi);
 
-            // !!!! looked VLAN i zero ! but must not be ! TODO bug will not work when vlan is vlan 000 !
-            SWSS_LOG_NOTICE("looking for fdb entry in info: %s, vid: %d", sai_serialize_fdb_entry(fi.fdb_entry).c_str(), fi.vlan_id);
-
             if (fit == g_fdb_info_set.end())
             {
                 // this may happen if vlan is invalid
-                SWSS_LOG_ERROR("failed to find fdb entry in info set: %s", it->first.c_str());
+                SWSS_LOG_ERROR("failed to find fdb entry in info set: %s, learn for this MAC will be disabled", it->first.c_str());
             }
             else
             {
