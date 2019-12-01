@@ -165,7 +165,7 @@ sai_status_t redis_create_switch(
             return SAI_STATUS_INVALID_PARAMETER;
         }
 
-        if (meta->allowedobjecttypeslength > 0)
+        if (meta->allowedobjecttypeslength > 0) // TODO isoidattribute
         {
             SWSS_LOG_ERROR("attribute %s is object id attribute, not allowed on create", meta->attridname);
 

@@ -756,6 +756,8 @@ sai_status_t sai_api_initialize(
 
     std::string strType = type;
 
+    // TODO SAI_VS_SWITCH_TYPE should also be in global config
+
     if (strType == SAI_VALUE_VS_SWITCH_TYPE_BCM56850)
     {
         g_vs_switch_type = SAI_VS_SWITCH_TYPE_BCM56850;

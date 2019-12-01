@@ -139,6 +139,10 @@ std::string getObjectIdFromAsicKey(
     return key.substr(end + 1);
 }
 
+// TODO eather we should heave V2R maps per switch
+// or 1 map but then we would need to remove
+// all vids/rids associated with switch that will
+// be removed
 void redisClearVidToRidMap()
 {
     SWSS_LOG_ENTER();

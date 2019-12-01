@@ -47,6 +47,8 @@ WARN = \
 	-Wunreachable-code \
 	-Wunused \
 	-Wvariadic-macros \
+	-Wmaybe-uninitialized \
+	-Wuninitialized \
 	-Wwrite-strings
 
 # we are not adding CPPFLAGS since they are added
