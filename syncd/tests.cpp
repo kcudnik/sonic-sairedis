@@ -14,6 +14,7 @@ extern "C" {
 #include "syncd.h"
 
 #include "VirtualOidTranslator.h"
+#include "CommandLineOptionsParser.h"
 
 #include <map>
 #include <unordered_map>
@@ -22,6 +23,7 @@ extern "C" {
 #include <tuple>
 
 extern std::shared_ptr<VirtualOidTranslator> g_translator; // TODO move to syncd object
+extern std::shared_ptr<CommandLineOptions> g_commandLineOptions; // TODO move to syncd object
 
 #define ASSERT_SUCCESS(format,...) \
     if ((status)!=SAI_STATUS_SUCCESS) \
@@ -541,6 +543,7 @@ int main()
 
     // TODO move to syncd object
     g_translator = std::make_shared<VirtualOidTranslator>();
+    g_commandLineOptions = CommandLineOptionsParser::parseCommandLine(0, NULL);
 
 //    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
