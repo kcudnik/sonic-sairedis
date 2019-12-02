@@ -27,7 +27,8 @@ syncd_SOURCES = \
 				CommandLineOptions.cpp \
 				CommandLineOptionsParser.cpp \
 				PortMap.cpp \
-				PortMapParser.cpp
+				PortMapParser.cpp \
+				VirtualOidTranslator.cpp
 
 syncd_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
 syncd_LDADD = -lhiredis -lswsscommon $(SAILIB) -lpthread -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -ldl
@@ -58,7 +59,8 @@ tests_SOURCES = \
 				CommandLineOptions.cpp \
 				CommandLineOptionsParser.cpp \
 				PortMap.cpp \
-				PortMapParser.cpp
+				PortMapParser.cpp \
+				VirtualOidTranslator.cpp
 
 tests_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
 tests_LDADD = -lhiredis -lswsscommon -lpthread -L$(top_srcdir)/lib/src/.libs -lsairedis -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta

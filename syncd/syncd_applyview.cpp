@@ -5,12 +5,14 @@
 #include "swss/dbconnector.h"
 
 #include "CommandLineOptions.h"
+#include "VirtualOidTranslator.h"
 
 #include <inttypes.h>
 #include <algorithm>
 #include <list>
 
 extern std::shared_ptr<CommandLineOptions> g_commandLineOptions; // TODO move to syncd object
+extern std::shared_ptr<VirtualOidTranslator> g_translator; // TODO move to syncd object
 
 /*
  * NOTE: All methods taking current and temporary view could be moved to
@@ -7392,7 +7394,7 @@ void checkAsicVsDatabaseConsistency(
 
             // translate all VID's to RIDs in non object is's
 
-            translate_vid_to_rid_non_object_id(meta_key);
+            g_translator->translateVidToRid(meta_key);
 
             auto info = sai_metadata_get_object_type_info(obj->getObjectType());
 
@@ -7448,7 +7450,7 @@ void checkAsicVsDatabaseConsistency(
 
                 // translate all VIDs from DB to RIDs for compare
 
-                translate_vid_to_rid_list(obj->getObjectType(), 1, &attr);
+                g_translator->translateVidToRid(obj->getObjectType(), 1, &attr);
 
                 // get attr value with RIDs
 

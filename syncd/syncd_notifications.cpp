@@ -7,6 +7,9 @@
 #include <condition_variable>
 
 #include "NotificationQueue.h"
+#include "VirtualOidTranslator.h"
+
+extern std::shared_ptr<VirtualOidTranslator> g_translator; // TODO move to syncd object
 
 void send_notification(
         _In_ std::string op,
@@ -39,7 +42,7 @@ void process_on_switch_state_change(
 {
     SWSS_LOG_ENTER();
 
-    sai_object_id_t switch_vid = translate_rid_to_vid(switch_rid, SAI_NULL_OBJECT_ID);
+    sai_object_id_t switch_vid = g_translator->translateRidToVid(switch_rid, SAI_NULL_OBJECT_ID);
 
     std::string s = sai_serialize_switch_oper_status(switch_vid, switch_oper_status);
 
@@ -143,6 +146,10 @@ void redisPutFdbEntryToAsicView(
                 ]
             }]
             */
+
+            // TODO flush all needs to be fixed to support only single switch fdb events if there will be more
+            // switches - lua script needs to be updated - can be tricky since FDB event's don't hold
+            // switch id in them
             SWSS_LOG_NOTICE("received a flush all fdb event");
             std::string pattern = ASIC_STATE_TABLE + std::string(":SAI_OBJECT_TYPE_FDB_ENTRY:*");
             swss::RedisCommand command;
@@ -307,7 +314,7 @@ bool check_fdb_event_notification_data(
 
     bool result = true;
 
-    if (!check_rid_exists(data.fdb_entry.bv_id))
+    if (!g_translator->checkRidExists(data.fdb_entry.bv_id))
     {
         SWSS_LOG_ERROR("bv_id RID 0x%" PRIx64 " is not present on local ASIC DB: %s", data.fdb_entry.bv_id,
                 sai_serialize_fdb_entry(data.fdb_entry).c_str());
@@ -315,7 +322,7 @@ bool check_fdb_event_notification_data(
         result = false;
     }
 
-    if (!check_rid_exists(data.fdb_entry.switch_id) || data.fdb_entry.switch_id == SAI_NULL_OBJECT_ID)
+    if (!g_translator->checkRidExists(data.fdb_entry.switch_id) || data.fdb_entry.switch_id == SAI_NULL_OBJECT_ID)
     {
         SWSS_LOG_ERROR("switch_id RID 0x%" PRIx64 " is not present on local ASIC DB: %s", data.fdb_entry.bv_id,
                 sai_serialize_fdb_entry(data.fdb_entry).c_str());
@@ -339,7 +346,7 @@ bool check_fdb_event_notification_data(
         if (meta->attrvaluetype != SAI_ATTR_VALUE_TYPE_OBJECT_ID)
             continue;
 
-        if (!check_rid_exists(attr.value.oid))
+        if (!g_translator->checkRidExists(attr.value.oid))
         {
             SWSS_LOG_WARN("RID 0x%" PRIx64 " on %s is not present on local ASIC DB", attr.value.oid, meta->attridname);
 
@@ -391,11 +398,11 @@ void process_on_fdb_event(
 
         SWSS_LOG_DEBUG("fdb %u: type: %d", i, fdb->event_type);
 
-        fdb->fdb_entry.switch_id = translate_rid_to_vid(fdb->fdb_entry.switch_id, SAI_NULL_OBJECT_ID);
+        fdb->fdb_entry.switch_id = g_translator->translateRidToVid(fdb->fdb_entry.switch_id, SAI_NULL_OBJECT_ID);
 
-        fdb->fdb_entry.bv_id = translate_rid_to_vid(fdb->fdb_entry.bv_id, fdb->fdb_entry.switch_id);
+        fdb->fdb_entry.bv_id = g_translator->translateRidToVid(fdb->fdb_entry.bv_id, fdb->fdb_entry.switch_id);
 
-        translate_rid_to_vid_list(SAI_OBJECT_TYPE_FDB_ENTRY, fdb->fdb_entry.switch_id, fdb->attr_count, fdb->attr);
+        g_translator->translateRidToVid(SAI_OBJECT_TYPE_FDB_ENTRY, fdb->fdb_entry.switch_id, fdb->attr_count, fdb->attr);
 
         /*
          * Currently because of brcm bug, we need to install fdb entries in
@@ -439,7 +446,7 @@ void process_on_queue_deadlock_event(
          * switch vid.
          */
 
-        deadlock_data->queue_id = translate_rid_to_vid(deadlock_data->queue_id, SAI_NULL_OBJECT_ID);
+        deadlock_data->queue_id = g_translator->translateRidToVid(deadlock_data->queue_id, SAI_NULL_OBJECT_ID);
     }
 
     std::string s = sai_serialize_queue_deadlock_ntf(count, data);
@@ -468,7 +475,7 @@ void process_on_port_state_change(
          * switch vid.
          */
 
-        oper_stat->port_id = translate_rid_to_vid(oper_stat->port_id, SAI_NULL_OBJECT_ID);
+        oper_stat->port_id = g_translator->translateRidToVid(oper_stat->port_id, SAI_NULL_OBJECT_ID);
     }
 
     std::string s = sai_serialize_port_oper_status_ntf(count, data);
@@ -481,7 +488,7 @@ void process_on_switch_shutdown_request(
 {
     SWSS_LOG_ENTER();
 
-    sai_object_id_t switch_vid = translate_rid_to_vid(switch_rid, SAI_NULL_OBJECT_ID);
+    sai_object_id_t switch_vid = g_translator->translateRidToVid(switch_rid, SAI_NULL_OBJECT_ID);
 
     std::string s = sai_serialize_switch_shutdown_request(switch_vid);
 

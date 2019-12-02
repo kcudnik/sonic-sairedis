@@ -13,11 +13,15 @@ extern "C" {
 #include "meta/sai_serialize.h"
 #include "syncd.h"
 
+#include "VirtualOidTranslator.h"
+
 #include <map>
 #include <unordered_map>
 #include <vector>
 #include <thread>
 #include <tuple>
+
+extern std::shared_ptr<VirtualOidTranslator> g_translator; // TODO move to syncd object
 
 #define ASSERT_SUCCESS(format,...) \
     if ((status)!=SAI_STATUS_SUCCESS) \
@@ -226,7 +230,7 @@ void test_bulk_next_hop_group_member_create()
     sai_object_meta_key_t meta_key_hopgruop = { .objecttype = SAI_OBJECT_TYPE_NEXT_HOP_GROUP, .objectkey = { .key = { .object_id = hopgroup } } };
     std::string hopgroup_key = sai_serialize_object_meta_key(meta_key_hopgruop);
     ObjectAttrHash[hopgroup_key] = { };
-    sai_object_id_t hopgroup_vid = translate_rid_to_vid(hopgroup, switch_id);
+    sai_object_id_t hopgroup_vid = g_translator->translateRidToVid(hopgroup, switch_id);
 
     for (uint32_t i = 0; i <  count; ++i)
     {
@@ -236,7 +240,7 @@ void test_bulk_next_hop_group_member_create()
         sai_object_meta_key_t meta_key_hop = { .objecttype = SAI_OBJECT_TYPE_NEXT_HOP, .objectkey = { .key = { .object_id = hop } } };
         std::string hop_key = sai_serialize_object_meta_key(meta_key_hop);
         ObjectAttrHash[hop_key] = { };
-        sai_object_id_t hop_vid = translate_rid_to_vid(hop, switch_id);
+        sai_object_id_t hop_vid = g_translator->translateRidToVid(hop, switch_id);
 
         std::vector<sai_attribute_t> list(2);
         sai_attribute_t &attr1 = list[0];
@@ -534,6 +538,9 @@ int main()
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
 
     SWSS_LOG_ENTER();
+
+    // TODO move to syncd object
+    g_translator = std::make_shared<VirtualOidTranslator>();
 
 //    swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
 
