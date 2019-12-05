@@ -9,7 +9,7 @@ extern "C" {
 #include "swss/schema.h"
 #include "swss/redisreply.h"
 #include "sairedis.h"
-#include "sai_redis.h"
+//#include "sai_redis.h"
 #include "meta/sai_serialize.h"
 #include "syncd.h"
 
