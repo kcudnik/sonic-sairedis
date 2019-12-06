@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <list>
 
+// TODO part of sai meta (valid only when used with vslib)
+void dump_object_reference();
+
 /*
  * NOTE: All methods taking current and temporary view could be moved to
  * transition class etc to just use class members instead of passing those

@@ -4127,8 +4127,6 @@ int syncd_main(int argc, char **argv)
     sai_metadata_log = &sai_meta_log_syncd;
 #pragma GCC diagnostic pop
 
-    meta_init_db();
-
     handleCmdLine(argc, argv);
 
     handleProfileMap(options.profileMapFile);
