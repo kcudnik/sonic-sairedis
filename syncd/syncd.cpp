@@ -1616,6 +1616,8 @@ void translate_vid_to_rid_non_object_id(
 
     if (info->isobjectid)
     {
+        SWSS_LOG_WARN("function used on OID object");
+
         meta_key.objectkey.key.object_id =
             translate_vid_to_rid(meta_key.objectkey.key.object_id);
 
@@ -2683,6 +2685,80 @@ sai_status_t handle_bulk_generic(
 {
     SWSS_LOG_ENTER();
 
+    auto info = sai_metadata_get_object_type_info(object_type);
+
+    if (info->isnonobjectid)
+    {
+        SWSS_LOG_THROW("passing non object id to bulk oid obejct operation");
+    }
+
+    /*
+     * Since we don't have asic support yet for bulk api, just execute one by
+     * one.
+     */
+
+    for (size_t idx = 0; idx < object_ids.size(); ++idx)
+    {
+        sai_status_t status = SAI_STATUS_FAILURE;
+
+        auto &list = attributes[idx];
+
+        sai_attribute_t *attr_list = list->get_attr_list();
+        uint32_t attr_count = list->get_attr_count();
+
+        sai_object_meta_key_t meta_key;
+        meta_key.objecttype = object_type;
+        switch (object_type)
+        {
+            case SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:
+                sai_deserialize_object_id(object_ids[idx], meta_key.objectkey.key.object_id);
+                break;
+            default:
+                SWSS_LOG_THROW("invalid object_type: %s", sai_serialize_object_type(object_type).c_str());
+        }
+
+        if (api == SAI_COMMON_API_BULK_SET)
+        {
+            status = handle_generic(object_type, object_ids[idx], SAI_COMMON_API_SET, attr_count, attr_list);
+        }
+        else if (api == SAI_COMMON_API_BULK_CREATE)
+        {
+            status = handle_generic(object_type, object_ids[idx], SAI_COMMON_API_CREATE, attr_count, attr_list);
+        }
+        else if (api == SAI_COMMON_API_BULK_REMOVE)
+        {
+            status = handle_generic(object_type, object_ids[idx], SAI_COMMON_API_REMOVE, attr_count, attr_list);
+        }
+        else
+        {
+            SWSS_LOG_THROW("api %d is not supported in bulk route", api);
+        }
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            internal_syncd_api_send_response(api, status);
+            return status;
+        }
+    }
+
+    return SAI_STATUS_SUCCESS;
+}
+
+sai_status_t handle_bulk_non_object_id(
+        _In_ sai_object_type_t object_type,
+        _In_ const std::vector<std::string> &object_ids,
+        _In_ sai_common_api_t api,
+        _In_ const std::vector<std::shared_ptr<SaiAttributeList>> &attributes)
+{
+    SWSS_LOG_ENTER();
+
+    auto info = sai_metadata_get_object_type_info(object_type);
+
+    if (info->isobjectid)
+    {
+        SWSS_LOG_THROW("passing oid object to bulk non obejct id operation");
+    }
+
     /*
      * Since we don't have asic support yet for bulk api, just execute one by
      * one.
@@ -2707,22 +2783,19 @@ sai_status_t handle_bulk_generic(
             case SAI_OBJECT_TYPE_FDB_ENTRY:
                 sai_deserialize_fdb_entry(object_ids[idx], meta_key.objectkey.key.fdb_entry);
                 break;
-            case SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:
-                sai_deserialize_object_id(object_ids[idx], meta_key.objectkey.key.object_id);
-                break;
             default:
                 SWSS_LOG_THROW("invalid object_type: %s", sai_serialize_object_type(object_type).c_str());
         }
 
-        if (api == (sai_common_api_t)SAI_COMMON_API_BULK_SET)
+        if (api == SAI_COMMON_API_BULK_SET)
         {
             status = handle_non_object_id(meta_key, SAI_COMMON_API_SET, attr_count, attr_list);
         }
-        else if (api == (sai_common_api_t)SAI_COMMON_API_BULK_CREATE)
+        else if (api == SAI_COMMON_API_BULK_CREATE)
         {
             status = handle_non_object_id(meta_key, SAI_COMMON_API_CREATE, attr_count, attr_list);
         }
-        else if (api == (sai_common_api_t)SAI_COMMON_API_BULK_REMOVE)
+        else if (api == SAI_COMMON_API_BULK_REMOVE)
         {
             status = handle_non_object_id(meta_key, SAI_COMMON_API_REMOVE, attr_count, attr_list);
         }
@@ -2826,8 +2899,11 @@ sai_status_t processBulkEvent(
     switch (object_type)
     {
         case SAI_OBJECT_TYPE_ROUTE_ENTRY:
-        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:
         case SAI_OBJECT_TYPE_FDB_ENTRY:
+            status = handle_bulk_non_object_id(object_type, object_ids, api, attributes);
+            break;
+
+        case SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:
             status = handle_bulk_generic(object_type, object_ids, api, attributes);
             break;
 
