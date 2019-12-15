@@ -70,7 +70,8 @@ libsairedis_la_SOURCES = \
 						 NotificationQueuePfcDeadlock.cpp \
 						 NotificationFactory.cpp \
 						 RedisVidIndexGenerator.cpp \
-						 Recorder.cpp
+						 Recorder.cpp \
+						 RedisRemoteSaiInterface.cpp
 
 
 libsairedis_la_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
