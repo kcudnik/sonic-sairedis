@@ -257,6 +257,8 @@ sai_status_t internal_redis_generic_get_stats(
 {
     SWSS_LOG_ENTER();
 
+    // TODO stats_enum can be obtained from object_type and sai_object_type_info_t and stat enum field
+
     std::vector<swss::FieldValueTuple> entry = serialize_counter_id_list(
             stats_enum,
             count,
@@ -268,10 +270,7 @@ sai_status_t internal_redis_generic_get_stats(
 
     SWSS_LOG_DEBUG("generic get stats key: %s, fields: %lu", key.c_str(), entry.size());
 
-    if (g_record)
-    {
-        recordLine("m|" + key + "|" + joinFieldValues(entry));
-    }
+    g_recorder->recordGenericGetStats(key, entry);
 
     // get is special, it will not put data
     // into asic view, only to message queue
@@ -313,14 +312,7 @@ sai_status_t internal_redis_generic_get_stats(
                     counter_list,
                     kco);
 
-            if (g_record)
-            {
-                const auto &str_status = kfvKey(kco);
-                const auto &values = kfvFieldsValues(kco);
-
-                // first serialized is status
-                recordLine("M|" + str_status + "|" + joinFieldValues(values));
-            }
+            g_recorder->recordGenericGetStatsResponse(status, count, counter_list); 
 
             SWSS_LOG_DEBUG("generic get status: %d", status);
 
@@ -331,10 +323,7 @@ sai_status_t internal_redis_generic_get_stats(
         break;
     }
 
-    if (g_record)
-    {
-        recordLine("M|SAI_STATUS_FAILURE");
-    }
+    g_recorder->recordGenericGetStatsResponse(SAI_STATUS_FAILURE, 0, nullptr);
 
     SWSS_LOG_ERROR("generic get stats failed to get response");
 
@@ -402,10 +391,7 @@ sai_status_t internal_redis_generic_clear_stats(
 
     SWSS_LOG_DEBUG("generic clear stats key: %s, fields: %lu", key.c_str(), fvTuples.size());
 
-    if (g_record)
-    {
-        recordLine("m|" + key + "|" + joinFieldValues(fvTuples));
-    }
+    g_recorder->recordGenericClearStats(key, fvTuples);
 
     // clear is special, it will not put data
     // into asic view, only to message queue
@@ -433,20 +419,15 @@ sai_status_t internal_redis_generic_clear_stats(
                 continue;
             }
 
-            if (g_record)
-            {
-                const auto &respFvTuples = kfvFieldsValues(kco);
-
-                // first serialized is status return by sai clear_stats
-                recordLine("M|" + respKey + "|" + joinFieldValues(respFvTuples));
-            }
-
             sai_status_t status = internal_redis_clear_stats_process(
                     object_type,
                     stats_enum,
                     count,
                     counter_id_list,
                     kco);
+
+            g_recorder->recordGenericClearStatsResponse(status);
+
             SWSS_LOG_DEBUG("generic clear stats status: %s", sai_serialize_status(status).c_str());
             return status;
         }
@@ -455,10 +436,7 @@ sai_status_t internal_redis_generic_clear_stats(
         break;
     }
 
-    if (g_record)
-    {
-        recordLine("M|SAI_STATUS_FAILURE");
-    }
+    g_recorder->recordGenericClearStatsResponse(SAI_STATUS_FAILURE);
 
     SWSS_LOG_ERROR("generic clear stats failed to get response");
     return SAI_STATUS_FAILURE;
