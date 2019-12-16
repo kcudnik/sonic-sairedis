@@ -113,9 +113,15 @@ saidump/saidump
 saisdkdump/saisdkdump
 meta/tests
 tests/vssyncd
+lib/src/tests
 
 # Temporary files #
 ###################
 **/*~
 **/*.swp
 **/*.rec
+
+tests/applyview.log
+tests/sai_warmboot.bin
+tests/syncd
+
