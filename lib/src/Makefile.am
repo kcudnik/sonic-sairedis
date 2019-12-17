@@ -71,7 +71,8 @@ libsairedis_la_SOURCES = \
 						 NotificationFactory.cpp \
 						 RedisVidIndexGenerator.cpp \
 						 Recorder.cpp \
-						 RedisRemoteSaiInterface.cpp
+						 RedisRemoteSaiInterface.cpp \
+						 WrapperRemoteSaiInterface.cpp
 
 
 libsairedis_la_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
