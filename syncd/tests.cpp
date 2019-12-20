@@ -23,6 +23,8 @@ extern "C" {
 #include <thread>
 #include <tuple>
 
+extern bool g_syncMode;
+
 #define ASSERT_SUCCESS(format,...) \
     if ((status)!=SAI_STATUS_SUCCESS) \
         SWSS_LOG_THROW(format ": %s", ##__VA_ARGS__, sai_serialize_status(status).c_str());
@@ -406,12 +408,12 @@ void test_bulk_fdb_create()
     for (size_t j = 0; j < statuses.size(); j++)
     {
         status = statuses[j];
-        ASSERT_SUCCESS("Failed to create route # %zu", j);
+        ASSERT_SUCCESS("Failed to create fdb # %zu", j);
     }
 
     // Remove fdb entry
     status = sai_bulk_remove_fdb_entry(count, fdbs.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
-    ASSERT_SUCCESS("Failed to bulk remove route entry");
+    ASSERT_SUCCESS("Failed to bulk remove fdb entry");
 }
 
 void test_bulk_route_set()
@@ -545,6 +547,7 @@ void test_bulk_route_set()
     // TODO we need to add consumer producer test here to see
     // if after consume we get pop we get expected parameters
 
+    // TODO in async mode this api will always return success
     // Remove route entry
     status = sai_bulk_remove_route_entry(count, routes.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
     ASSERT_SUCCESS("Failed to bulk remove route entry");
@@ -561,6 +564,8 @@ int main()
     try
     {
         test_sai_initialize();
+
+        // g_syncMode = true;
 
         test_enable_recording();
 
