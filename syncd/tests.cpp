@@ -320,10 +320,8 @@ void test_bulk_fdb_create()
 
     sai_status_t    status;
 
-    sai_route_api_t  *sai_fdb_api = NULL;
     sai_switch_api_t *sai_switch_api = NULL;
 
-    sai_api_query(SAI_API_FDB, (void**)&sai_fdb_api);
     sai_api_query(SAI_API_SWITCH, (void**)&sai_switch_api);
 
     uint32_t count = 3;
@@ -499,7 +497,7 @@ void test_bulk_route_set()
     }
 
     std::vector<sai_status_t> statuses(count);
-    status = sai_bulk_create_route_entry(count, routes.data(), route_attrs_count.data(), route_attrs_array.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
+    status = sai_route_api->create_route_entries(count, routes.data(), route_attrs_count.data(), route_attrs_array.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
     ASSERT_SUCCESS("Failed to create route");
     for (size_t j = 0; j < statuses.size(); j++)
     {
@@ -528,7 +526,7 @@ void test_bulk_route_set()
         attr.value.s32 = SAI_PACKET_ACTION_FORWARD;
     }
 
-    status = sai_bulk_set_route_entry_attribute(
+    status = sai_route_api->set_route_entries_attribute(
         count,
         routes.data(),
         attrs.data(),
@@ -549,7 +547,7 @@ void test_bulk_route_set()
 
     // TODO in async mode this api will always return success
     // Remove route entry
-    status = sai_bulk_remove_route_entry(count, routes.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
+    status = sai_route_api->remove_route_entries(count, routes.data(), SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, statuses.data());
     ASSERT_SUCCESS("Failed to bulk remove route entry");
 }
 
