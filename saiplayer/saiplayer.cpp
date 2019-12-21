@@ -25,6 +25,8 @@ extern "C" {
  * values set at creation time.
  */
 
+sai_apis_t apis;
+
 std::map<std::string, std::string> profile_map;
 
 const char *test_profile_get_value (
@@ -1001,7 +1003,7 @@ sai_status_t handle_bulk_route(
             attrs.push_back(a->get_attr_list()[0]);
         }
 
-        sai_status_t status = sai_bulk_set_route_entry_attribute(
+        sai_status_t status = apis.route_api->set_route_entries_attribute(
                 (uint32_t)routes.size(),
                 routes.data(),
                 attrs.data(),
@@ -1050,7 +1052,7 @@ sai_status_t handle_bulk_route(
 
         SWSS_LOG_NOTICE("executing BULK route create with %zu routes", attr_count.size());
 
-        sai_status_t status = sai_bulk_create_route_entry(
+        sai_status_t status = apis.route_api->create_route_entries(
                 (uint32_t)routes.size(),
                 routes.data(),
                 attr_count.data(),
@@ -1605,7 +1607,6 @@ int main(int argc, char **argv)
 
     EXIT_ON_ERROR(sai_api_initialize(0, (const sai_service_method_table_t *)&test_services));
 
-    sai_apis_t apis;
     sai_metadata_apis_query(sai_api_query, &apis);
 
     sai_attribute_t attr;
