@@ -1,5 +1,8 @@
 #include "RedisRemoteSaiInterface.h"
 #include "Utils.h"
+#include "VirtualObjectIdManager.h"
+#include "NotificationFactory.h"
+#include "Recorder.h"
 
 #include "sairediscommon.h"
 #include "meta/sai_serialize.h"
@@ -13,6 +16,7 @@ using namespace sairedis;
 
 extern bool g_syncMode;  // TODO make member
 extern std::string getSelectResultAsString(int result);
+extern std::shared_ptr<Recorder>                   g_recorder;
 
 std::string joinFieldValues(
         _In_ const std::vector<swss::FieldValueTuple> &values);
@@ -22,15 +26,48 @@ std::vector<swss::FieldValueTuple> serialize_counter_id_list(
         _In_ uint32_t count,
         _In_ const sai_stat_id_t *counter_id_list);
 
-RedisRemoteSaiInterface::RedisRemoteSaiInterface(
-        _In_ std::shared_ptr<swss::ProducerTable> asicState,
-        _In_ std::shared_ptr<swss::ConsumerTable> getConsumer):
-    m_asicState(asicState),
-    m_getConsumer(getConsumer)
+RedisRemoteSaiInterface::RedisRemoteSaiInterface()
 {
     SWSS_LOG_ENTER();
 
-    // empty
+    // TODO Global Context, ASIC_DB and default unix socket must be obtained
+    // from database json configuration
+
+    m_asicInitViewMode          = false;
+    m_useTempView               = false;
+    m_runNotificationThread     = true;
+
+    int globalContext = 0;
+
+    m_db                        = std::make_shared<swss::DBConnector>(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
+    m_dbNtf                     = std::make_shared<swss::DBConnector>(ASIC_DB, swss::DBConnector::DEFAULT_UNIXSOCKET, 0);
+    m_redisPipeline             = std::make_shared<swss::RedisPipeline>(m_db.get()); //enable default pipeline 128
+    m_asicState                 = std::make_shared<swss::ProducerTable>(m_redisPipeline.get(), ASIC_STATE_TABLE, true);
+    m_getConsumer               = std::make_shared<swss::ConsumerTable>(m_db.get(), REDIS_TABLE_GETRESPONSE);
+    m_notificationConsumer      = std::make_shared<swss::NotificationConsumer>(m_dbNtf.get(), REDIS_TABLE_NOTIFICATIONS);
+    m_redisVidIndexGenerator    = std::make_shared<RedisVidIndexGenerator>(m_db, REDIS_KEY_VIDCOUNTER);
+    m_virtualObjectIdManager    = std::make_shared<VirtualObjectIdManager>(globalContext, m_redisVidIndexGenerator);
+
+    SWSS_LOG_NOTICE("creating notification thread");
+
+    // TODO what will happen when we receive notification in init view mode ?
+
+    m_notificationThread = std::make_shared<std::thread>(&RedisRemoteSaiInterface::notificationThreadFunction, this);
+}
+
+RedisRemoteSaiInterface::~RedisRemoteSaiInterface()
+{
+    SWSS_LOG_ENTER();
+
+    m_runNotificationThread = false;
+
+    // notify thread that it should end
+    m_notificationThreadEvent.notify();
+
+    m_notificationThread->join();
+
+    // clear everything after stopping notification thread
+    clear_local_state();
 }
 
 sai_status_t RedisRemoteSaiInterface::create(
@@ -970,6 +1007,8 @@ sai_status_t RedisRemoteSaiInterface::bulkRemove(
     // value:       object_attrs
     std::string key = serializedObjectType + ":" + std::to_string(entries.size());
 
+    // TODO !!! double revisit that should be SET ? or DEL ?
+    // in this case doesen't matter dbop (first letter S/D) is ignored in lua
     m_asicState->set(key, entries, REDIS_ASIC_STATE_COMMAND_BULK_REMOVE);
 
     return waitForBulkResponse(SAI_COMMON_API_BULK_REMOVE, (uint32_t)serialized_object_ids.size(), object_statuses);
@@ -1509,5 +1548,82 @@ sai_status_t RedisRemoteSaiInterface::waitForNotifySyncdResponse()
     SWSS_LOG_ERROR("notify syncd failed to get response");
 
     return SAI_STATUS_FAILURE;
+}
+
+void RedisRemoteSaiInterface::notificationThreadFunction()
+{
+    SWSS_LOG_ENTER();
+
+    swss::Select s;
+
+    s.addSelectable(m_notificationConsumer.get());
+    s.addSelectable(&m_notificationThreadEvent);
+
+    while (m_runNotificationThread)
+    {
+        swss::Selectable *sel;
+
+        int result = s.select(&sel);
+
+        if (sel == &m_notificationThreadEvent)
+        {
+            // user requested shutdown_switch
+            break;
+        }
+
+        if (result == swss::Select::OBJECT)
+        {
+            swss::KeyOpFieldsValuesTuple kco;
+
+            std::string op;
+            std::string data;
+            std::vector<swss::FieldValueTuple> values;
+
+            m_notificationConsumer->pop(op, data, values);
+
+            SWSS_LOG_DEBUG("notification: op = %s, data = %s", op.c_str(), data.c_str());
+
+            handleNotification(op, data, values);
+        }
+    }
+}
+
+void RedisRemoteSaiInterface::handleNotification(
+        _In_ const std::string& name,
+        _In_ const std::string& serializedNotification,
+        _In_ const std::vector<swss::FieldValueTuple>& values)
+{
+    SWSS_LOG_ENTER();
+
+    // TODO to pass switch_id for every notification we could add it to values
+    // at syncd side
+    //
+    // Each global context (syncd) will have it's own notification thread
+    // handler, so we will know at which context notification arrived, but we
+    // also need to know at which switch id generated this notification. For
+    // that we will assign separate notification handlers in syncd itself, and
+    // each of those notifications will know to which switch id it belongs.
+    // Then later we could also check whether oids in notification actually
+    // belongs to given switch id.  This way we could find vendor bugs like
+    // sending notifications from one switch to another switch handler.
+    //
+    // But before that we will extract switch id from notification itself.
+
+    // TODO record should also be under api mutex, all other apis are
+
+    g_recorder->recordNotification(name, serializedNotification, values);
+
+    auto notification = NotificationFactory::deserialize(name, serializedNotification);
+
+    if (notification)
+    {
+        // process is done under api mutex
+
+        auto sn = processNotification(notification);
+
+        // execute callback from thread context
+
+        notification->executeCallback(sn);
+    }
 }
 

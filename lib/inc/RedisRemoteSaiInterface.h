@@ -1,9 +1,13 @@
 #pragma once
 
 #include "RemoteSaiInterface.h"
+#include "VirtualObjectIdManager.h"
+#include "RedisVidIndexGenerator.h"
 
 #include "swss/producertable.h"
 #include "swss/consumertable.h"
+#include "swss/notificationconsumer.h"
+#include "swss/selectableevent.h"
 
 #include <memory>
 
@@ -38,6 +42,9 @@
 
 #define REDIS_ASIC_STATE_COMMAND_OBJECT_TYPE_GET_AVAILABILITY_QUERY     "object_type_get_availability_query"
 #define REDIS_ASIC_STATE_COMMAND_OBJECT_TYPE_GET_AVAILABILITY_RESPONSE  "object_type_get_availability_response"
+
+#define REDIS_TABLE_GETRESPONSE     "GETRESPONSE"
+#define REDIS_TABLE_NOTIFICATIONS   "NOTIFICATIONS"
 
 /**
  * @brief Get response timeout in milliseconds.
@@ -96,11 +103,9 @@ namespace sairedis
     {
         public:
 
-            RedisRemoteSaiInterface(
-                    _In_ std::shared_ptr<swss::ProducerTable> asicState,
-                    _In_ std::shared_ptr<swss::ConsumerTable> getConsumer);
+            RedisRemoteSaiInterface();
 
-            virtual ~RedisRemoteSaiInterface() = default;
+            virtual ~RedisRemoteSaiInterface();
 
         public: // SAI interface overrides
 
@@ -382,7 +387,36 @@ namespace sairedis
             // TODO to be removed when swss-common pointer will be advanced
             static std::string getSelectResultAsString(int result);
 
+        private: // notification thread related
+
+            void notificationThreadFunction();
+
+            void handleNotification(
+                    _In_ const std::string& name,
+                    _In_ const std::string& serializedNotification,
+                    _In_ const std::vector<swss::FieldValueTuple>& values);
+
         private:
+
+            /**
+             * @brief Database connector for ASIC STATE table and GET consumer.
+             */
+            std::shared_ptr<swss::DBConnector> m_db;
+            
+            /**
+             * @brief Database connector for notifications.
+             */
+            std::shared_ptr<swss::DBConnector> m_dbNtf;
+            
+            /**
+             * @brief Pipeline used in ASIC state TABLE.
+             */
+            std::shared_ptr<swss::RedisPipeline> m_redisPipeline;
+
+            /**
+             * @brief Notification consumer.
+             */
+            std::shared_ptr<swss::NotificationConsumer> m_notificationConsumer;
 
             /**
              * @brief Asic state channel.
@@ -397,5 +431,35 @@ namespace sairedis
              * Channel used to receive responses from syncd.
              */
             std::shared_ptr<swss::ConsumerTable> m_getConsumer;
+
+            std::shared_ptr<VirtualObjectIdManager> m_virtualObjectIdManager;
+
+            std::shared_ptr<RedisVidIndexGenerator> m_redisVidIndexGenerator;
+
+            /**
+             * @biref Indicates whether notification thread should run.
+             */
+            volatile bool m_runNotificationThread;
+
+            /**
+             * @brief Rvent used to nice end notifications thread.
+             */
+            swss::SelectableEvent m_notificationThreadEvent;
+
+            /**
+             * @bfiref Notification thread.
+             */
+            std::shared_ptr<std::thread> m_notificationThread;
+
+            /**
+             * @bried Indicates whether ASIC is in init view mode.
+             */
+            bool m_asicInitViewMode;
+
+            /**
+             * @bried Indicates whether ASIC should use TEMP view.
+             */
+            bool m_useTempView;
+
     };
 }

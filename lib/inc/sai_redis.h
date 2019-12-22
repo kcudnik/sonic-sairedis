@@ -45,18 +45,9 @@ extern sai_status_t internal_api_wait_for_response(
 
 // other global declarations
 
-extern volatile bool g_useTempView;
-extern volatile bool g_asicInitViewMode;
-extern volatile bool g_syncMode;
-
-extern sai_service_method_table_t                   g_services;
-extern std::shared_ptr<swss::ProducerTable>         g_asicState;
-extern std::shared_ptr<swss::ConsumerTable>         g_redisGetConsumer;
-extern std::shared_ptr<swss::NotificationConsumer>  g_redisNotifications;
 extern std::shared_ptr<sairedis::Recorder>          g_recorder;
 
 extern std::shared_ptr<sairedis::SwitchContainer>           g_switchContainer;
-extern std::shared_ptr<sairedis::VirtualObjectIdManager>    g_virtualObjectIdManager;
 extern std::shared_ptr<sairedis::RemoteSaiInterface>        g_remoteSaiInterface;
 extern std::shared_ptr<saimeta::Meta>                       g_meta;
 
