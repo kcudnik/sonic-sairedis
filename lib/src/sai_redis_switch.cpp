@@ -103,8 +103,7 @@ static sai_status_t redis_create_switch(
             switch_id,
             SAI_NULL_OBJECT_ID, // no switch id since we create switch
             attr_count,
-            attr_list,
-            *g_remoteSaiInterface);
+            attr_list);
 }
 
 static sai_status_t redis_set_switch_attribute(
@@ -204,8 +203,7 @@ static sai_status_t redis_set_switch_attribute(
     sai_status_t status = g_meta->set(
             SAI_OBJECT_TYPE_SWITCH,
             switch_id,
-            attr,
-            *g_remoteSaiInterface);
+            attr);
 
     return status;
 }
