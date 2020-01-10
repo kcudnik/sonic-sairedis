@@ -461,6 +461,7 @@ sai_status_t vs_remove_port(
 {
     MUTEX();
     SWSS_LOG_ENTER();
+    VS_CHECK_API_INITIALIZED();
 
     std::vector<sai_object_id_t> dep;
 
@@ -522,6 +523,7 @@ sai_status_t vs_set_port_attribute(
 {
     MUTEX();
     SWSS_LOG_ENTER();
+    VS_CHECK_API_INITIALIZED();
 
     std::string cmd;
 
