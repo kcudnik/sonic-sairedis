@@ -49,7 +49,7 @@ cpp_args = [
         "-Wconversion"]
 
 modsairedis = Extension('sairedis',
-        include_dirs = ['/usr/local/include'],
+        include_dirs = ['/usr/local/include', "../SAI/inc", "../SAI/experimental"],
         library_dirs = ['/usr/local/lib'],
         language='c++',
         extra_compile_args = cpp_args,
