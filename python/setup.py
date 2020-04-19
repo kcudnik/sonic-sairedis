@@ -49,8 +49,10 @@ cpp_args = [
         "-Wconversion"]
 
 modsairedis = Extension('sairedis',
-        include_dirs = ['/usr/local/include', "../SAI/inc", "../SAI/experimental"],
-        library_dirs = ['/usr/local/lib'],
+        include_dirs = ['/usr/local/include', "../../include", "..", "../lib/inc", "../SAI/inc", "../SAI/experimental", "../SAI/meta"],
+        library_dirs = ['/usr/local/lib', "../meta/.libs"],
+        libraries = ['saimeta', 'saimetadata'],
+        extra_objects = ['../lib/src/libSaiRedis.a'],
         language='c++',
         extra_compile_args = cpp_args,
         sources = ['sairedis.cpp'])
