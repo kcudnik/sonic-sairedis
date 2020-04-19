@@ -7,7 +7,9 @@ extern "C" {
 
 #include "../lib/inc/Sai.h"
 #include "../meta/sai_serialize.h"
+
 #include "swss/logger.h"
+#include "swss/tokenize.h"
 
 #include <map>
 #include <string>
@@ -592,8 +594,8 @@ static PyObject * generic_get(
         case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID:
             break;
 
-        //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
-        //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8_LIST:
+            //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
+            //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8_LIST:
 
             // ACL ACTION DATA
 
@@ -610,8 +612,8 @@ static PyObject * generic_get(
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID:
             break;
 
-        //case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
-        //case SAI_ATTR_VALUE_TYPE_ACL_CAPABILITY:
+            //case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
+            //case SAI_ATTR_VALUE_TYPE_ACL_CAPABILITY:
 
         default:
             PyErr_Format(SaiRedisError, "Attribute: %s value type is not supported yet, FIXME", strAttr.c_str());
@@ -631,7 +633,43 @@ static PyObject * generic_get(
 
     if (status == SAI_STATUS_SUCCESS)
     {
-        PyDict_SetItemString(pdict, strAttr.c_str(), PyString_FromFormat("%s", sai_serialize_attr_value(*md, attr, false).c_str()));
+        switch (md->attrvaluetype)
+        {
+            // for list's we want to split list and return actual list
+            case SAI_ATTR_VALUE_TYPE_OBJECT_LIST:
+            case SAI_ATTR_VALUE_TYPE_UINT8_LIST:
+            case SAI_ATTR_VALUE_TYPE_INT8_LIST:
+            case SAI_ATTR_VALUE_TYPE_UINT16_LIST:
+            case SAI_ATTR_VALUE_TYPE_INT16_LIST:
+            case SAI_ATTR_VALUE_TYPE_UINT32_LIST:
+            case SAI_ATTR_VALUE_TYPE_INT32_LIST:
+            case SAI_ATTR_VALUE_TYPE_VLAN_LIST:
+
+                // for simple lists, where they are separated by ',' we can use this split
+                {
+                    auto val = sai_serialize_attr_value(*md, attr, false);
+
+                    val = val.substr(val.find_first_of(":") + 1);
+
+                    auto tokens = swss::tokenize(val, ',');
+
+                    auto *list = PyList_New(0);
+                    
+                    for(auto&tok: tokens)
+                    {
+                        PyList_Append(list, PyString_FromString(tok.c_str()));
+                    }
+
+                    PyDict_SetItemString(pdict, strAttr.c_str(), list);
+                }
+
+                break;
+
+            default:
+
+                PyDict_SetItemString(pdict, strAttr.c_str(), PyString_FromFormat("%s", sai_serialize_attr_value(*md, attr, false).c_str()));
+                break;
+        }
     }
 
     return pdict;
