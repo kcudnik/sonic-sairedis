@@ -69,12 +69,22 @@ static std::shared_ptr<sairedis::Sai> g_sai;
 
 static PyObject* SaiRedisError;
 
+// create
 static PyObject* create_switch(PyObject *self, PyObject *args);
 static PyObject* create_vlan(PyObject *self, PyObject *args);
 
+// remove
+static PyObject* remove_switch(PyObject *self, PyObject *args);
+static PyObject* remove_vlan(PyObject *self, PyObject *args);
+
 static PyMethodDef SaiRedisMethods[] = {
+
     {"create_switch",  create_switch, METH_VARARGS, "Create switch."},
     {"create_vlan",    create_vlan,   METH_VARARGS, "Create vlan."},
+
+    {"remove_switch",  remove_switch, METH_VARARGS, "Remove switch."},
+    {"remove_vlan",    remove_vlan,   METH_VARARGS, "Remove vlan."},
+
     {NULL, NULL, 0, NULL}        // sentinel
 };
 
@@ -171,7 +181,6 @@ static PyObject * generic_create(
         dict = PyTuple_GetItem(args, 1);
     }
 
-
     if (!PyDict_CheckExact(dict))
     {
         PyErr_Format(SaiRedisError, "Passed argument must be of type dict");
@@ -257,9 +266,75 @@ static PyObject * generic_create(
         PyDict_SetItemString(pdict, "oid", PyString_FromFormat("%s", sai_serialize_object_id(objectId).c_str()));
     }
 
-    //auto* val = Py_BuildValue("i", sts);
     return pdict;
 }
+
+static PyObject * generic_remove(
+        _In_ sai_object_type_t objectType,
+        _In_ PyObject *self, 
+        _In_ PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    auto* info = sai_metadata_get_object_type_info(objectType);
+
+    if (!info)
+    {
+        PyErr_Format(SaiRedisError, "Invalid object type specified");
+        return nullptr;
+    }
+
+    if (info->isnonobjectid)
+    {
+        PyErr_Format(SaiRedisError, "Non object id specified to oid function");
+        return nullptr;
+    }
+
+    if (!PyTuple_Check(args))
+    {
+        PyErr_Format(SaiRedisError, "Python error, expected args type is tuple");
+        return nullptr;
+    }
+
+    int size = (int)PyTuple_Size(args);
+
+    if (size != 1)
+    {
+        PyErr_Format(SaiRedisError, "Expected number of arguments is 1, but %d given", size);
+        return nullptr;
+    }
+
+    auto*oid = PyTuple_GetItem(args, 0);
+
+    if (!PyString_Check(oid))
+    {
+        PyErr_Format(SaiRedisError, "Passed argument must be of type string");
+        return nullptr;
+    }
+
+    sai_object_id_t objectId;
+
+    try
+    {
+        sai_deserialize_object_id(PyString_AsString(oid), &objectId);
+    }
+    catch (const std::exception&e)
+    {
+        PyErr_Format(SaiRedisError, "Failed to deserialize switchId: %s", e.what());
+        return nullptr;
+    }
+
+    sai_status_t status = g_sai->remove(
+            objectType,
+            objectId);
+
+    PyObject *pdict = PyDict_New();
+    PyDict_SetItemString(pdict, "status", PyString_FromFormat("%s", sai_serialize_status(status).c_str()));
+
+    return pdict;
+}
+
+// CREATE
 
 static PyObject* create_switch(PyObject *self, PyObject *args)
 {
@@ -273,4 +348,20 @@ static PyObject* create_vlan(PyObject *self, PyObject *args)
     SWSS_LOG_ENTER();
 
     return generic_create(SAI_OBJECT_TYPE_VLAN, self, args);
+}
+
+// REMOVE
+
+static PyObject* remove_switch(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_remove(SAI_OBJECT_TYPE_SWITCH, self, args);
+}
+
+static PyObject* remove_vlan(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_remove(SAI_OBJECT_TYPE_VLAN, self, args);
 }
