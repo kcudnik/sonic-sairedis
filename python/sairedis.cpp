@@ -14,6 +14,9 @@ extern "C" {
 #include <memory>
 #include <vector>
 
+#define MAX_LIST_SIZE (0x1000)
+#define LIST_ITEM_MAX_SIZE (sizeof(sai_attribute_t))
+
 static std::map<std::string, std::string> g_profileMap;
 
 static const char *profile_get_value (
@@ -55,9 +58,13 @@ static int profile_get_next_value (
     }
 
     if (it != g_profileMap.end())
+    {
         return 0;
+    }
     else
+    {
         return -1;
+    }
 }
 
 static const sai_service_method_table_t service_method_table = {
@@ -81,6 +88,10 @@ static PyObject* remove_vlan(PyObject *self, PyObject *args);
 static PyObject* set_switch(PyObject *self, PyObject *args);
 static PyObject* set_vlan(PyObject *self, PyObject *args);
 
+// get
+static PyObject* get_switch(PyObject *self, PyObject *args);
+static PyObject* get_vlan(PyObject *self, PyObject *args);
+
 static PyMethodDef SaiRedisMethods[] = {
 
     {"create_switch",   create_switch,  METH_VARARGS, "Create switch."},
@@ -91,6 +102,10 @@ static PyMethodDef SaiRedisMethods[] = {
 
     {"set_switch_attribute",      set_switch,     METH_VARARGS, "Set switch atribute."},
     {"set_vlan_attribute",        set_vlan,       METH_VARARGS, "Set vlan attribute."},
+
+    {"get_switch_attribute",      get_switch,     METH_VARARGS, "Get switch atribute."},
+    {"get_vlan_attribute",        get_vlan,       METH_VARARGS, "Get vlan attribute."},
+
 
     {NULL, NULL, 0, NULL}        // sentinel
 };
@@ -438,6 +453,190 @@ static PyObject * generic_set(
     return pdict;
 }
 
+static PyObject * generic_get(
+        _In_ sai_object_type_t objectType,
+        _In_ PyObject *self, 
+        _In_ PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    auto* info = sai_metadata_get_object_type_info(objectType);
+
+    if (!info)
+    {
+        PyErr_Format(SaiRedisError, "Invalid object type specified");
+        return nullptr;
+    }
+
+    if (info->isnonobjectid)
+    {
+        PyErr_Format(SaiRedisError, "Non object id specified to oid function");
+        return nullptr;
+    }
+
+    if (!PyTuple_Check(args))
+    {
+        PyErr_Format(SaiRedisError, "Python error, expected args type is tuple");
+        return nullptr;
+    }
+
+    int size = (int)PyTuple_Size(args);
+
+    if (size != 2)
+    {
+        PyErr_Format(SaiRedisError, "Expected number of arguments is 2, but %d given", size);
+        return nullptr;
+    }
+
+    auto*pyoid = PyTuple_GetItem(args, 0);
+    auto*pyattr = PyTuple_GetItem(args, 1);
+
+    if (!PyString_Check(pyoid) || !PyString_Check(pyattr))
+    {
+        PyErr_Format(SaiRedisError, "All atttributes must be of type string");
+        return nullptr;
+    }
+
+    sai_object_id_t objectId;
+    try
+    {
+        sai_deserialize_object_id(PyString_AsString(pyoid), &objectId);
+    }
+    catch (const std::exception&e)
+    {
+        PyErr_Format(SaiRedisError, "Failed to deserialize objectId: %s", e.what());
+        return nullptr;
+    }
+
+    std::string strAttr = PyString_AsString(pyattr);
+
+    auto*md = sai_metadata_get_attr_metadata_by_attr_id_name(strAttr.c_str());
+
+    if (!md)
+    {
+        PyErr_Format(SaiRedisError, "Invalid attribute: %s", strAttr.c_str());
+        return nullptr;
+    }
+
+    if (md->objecttype != objectType)
+    {
+        PyErr_Format(SaiRedisError, "Attribute: %s is not %s", strAttr.c_str(), info->objecttypename);
+        return nullptr;
+    }
+
+    // we need to populate list pointers with predefined max value
+    // so user will not have to manually populate that from python
+    // all data types with pointers need special handling
+
+    sai_attribute_t attr = {};
+
+    std::vector<int> data(MAX_LIST_SIZE * LIST_ITEM_MAX_SIZE);
+
+    switch (md->attrvaluetype)
+    {
+        case SAI_ATTR_VALUE_TYPE_BOOL:
+        case SAI_ATTR_VALUE_TYPE_CHARDATA:
+        case SAI_ATTR_VALUE_TYPE_UINT8:
+        case SAI_ATTR_VALUE_TYPE_INT8:
+        case SAI_ATTR_VALUE_TYPE_UINT16:
+        case SAI_ATTR_VALUE_TYPE_INT16:
+        case SAI_ATTR_VALUE_TYPE_UINT32:
+        case SAI_ATTR_VALUE_TYPE_INT32:
+        case SAI_ATTR_VALUE_TYPE_UINT64:
+        case SAI_ATTR_VALUE_TYPE_INT64:
+        case SAI_ATTR_VALUE_TYPE_MAC:
+        case SAI_ATTR_VALUE_TYPE_IPV4:
+        case SAI_ATTR_VALUE_TYPE_IPV6:
+        case SAI_ATTR_VALUE_TYPE_POINTER:
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS:
+        case SAI_ATTR_VALUE_TYPE_IP_PREFIX:
+        case SAI_ATTR_VALUE_TYPE_OBJECT_ID:
+            break;
+
+        case SAI_ATTR_VALUE_TYPE_UINT32_RANGE:
+        case SAI_ATTR_VALUE_TYPE_INT32_RANGE:
+            break;
+
+        case SAI_ATTR_VALUE_TYPE_OBJECT_LIST:
+        case SAI_ATTR_VALUE_TYPE_UINT8_LIST:
+        case SAI_ATTR_VALUE_TYPE_INT8_LIST:
+        case SAI_ATTR_VALUE_TYPE_UINT16_LIST:
+        case SAI_ATTR_VALUE_TYPE_INT16_LIST:
+        case SAI_ATTR_VALUE_TYPE_UINT32_LIST:
+        case SAI_ATTR_VALUE_TYPE_INT32_LIST:
+        case SAI_ATTR_VALUE_TYPE_VLAN_LIST:
+        case SAI_ATTR_VALUE_TYPE_QOS_MAP_LIST:
+        case SAI_ATTR_VALUE_TYPE_MAP_LIST:
+        case SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST:
+        case SAI_ATTR_VALUE_TYPE_TLV_LIST:
+        case SAI_ATTR_VALUE_TYPE_SEGMENT_LIST:
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+        case SAI_ATTR_VALUE_TYPE_PORT_EYE_VALUES_LIST:
+            // we can get away with this since each list is count + pointer
+            attr.value.s32list.count = MAX_LIST_SIZE;
+            attr.value.s32list.list = data.data();
+            break;
+
+            // ACL FIELD DATA
+
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_BOOL:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT8:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT16:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT16:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT32:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_INT32:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_MAC:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV4:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_IPV6:
+        case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_ID:
+            break;
+
+        //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
+        //case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_UINT8_LIST:
+
+            // ACL ACTION DATA
+
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT8:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT16:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT16:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT32:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT32:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_MAC:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_IPV4:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_IPV6:
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_ID:
+            break;
+
+        //case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_OBJECT_LIST:
+        //case SAI_ATTR_VALUE_TYPE_ACL_CAPABILITY:
+
+        default:
+            PyErr_Format(SaiRedisError, "Attribute: %s value type is not supported yet, FIXME", strAttr.c_str());
+            return nullptr;
+    }
+
+    attr.id = md->attrid;
+
+    sai_status_t status = g_sai->get(
+            objectType,
+            objectId,
+            1,
+            &attr);
+
+    PyObject *pdict = PyDict_New();
+    PyDict_SetItemString(pdict, "status", PyString_FromFormat("%s", sai_serialize_status(status).c_str()));
+
+    if (status == SAI_STATUS_SUCCESS)
+    {
+        PyDict_SetItemString(pdict, strAttr.c_str(), PyString_FromFormat("%s", sai_serialize_attr_value(*md, attr, false).c_str()));
+    }
+
+    return pdict;
+}
+
 // CREATE
 
 static PyObject* create_switch(PyObject *self, PyObject *args)
@@ -484,4 +683,20 @@ static PyObject* set_vlan(PyObject *self, PyObject *args)
     SWSS_LOG_ENTER();
 
     return generic_set(SAI_OBJECT_TYPE_VLAN, self, args);
+}
+
+// GET
+
+static PyObject* get_switch(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_get(SAI_OBJECT_TYPE_SWITCH, self, args);
+}
+
+static PyObject* get_vlan(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_get(SAI_OBJECT_TYPE_VLAN, self, args);
 }

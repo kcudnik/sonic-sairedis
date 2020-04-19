@@ -11,6 +11,9 @@ print r
 
 swid = r["oid"]
 
+r = get_switch_attribute(swid, "SAI_SWITCH_ATTR_PORT_LIST")
+print r
+
 args = dict()
 args["SAI_VLAN_ATTR_VLAN_ID"] = "11"
 print args
