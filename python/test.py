@@ -12,9 +12,15 @@ print r
 swid = r["oid"]
 
 args = dict()
-args["SAI_VLAN_ATTR_VLAN_ID"] = "9"
+args["SAI_VLAN_ATTR_VLAN_ID"] = "11"
 print args
 r = create_vlan(swid, args)
 print r
 
-remove_vlan(r["oid"])
+vlan = r["oid"]
+
+r = set_vlan_attribute(vlan, "SAI_VLAN_ATTR_MAX_LEARNED_ADDRESSES", "32")
+print r
+
+r = remove_vlan(vlan)
+print r

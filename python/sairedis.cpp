@@ -77,13 +77,20 @@ static PyObject* create_vlan(PyObject *self, PyObject *args);
 static PyObject* remove_switch(PyObject *self, PyObject *args);
 static PyObject* remove_vlan(PyObject *self, PyObject *args);
 
+// set
+static PyObject* set_switch(PyObject *self, PyObject *args);
+static PyObject* set_vlan(PyObject *self, PyObject *args);
+
 static PyMethodDef SaiRedisMethods[] = {
 
-    {"create_switch",  create_switch, METH_VARARGS, "Create switch."},
-    {"create_vlan",    create_vlan,   METH_VARARGS, "Create vlan."},
+    {"create_switch",   create_switch,  METH_VARARGS, "Create switch."},
+    {"create_vlan",     create_vlan,    METH_VARARGS, "Create vlan."},
 
-    {"remove_switch",  remove_switch, METH_VARARGS, "Remove switch."},
-    {"remove_vlan",    remove_vlan,   METH_VARARGS, "Remove vlan."},
+    {"remove_switch",   remove_switch,  METH_VARARGS, "Remove switch."},
+    {"remove_vlan",     remove_vlan,    METH_VARARGS, "Remove vlan."},
+
+    {"set_switch_attribute",      set_switch,     METH_VARARGS, "Set switch atribute."},
+    {"set_vlan_attribute",        set_vlan,       METH_VARARGS, "Set vlan attribute."},
 
     {NULL, NULL, 0, NULL}        // sentinel
 };
@@ -242,8 +249,6 @@ static PyObject * generic_create(
 
     }
 
-    // call actual function create !
-
     sai_object_id_t objectId;
     sai_status_t status = g_sai->create(
             objectType,
@@ -334,6 +339,105 @@ static PyObject * generic_remove(
     return pdict;
 }
 
+static PyObject * generic_set(
+        _In_ sai_object_type_t objectType,
+        _In_ PyObject *self, 
+        _In_ PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    auto* info = sai_metadata_get_object_type_info(objectType);
+
+    if (!info)
+    {
+        PyErr_Format(SaiRedisError, "Invalid object type specified");
+        return nullptr;
+    }
+
+    if (info->isnonobjectid)
+    {
+        PyErr_Format(SaiRedisError, "Non object id specified to oid function");
+        return nullptr;
+    }
+
+    if (!PyTuple_Check(args))
+    {
+        PyErr_Format(SaiRedisError, "Python error, expected args type is tuple");
+        return nullptr;
+    }
+
+    int size = (int)PyTuple_Size(args);
+
+    if (size != 3)
+    {
+        PyErr_Format(SaiRedisError, "Expected number of arguments is 3, but %d given", size);
+        return nullptr;
+    }
+
+    auto* pyoid = PyTuple_GetItem(args, 0);
+    auto* pyattr = PyTuple_GetItem(args, 1);
+    auto* pyval = PyTuple_GetItem(args, 2);
+
+    if (!PyString_Check(pyoid) || !PyString_Check(pyattr) || !PyString_Check(pyval))
+    {
+        PyErr_Format(SaiRedisError, "All parameters must be of type string");
+        return nullptr;
+    }
+
+    sai_object_id_t objectId;
+
+    try
+    {
+        sai_deserialize_object_id(PyString_AsString(pyoid), &objectId);
+    }
+    catch (const std::exception&e)
+    {
+        PyErr_Format(SaiRedisError, "Failed to deserialize switchId: %s", e.what());
+        return nullptr;
+    }
+
+    std::string strAttr = PyString_AsString(pyattr);
+    std::string strVal = PyString_AsString(pyval);
+
+    auto*md = sai_metadata_get_attr_metadata_by_attr_id_name(strAttr.c_str());
+
+    if (!md)
+    {
+        PyErr_Format(SaiRedisError, "Invalid attribute: %s", strAttr.c_str());
+        return nullptr;
+    }
+
+    if (md->objecttype != objectType)
+    {
+        PyErr_Format(SaiRedisError, "Attribute: %s is not %s", strAttr.c_str(), info->objecttypename);
+        return nullptr;
+    }
+
+    sai_attribute_t attr;
+
+    try
+    {
+        attr.id = md->attrid;
+
+        sai_deserialize_attr_value(strVal, *md, attr, false);
+    }
+    catch (const std::exception&e)
+    {
+        PyErr_Format(SaiRedisError, "Failed to deserialize %s '%s': %s", strAttr.c_str(), strVal.c_str(), e.what());
+        return nullptr;
+    }
+
+    sai_status_t status = g_sai->set(objectType, objectId, &attr);
+
+    // free potentially allocated memory
+    sai_deserialize_free_attribute_value(md->attrvaluetype, attr);
+
+    PyObject *pdict = PyDict_New();
+    PyDict_SetItemString(pdict, "status", PyString_FromFormat("%s", sai_serialize_status(status).c_str()));
+
+    return pdict;
+}
+
 // CREATE
 
 static PyObject* create_switch(PyObject *self, PyObject *args)
@@ -364,4 +468,20 @@ static PyObject* remove_vlan(PyObject *self, PyObject *args)
     SWSS_LOG_ENTER();
 
     return generic_remove(SAI_OBJECT_TYPE_VLAN, self, args);
+}
+
+// SET
+
+static PyObject* set_switch(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_set(SAI_OBJECT_TYPE_SWITCH, self, args);
+}
+
+static PyObject* set_vlan(PyObject *self, PyObject *args)
+{
+    SWSS_LOG_ENTER();
+
+    return generic_set(SAI_OBJECT_TYPE_VLAN, self, args);
 }
