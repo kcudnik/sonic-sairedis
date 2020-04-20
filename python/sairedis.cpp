@@ -60,13 +60,9 @@ static int profile_get_next_value (
     }
 
     if (it != g_profileMap.end())
-    {
         return 0;
-    }
-    else
-    {
-        return -1;
-    }
+
+    return -1;
 }
 
 static const sai_service_method_table_t service_method_table = {
