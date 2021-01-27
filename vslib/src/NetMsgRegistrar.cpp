@@ -45,6 +45,24 @@ NetMsgRegistrar& NetMsgRegistrar::getInstance()
 {
     SWSS_LOG_ENTER();
 
+    // Both registrar and dispatcher class are singleton class with static
+    // local variable as singleton instance.  Registrar class depends on that
+    // dispatcher instance to be valid at point where unregisterMessageHandler
+    // method is called inside thread function. Since we don't know which
+    // singleton was created first, it could happen that dispatcher singleton
+    // could be initialized second. This will cause a problem, since this will
+    // mean that that dispatcher singleton will be destroyed before registrar.
+    // But since registrar is joining thread at the destructor, in this case it
+    // will operate on already destructed dispatcher singleton which will lead
+    // to double free or corruption error.
+    //
+    // To prevent this, we will instantiate dispatcher by calling getInstance()
+    // to make sure that this singleton was created before registrar.
+    //
+    // For more refer to https://github.com/Azure/sonic-buildimage/issues/6466
+
+    swss::NetDispatcher::getInstance();
+
     static NetMsgRegistrar instance;
 
     return instance;
@@ -133,6 +151,9 @@ void NetMsgRegistrar::run()
             break;
         }
     }
+
+    swss::NetDispatcher::getInstance().unregisterMessageHandler(RTM_NEWLINK);
+    swss::NetDispatcher::getInstance().unregisterMessageHandler(RTM_DELLINK);
 
     SWSS_LOG_NOTICE("netlink msg listener ended");
 }
