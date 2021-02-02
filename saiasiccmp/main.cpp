@@ -525,7 +525,7 @@ class ViewCmp
         {
             SWSS_LOG_ENTER();
 
-            // both cold vids should be the same
+            // both cold vids should be the same, except when translated
 
             if (m_va->m_coldVids.size() != m_vb->m_coldVids.size())
             {
@@ -667,7 +667,7 @@ class ViewCmp
             }
         }
 
-        void compareViews()
+        bool compareViews()
         {
             SWSS_LOG_ENTER();
 
@@ -695,7 +695,33 @@ class ViewCmp
 
             cl->compareViews();
 
-            // TODO check if operations is zero
+            // TODO support multiple asic views (multiple switch)
+
+            if (m_va->m_asicView->asicGetOperationsCount())
+            {
+                SWSS_LOG_WARN("views are NOT EQUAL, operations count: %zu", m_va->m_asicView->asicGetOperationsCount());
+
+                for (const auto &op: m_va->m_asicView->asicGetOperations())
+                {
+                    const std::string &key = kfvKey(*op.m_op);
+                    const std::string &opp = kfvOp(*op.m_op);
+
+                    SWSS_LOG_NOTICE("%s: %s", opp.c_str(), key.c_str());
+
+                    const auto &values = kfvFieldsValues(*op.m_op);
+
+                    for (auto &val: values)
+                    {
+                        SWSS_LOG_NOTICE("- %s %s", fvField(val).c_str(), fvValue(val).c_str());
+                    }
+                }
+
+                return false;
+            }
+
+            SWSS_LOG_NOTICE("views are equal");
+
+            return true;
         }
 
     public:
@@ -729,7 +755,7 @@ int main(int argc, char **argv)
 
     ViewCmp cmp(a, b);
 
-    cmp.compareViews();
+    bool equal = cmp.compareViews();
 
-    return EXIT_SUCCESS;
+    return equal ? EXIT_SUCCESS : EXIT_FAILURE;
 }
