@@ -31,6 +31,11 @@ class View
 
             std::ifstream file(filename);
 
+            if (!file.good())
+            {
+                SWSS_LOG_THROW("failed to open %s", filename.c_str());
+            }
+
             json j;
             file >> j;
 
@@ -673,8 +678,6 @@ class ViewCmp
 
             auto breakConfig = std::make_shared<syncd::BreakConfig>();
             std::set<sai_object_id_t> initViewRemovedVids;
-
-            //swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
 
             auto sw = std::make_shared<SaiSwitchAsic>(
                     m_va->m_switchVid,

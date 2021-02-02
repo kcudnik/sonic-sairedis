@@ -221,19 +221,6 @@ bool SaiSwitchAsic::isNonRemovableRid(
             sai_serialize_object_id(rid).c_str());
 
     return true;
-
-    SWSS_LOG_WARN("VID: %s", sai_serialize_object_id(vid).c_str());
-
-    switch (ot)
-    {
-        case SAI_OBJECT_TYPE_TUNNEL_TERM_TABLE_ENTRY:
-            return false;
-
-        default:
-            break;
-    }
-
-    SWSS_LOG_THROW("not implemented");
 }
 
 std::set<sai_object_id_t> SaiSwitchAsic::getDiscoveredRids() const
