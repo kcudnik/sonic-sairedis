@@ -40,7 +40,6 @@ namespace syncd
 
         public:
 
-            sai_switch_type_t getSwitchType() const;
             std::string getHardwareInfo() const;
 
             virtual std::unordered_map<sai_object_id_t, sai_object_id_t> getVidToRidMap() const override;
@@ -123,22 +122,6 @@ namespace syncd
              * @returns Discovered objects during switch init.
              */
             virtual std::set<sai_object_id_t> getDiscoveredRids() const override;
-
-            /**
-             * @brief Gets default object based on switch attribute.
-             *
-             * NOTE: This method will throw exception if invalid attribute is
-             * specified, since attribute queried by this method are explicitly
-             * declared in SaiSwitch constructor.
-             *
-             * @param attr_id Switch attribute to query.
-             *
-             * @return Valid RID or specified switch attribute received from
-             * switch.  This value can be also SAI_NULL_OBJECT_ID if switch don't
-             * support this attribute.
-             */
-            virtual sai_object_id_t getSwitchDefaultAttrOid(
-                    _In_ sai_attr_id_t attr_id) const override;
 
             /**
              * @brief Remove existing object from the switch.
@@ -313,6 +296,8 @@ namespace syncd
 
             void checkWarmBootDiscoveredRids();
 
+            sai_switch_type_t getSwitchType() const;
+
         private:
 
             std::string m_hardware_info;
@@ -328,15 +313,6 @@ namespace syncd
              * For that case we need special handling. We will implement that
              * later, when this scenario will happen.
              */
-
-            /**
-             * @brief Map of default RIDs retrieved from Switch object.
-             *
-             * It will contain RIDs like CPU port, default virtual router, default
-             * trap group. etc. Those objects here should be considered non
-             * removable.
-             */
-            std::map<sai_attr_id_t,sai_object_id_t> m_default_rid_map;
 
             /**
              * @brief Discovered objects.
@@ -369,10 +345,6 @@ namespace syncd
              * m_defaultOidMap[0x17][SAI_SCHEDULER_GROUP_ATTR_SCHEDULER_PROFILE_ID] == 0x16
              */
             std::unordered_map<sai_object_id_t, std::unordered_map<sai_attr_id_t, sai_object_id_t>> m_defaultOidMap;
-
-            std::set<sai_object_id_t> m_coldBootDiscoveredVids;
-
-            std::set<sai_object_id_t> m_warmBootDiscoveredVids;
 
             std::shared_ptr<sairedis::SaiInterface> m_vendorSai;
 

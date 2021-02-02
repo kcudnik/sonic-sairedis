@@ -2,17 +2,12 @@
 
 extern "C" {
 #include "sai.h"
+#include "saimetadata.h"
 }
 
-//#include "SaiInterface.h"
-//#include "VirtualOidTranslator.h"
-//
 #include <set>
-//#include <string>
 #include <unordered_map>
-//#include <vector>
-//#include <map>
-//#include <memory>
+#include <map>
 
 namespace syncd
 {
@@ -56,8 +51,22 @@ namespace syncd
 
             virtual std::set<sai_object_id_t> getDiscoveredRids() const  = 0;
 
+            /**
+             * @brief Gets default object based on switch attribute.
+             *
+             * NOTE: This method will throw exception if invalid attribute is
+             * specified, since attribute queried by this method are explicitly
+             * declared in SaiSwitch constructor.
+             *
+             * @param attr_id Switch attribute to query.
+             *
+             * @return Valid RID or specified switch attribute received from
+             * switch.  This value can be also SAI_NULL_OBJECT_ID if switch don't
+             * support this attribute.
+             */
             virtual sai_object_id_t getSwitchDefaultAttrOid(
-                    _In_ sai_attr_id_t attr_id) const  = 0;
+                    _In_ sai_attr_id_t attr_id) const;
+
 
             virtual void removeExistingObject(
                     _In_ sai_object_id_t rid)  = 0;
@@ -97,5 +106,18 @@ namespace syncd
              * @brief Switch real ID assigned by SAI SDK.
              */
             sai_object_id_t m_switch_rid;
+
+            /**
+             * @brief Map of default RIDs retrieved from Switch object.
+             *
+             * It will contain RIDs like CPU port, default virtual router, default
+             * trap group. etc. Those objects here should be considered non
+             * removable.
+             */
+            std::map<sai_attr_id_t,sai_object_id_t> m_default_rid_map;
+
+            std::set<sai_object_id_t> m_coldBootDiscoveredVids;
+
+            std::set<sai_object_id_t> m_warmBootDiscoveredVids;
     };
 }

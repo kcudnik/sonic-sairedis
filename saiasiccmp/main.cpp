@@ -5,9 +5,13 @@
 
 #include "swss/json.hpp"
 
+#include "SaiSwitchAsic.h"
+
 #include <map>
 #include <unordered_map>
 #include <fstream>
+
+using namespace saiasiccmp;
 
 using json = nlohmann::json;
 
@@ -177,6 +181,8 @@ class View
                 _In_ uint64_t otherMaxObjectIndex)
         {
             SWSS_LOG_ENTER();
+
+            // TODO use other views ?
 
             m_otherMaxObjectIndex = otherMaxObjectIndex;
 
@@ -510,8 +516,32 @@ class ViewCmp
                 checkVidRidMaps();
                 checkHidden();
 
-                // TODO compare
+                // since second view can be translated, and some objects could
+                // been removed (vlan members, bridge ports)
+                // checkColdVids();
             }
+
+        void checkColdVids()
+        {
+            SWSS_LOG_ENTER();
+
+            // both cold vids should be the same
+
+            if (m_va->m_coldVids.size() != m_vb->m_coldVids.size())
+            {
+                SWSS_LOG_THROW("cold vids sizes differ: %zu vs %zu",
+                        m_va->m_coldVids.size(),
+                        m_vb->m_coldVids.size());
+            }
+
+            for (auto it: m_va->m_coldVids)
+            {
+                if (m_vb->m_coldVids.find(it.first) == m_vb->m_coldVids.end())
+                {
+                    SWSS_LOG_THROW("VID %s missing from second view", sai_serialize_object_id(it.first).c_str());
+                }
+            }
+        }
 
         void checkHidden()
         {
@@ -644,11 +674,19 @@ class ViewCmp
             auto breakConfig = std::make_shared<syncd::BreakConfig>();
             std::set<sai_object_id_t> initViewRemovedVids;
 
-            swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
+            //swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_DEBUG);
+
+            auto sw = std::make_shared<SaiSwitchAsic>(
+                    m_va->m_switchVid,
+                    m_va->m_switchRid,
+                    m_va->m_vid2rid,
+                    m_va->m_rid2vid,
+                    m_va->m_hidden,
+                    m_va->m_coldVids);
 
             auto cl = std::make_shared<syncd::ComparisonLogic>(
                     nullptr, // m_vendorSai
-                    nullptr, // sw
+                    sw,
                     nullptr, // handler
                     initViewRemovedVids,
                     m_va->m_asicView, // current
@@ -674,7 +712,7 @@ int main(int argc, char **argv)
 
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
-    auto vendorSai = std::make_shared<syncd::VendorSai>();
+    //auto vendorSai = std::make_shared<syncd::VendorSai>();
 
     if (argc < 3)
     {

@@ -534,25 +534,6 @@ sai_object_id_t SaiSwitch::helperGetSwitchAttrOid(
     return rid;
 }
 
-sai_object_id_t SaiSwitch::getSwitchDefaultAttrOid(
-        _In_ sai_attr_id_t attr_id) const
-{
-    SWSS_LOG_ENTER();
-
-    auto it = m_default_rid_map.find(attr_id);
-
-    if (it == m_default_rid_map.end())
-    {
-        auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_SWITCH, attr_id);
-
-        const char* name = (meta) ? meta->attridname : "UNKNOWN";
-
-        SWSS_LOG_THROW("attribute %s (%d) not found in default RID map", name, attr_id);
-    }
-
-    return it->second;
-}
-
 bool SaiSwitch::isColdBootDiscoveredRid(
         _In_ sai_object_id_t rid) const
 {

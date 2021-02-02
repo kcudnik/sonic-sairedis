@@ -23,7 +23,8 @@ endif
 
 noinst_LIBRARIES = libAsicCmp.a
 libAsicCmp_a_SOURCES = \
-				AsicCmp.cpp
+				AsicCmp.cpp \
+				SaiSwitchAsic.cpp
 
 libAsicCmp_a_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS) -std=c++14
 
