@@ -27,6 +27,7 @@ SaiSwitch::SaiSwitch(
         _In_ std::shared_ptr<VirtualOidTranslator> translator,
         _In_ std::shared_ptr<sairedis::SaiInterface> vendorSai,
         _In_ bool warmBoot):
+    SaiSwitchInterface(switch_vid, switch_rid),
     m_vendorSai(vendorSai),
     m_warmBoot(warmBoot),
     m_translator(translator),
@@ -35,9 +36,6 @@ SaiSwitch::SaiSwitch(
     SWSS_LOG_ENTER();
 
     SWSS_LOG_TIMER("constructor");
-
-    m_switch_rid = switch_rid;
-    m_switch_vid = switch_vid;
 
     GlobalSwitchId::setSwitchId(m_switch_rid);
 
@@ -339,20 +337,6 @@ void SaiSwitch::redisSetDummyAsicStateForRealObjectId(
     sai_object_id_t vid = m_translator->translateRidToVid(rid, m_switch_vid);
 
     m_client->setDummyAsicStateObject(vid);
-}
-
-sai_object_id_t SaiSwitch::getVid() const
-{
-    SWSS_LOG_ENTER();
-
-    return m_switch_vid;
-}
-
-sai_object_id_t SaiSwitch::getRid() const
-{
-    SWSS_LOG_ENTER();
-
-    return m_switch_rid;
 }
 
 std::string SaiSwitch::getHardwareInfo() const
