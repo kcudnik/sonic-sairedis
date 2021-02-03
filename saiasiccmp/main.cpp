@@ -6,6 +6,7 @@
 #include "swss/json.hpp"
 
 #include "SaiSwitchAsic.h"
+#include "CommandLineOptionsParser.h"
 
 #include <map>
 #include <unordered_map>
@@ -741,16 +742,25 @@ int main(int argc, char **argv)
 
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
-    //auto vendorSai = std::make_shared<syncd::VendorSai>();
+    auto commandLineOptions = CommandLineOptionsParser::parseCommandLine(argc, argv);
 
-    if (argc < 3)
+    SWSS_LOG_NOTICE("command line: %s",  commandLineOptions->getCommandLineString().c_str());
+
+    if (commandLineOptions->m_enableLogLevelInfo)
     {
-        printf("ERROR: add input files\n");
+        swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_INFO);
+    }
+
+    auto& args = commandLineOptions->m_args;
+
+    if (args.size() != 2)
+    {
+        std::cerr << "ERROR: expected 2 input files, but given: " << args.size() << std::endl;
         exit(1);
     }
 
-    auto a = std::make_shared<View>(argv[1]);
-    auto b = std::make_shared<View>(argv[2]);
+    auto a = std::make_shared<View>(args[0]);
+    auto b = std::make_shared<View>(args[1]);
 
     // TODO - copy same rid/vid in both ? don't translate? - pass View to translate
 
