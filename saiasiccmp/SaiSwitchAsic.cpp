@@ -144,9 +144,12 @@ bool SaiSwitchAsic::isNonRemovableRid(
      * router.  Those objects can't be removed if user ask for it.
      */
 
-    /* Here we are checking for isSwitchObjectDefaultRid first then ColdBootDiscoveredRid
-     * as it is possible we can discover switch Internal OID as part of warm-boot also especially
-     * when we are doing SAI upgrade as part of warm-boot.*/
+    /* 
+     * Here we are checking for isSwitchObjectDefaultRid first then
+     * ColdBootDiscoveredRid as it is possible we can discover switch Internal
+     * OID as part of warm-boot also especially when we are doing SAI upgrade
+     * as part of warm-boot.
+     * */
 
     if (isSwitchObjectDefaultRid(rid))
     {
@@ -165,25 +168,6 @@ bool SaiSwitchAsic::isNonRemovableRid(
     auto vid = m_rid2vid.at(rid);
 
     auto ot = syncd::VidManager::objectTypeQuery(vid);
-
-    /*
-     * List of objects after init (mlnx 2700):
-     *
-     * PORT: 33                     // prevent
-     * VIRTUAL_ROUTER: 1            // default
-     * STP: 1                       // default
-     * HOSTIF_TRAP_GROUP: 1         // default
-     * QUEUE: 528                   // prevent
-     * SCHEDULER_GROUP: 512         // prevent
-     * INGRESS_PRIORITY_GROUP: 256  // prevent
-     * HASH: 2                      // prevent
-     * SWITCH: 1                    // prevent
-     * VLAN: 1                      // default
-     * VLAN_MEMBER: 32              // can be removed
-     * STP_PORT: 32                 // can be removed (cpu don't belong to stp)
-     * BRIDGE: 1                    // default
-     * BRIDGE_PORT: 33              // can be removed but cpu bridge port can't
-     */
 
     switch (ot)
     {

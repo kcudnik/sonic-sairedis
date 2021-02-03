@@ -24,7 +24,11 @@ endif
 noinst_LIBRARIES = libAsicCmp.a
 libAsicCmp_a_SOURCES = \
 				AsicCmp.cpp \
-				SaiSwitchAsic.cpp
+				View.cpp \
+				ViewCmp.cpp \
+				SaiSwitchAsic.cpp \
+				CommandLineOptions.cpp \
+				CommandLineOptionsParser.cpp
 
 libAsicCmp_a_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS) -std=c++14
 
