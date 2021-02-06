@@ -33,6 +33,8 @@ bool AsicCmp::compare()
         auto a = std::make_shared<View>(args[0]);
         auto b = std::make_shared<View>(args[1]);
 
+        printf("%lu %lu\n", a->m_maxObjectIndex, b->m_maxObjectIndex);
+
         b->translateViewVids(a->m_maxObjectIndex);
 
         ViewCmp cmp(a, b);

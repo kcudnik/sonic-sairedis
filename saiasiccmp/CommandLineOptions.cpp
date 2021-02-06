@@ -25,6 +25,7 @@ std::string CommandLineOptions::getCommandLineString() const
     std::stringstream ss;
 
     ss << " EnableLogLevelInfo=" << (m_enableLogLevelInfo ? "YES" : "NO");
+    ss << " DumpDiffToStdErr=" << (m_dumpDiffToStdErr ? "YES" : "NO");
 
     for (auto &arg: m_args)
     {

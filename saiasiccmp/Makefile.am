@@ -1,6 +1,5 @@
 AM_CPPFLAGS = \
 			  -I$(top_srcdir)/lib/inc \
-			  -I$(top_srcdir)/vslib/inc \
 			  -I$(top_srcdir)/SAI/inc \
 			  -I$(top_srcdir)/SAI/meta \
 			  -I$(top_srcdir)/SAI/experimental \
@@ -15,12 +14,6 @@ else
 DBGFLAGS = -g
 endif
 
-if SAIVS
-SAILIB=-L$(top_srcdir)/vslib/src/.libs -lsaivs
-else
-SAILIB=-lsai
-endif
-
 noinst_LIBRARIES = libAsicCmp.a
 libAsicCmp_a_SOURCES = \
 				AsicCmp.cpp \
@@ -30,12 +23,12 @@ libAsicCmp_a_SOURCES = \
 				CommandLineOptions.cpp \
 				CommandLineOptionsParser.cpp
 
-libAsicCmp_a_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS) -std=c++14
+libAsicCmp_a_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
 
 saiasiccmp_SOURCES = main.cpp
 saiasiccmp_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
 saiasiccmp_LDADD = libAsicCmp.a \
-				   -lsaimetadata -lsaimeta -ldl -lhiredis -lswsscommon $(SAILIB) -lpthread -lzmq \
+				   -lsaimetadata -lsaimeta -ldl -lhiredis -lswsscommon -lpthread -lzmq \
 				   $(top_srcdir)/syncd/libSyncd.a \
 				   -L$(top_srcdir)/syncd/.libs \
 				   $(top_srcdir)/lib/src/libSaiRedis.a \

@@ -13,7 +13,8 @@ using namespace saiasiccmp;
 
 View::View(
         _In_ const std::string& filename):
-    m_maxObjectIndex(0)
+    m_maxObjectIndex(0),
+    m_otherMaxObjectIndex(0)
 {
     SWSS_LOG_ENTER();
 
@@ -71,12 +72,6 @@ void View::loadVidRidMaps(
     }
 
     SWSS_LOG_NOTICE("oids: %zu\n", m_vid2rid.size());
-
-    SWSS_LOG_NOTICE("max index: %lu (0x%lx), other max index: %lu (0x%lx)",
-            m_maxObjectIndex,
-            m_maxObjectIndex,
-            m_otherMaxObjectIndex,
-            m_otherMaxObjectIndex);
 
     if (m_oidTypeMap.at(SAI_OBJECT_TYPE_SWITCH).size() != 1)
     {
@@ -180,6 +175,12 @@ void View::translateViewVids(
     // TODO use other views ?
 
     m_otherMaxObjectIndex = otherMaxObjectIndex;
+
+    SWSS_LOG_NOTICE("max index: %lu (0x%lx), other max index: %lu (0x%lx)",
+            m_maxObjectIndex,
+            m_maxObjectIndex,
+            m_otherMaxObjectIndex,
+            m_otherMaxObjectIndex);
 
     translateVidRidMaps();
     translateAsicView();
