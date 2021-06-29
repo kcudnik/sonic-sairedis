@@ -29,6 +29,7 @@
 
 #include <iterator>
 #include <algorithm>
+#include <chrono>
 
 #define DEF_SAI_WARM_BOOT_DATA_FILE "/var/warmboot/sai-warmboot.bin"
 
@@ -2385,10 +2386,24 @@ sai_status_t Syncd::processOidCreate(
 
     sai_object_id_t objectRid;
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     sai_status_t status = m_vendorSai->create(objectType, &objectRid, switchRid, attr_count, attr_list);
+
+    auto end = std::chrono::high_resolution_clock::now();
 
     if (status == SAI_STATUS_SUCCESS)
     {
+        if (objectType == SAI_OBJECT_TYPE_HOSTIF)
+        {
+            auto time = end - start;
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(time);
+
+            SWSS_LOG_NOTICE("created HOSTIF %s took %lf ms",
+                    sai_serialize_object_id(objectRid).c_str(),
+                    (double)us.count()/1000);
+        }
+
         /*
          * Object was created so new object id was generated we need to save
          * virtual id's to redis db.
