@@ -2399,9 +2399,17 @@ sai_status_t Syncd::processOidCreate(
             auto time = end - start;
             auto us = std::chrono::duration_cast<std::chrono::microseconds>(time);
 
-            SWSS_LOG_NOTICE("created HOSTIF %s took %lf ms",
+            static int count = 0;
+            static double total = 0;
+
+            count++;
+            total += (double)us.count()/1000;
+
+            SWSS_LOG_NOTICE("created HOSTIF %s took %lf ms, total count: %d, total time: %lf ms",
                     sai_serialize_object_id(objectRid).c_str(),
-                    (double)us.count()/1000);
+                    (double)us.count()/1000,
+                    count,
+                    total);
         }
 
         /*
