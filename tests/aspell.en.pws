@@ -114,6 +114,7 @@ https
 hw
 hwinfo
 ICV
+idx
 ifdef
 IFF
 ifindex
@@ -129,6 +130,7 @@ insegs
 ip
 IP
 ipc
+ipg
 IPG
 ipgs
 IPGs
@@ -137,6 +139,7 @@ IPv
 isobjectid
 isoidattribute
 json
+kco
 KEYs
 lck
 lgtm
@@ -336,5 +339,3 @@ zero
 zeromq
 zmq
 ZMQ
-idx
-kco
