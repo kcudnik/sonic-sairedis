@@ -178,6 +178,8 @@ namespace sairedis
             SAI_REDIS_RECORDER_DECLARE_RECORD_CREATE(pa_validation_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_CREATE(outbound_routing_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_CREATE(outbound_ca_to_pa_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_CREATE(dst_tag_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_CREATE(src_tag_entry);
 
         public: // remove ENTRY
 
@@ -197,6 +199,8 @@ namespace sairedis
             SAI_REDIS_RECORDER_DECLARE_RECORD_REMOVE(pa_validation_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_REMOVE(outbound_routing_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_REMOVE(outbound_ca_to_pa_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_REMOVE(dst_tag_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_REMOVE(src_tag_entry);
 
         public: // set ENTRY
 
@@ -216,6 +220,8 @@ namespace sairedis
             SAI_REDIS_RECORDER_DECLARE_RECORD_SET(pa_validation_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_SET(outbound_routing_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_SET(outbound_ca_to_pa_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_SET(dst_tag_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_SET(src_tag_entry);
 
         public: // get ENTRY
 
@@ -235,6 +241,8 @@ namespace sairedis
             SAI_REDIS_RECORDER_DECLARE_RECORD_GET(pa_validation_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_GET(outbound_routing_entry);
             SAI_REDIS_RECORDER_DECLARE_RECORD_GET(outbound_ca_to_pa_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_GET(dst_tag_entry);
+            SAI_REDIS_RECORDER_DECLARE_RECORD_GET(src_tag_entry);
 
         public: // SAI stats API
 
