@@ -521,6 +521,16 @@ namespace saimeta
                     _In_ bool create,
                     _In_ bool get = false);
 
+             sai_status_t meta_sai_validate_dst_tag_entry(
+                    _In_ const sai_dst_tag_entry_t* dst_tag_entry,
+                    _In_ bool create,
+                    _In_ bool get = false);
+
+             sai_status_t meta_sai_validate_src_tag_entry(
+                    _In_ const sai_src_tag_entry_t* src_tag_entry,
+                    _In_ bool create,
+                    _In_ bool get = false);
+
         public:
 
             /*

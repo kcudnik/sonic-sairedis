@@ -62,6 +62,8 @@ libSaiVS_a_SOURCES = \
 					  VirtualSwitchSaiInterfacePort.cpp
 
 libsaivs_la_SOURCES = \
+					  sai_vs_dash_tag.cpp \
+					  sai_vs_dash_meter.cpp \
 					  sai_vs_acl.cpp \
 					  sai_vs_bfd.cpp \
 					  sai_vs_bmtor.cpp \

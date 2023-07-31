@@ -1777,6 +1777,32 @@ std::string sai_serialize_outbound_ca_to_pa_entry(
     return j.dump();
 }
 
+std::string sai_serialize_dst_tag_entry(
+        _In_ const sai_dst_tag_entry_t &dst_tag_entry)
+{
+    SWSS_LOG_ENTER();
+
+    json j;
+
+    j["switch_id"] = sai_serialize_object_id(dst_tag_entry.switch_id);
+    j["dip"] = sai_serialize_ip_prefix(dst_tag_entry.dip);
+
+    return j.dump();
+}
+
+std::string sai_serialize_src_tag_entry(
+        _In_ const sai_src_tag_entry_t &src_tag_entry)
+{
+    SWSS_LOG_ENTER();
+
+    json j;
+
+    j["switch_id"] = sai_serialize_object_id(src_tag_entry.switch_id);
+    j["sip"] = sai_serialize_ip_prefix(src_tag_entry.sip);
+
+    return j.dump();
+}
+
 std::string sai_serialize_system_port_config(
         _In_ const sai_attr_metadata_t &meta,
         _In_ const sai_system_port_config_t &sysportconfig)
@@ -2487,6 +2513,14 @@ static bool sai_serialize_object_extension_entry(
 
         case SAI_OBJECT_TYPE_OUTBOUND_CA_TO_PA_ENTRY:
             key = sai_serialize_outbound_ca_to_pa_entry(key_entry.outbound_ca_to_pa_entry);
+            return true;
+
+	case SAI_OBJECT_TYPE_DST_TAG_ENTRY:
+            key = sai_serialize_dst_tag_entry(key_entry.dst_tag_entry);
+            return true;
+
+	case SAI_OBJECT_TYPE_SRC_TAG_ENTRY:
+            key = sai_serialize_src_tag_entry(key_entry.src_tag_entry);
             return true;
 
         default:
@@ -4317,6 +4351,30 @@ void sai_deserialize_outbound_ca_to_pa_entry(
     sai_deserialize_ip_address(j["dip"], outbound_ca_to_pa_entry.dip);
 }
 
+void sai_deserialize_dst_tag_entry(
+        _In_ const std::string &s,
+        _Out_ sai_dst_tag_entry_t& dst_tag_entry)
+{
+    SWSS_LOG_ENTER();
+
+    json j = json::parse(s);
+
+    sai_deserialize_object_id(j["switch_id"], dst_tag_entry.switch_id);
+    sai_deserialize_ip_prefix(j["dip"], dst_tag_entry.dip);
+}
+
+void sai_deserialize_src_tag_entry(
+        _In_ const std::string &s,
+        _Out_ sai_src_tag_entry_t& src_tag_entry)
+{
+    SWSS_LOG_ENTER();
+
+    json j = json::parse(s);
+
+    sai_deserialize_object_id(j["switch_id"], src_tag_entry.switch_id);
+    sai_deserialize_ip_prefix(j["sip"], src_tag_entry.sip);
+}
+
 void sai_deserialize_attr_id(
         _In_ const std::string& s,
         _Out_ const sai_attr_metadata_t** meta)
@@ -4440,6 +4498,14 @@ bool sai_deserialize_object_extension_entry(
 
         case SAI_OBJECT_TYPE_OUTBOUND_CA_TO_PA_ENTRY:
             sai_deserialize_outbound_ca_to_pa_entry(object_id, meta_key.objectkey.key.outbound_ca_to_pa_entry);
+            return true;
+
+	case SAI_OBJECT_TYPE_DST_TAG_ENTRY:
+            sai_deserialize_dst_tag_entry(object_id, meta_key.objectkey.key.dst_tag_entry);
+            return true;
+
+	case SAI_OBJECT_TYPE_SRC_TAG_ENTRY:
+            sai_deserialize_src_tag_entry(object_id, meta_key.objectkey.key.src_tag_entry);
             return true;
 
         default:

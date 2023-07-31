@@ -3067,6 +3067,26 @@ sai_status_t Meta::meta_sai_validate_outbound_ca_to_pa_entry(
     return SAI_STATUS_SUCCESS;
 }
 
+sai_status_t Meta::meta_sai_validate_dst_tag_entry(
+    _In_ const sai_dst_tag_entry_t* dst_tag_entry,
+    _In_ bool create,
+    _In_ bool get)
+{
+    SWSS_LOG_ENTER();
+
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
+sai_status_t Meta::meta_sai_validate_src_tag_entry(
+    _In_ const sai_src_tag_entry_t* src_tag_entry,
+    _In_ bool create,
+    _In_ bool get)
+{
+    SWSS_LOG_ENTER();
+
+    return SAI_STATUS_NOT_IMPLEMENTED;
+}
+
 sai_status_t Meta::meta_generic_validation_create(
         _In_ const sai_object_meta_key_t& meta_key,
         _In_ sai_object_id_t switch_id,
