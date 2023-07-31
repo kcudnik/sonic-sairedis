@@ -29,6 +29,8 @@ libSaiRedis_a_SOURCES = \
 						 ZeroMQChannel.cpp
 
 libsairedis_la_SOURCES = \
+						 sai_redis_dash_meter.cpp \
+						 sai_redis_dash_tag.cpp \
 						 sai_redis_acl.cpp \
 						 sai_redis_bfd.cpp \
 						 sai_redis_bmtor.cpp \
