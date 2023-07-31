@@ -90,6 +90,8 @@ static sai_apis_t vs_apis = {
     API(dash_vnet),
     API(dash_pa_validation),
     API(dash_vip),
+    API(dash_tag),
+    API(dash_meter),
 };
 
 static_assert((sizeof(sai_apis_t)/sizeof(void*)) == (SAI_API_EXTENSIONS_MAX - 1));
