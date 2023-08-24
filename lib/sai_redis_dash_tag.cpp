@@ -1,7 +1,5 @@
 #include "sai_redis.h"
 
-#include "sai_redis.h"
-
 REDIS_GENERIC_QUAD_ENTRY(DST_TAG_ENTRY, dst_tag_entry);
 REDIS_BULK_CREATE_ENTRY_EX(DST_TAG_ENTRY, dst_tag_entry, dst_tag_entries);
 REDIS_BULK_REMOVE_ENTRY_EX(DST_TAG_ENTRY, dst_tag_entry, dst_tag_entries);

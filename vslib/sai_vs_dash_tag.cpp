@@ -1,7 +1,5 @@
 #include "sai_vs.h"
 
-#include "sai_vs.h"
-
 VS_GENERIC_QUAD_ENTRY(DST_TAG_ENTRY, dst_tag_entry);
 VS_BULK_CREATE_ENTRY_EX(DST_TAG_ENTRY, dst_tag_entry, dst_tag_entries);
 VS_BULK_REMOVE_ENTRY_EX(DST_TAG_ENTRY, dst_tag_entry, dst_tag_entries);
