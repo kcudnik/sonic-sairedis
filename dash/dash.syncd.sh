@@ -585,7 +585,7 @@ docker_compile_sonic_swss_common()
 {
     echo " * compile sonic-swss-common"
 
-    mkdir -p /usr/share/share
+    mkdir -p /usr/share/swss
 
     if [ -f /usr/bin/swssloglevel ] && [ -f /usr/include/swss/logger.h ] && [ -f /var/run/redis/sonic-db/database_config.json ]; then
         echo " * seems like sonic-swss-common is compiled and installed"
