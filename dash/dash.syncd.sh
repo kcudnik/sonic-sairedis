@@ -246,6 +246,13 @@ host_clone_sonic_repos()
 
 host_setup_bmv2_syncd_docker()
 {
+
+    SWSS_CONTAINER_NAME=swss
+
+# TDOO docker slave can be used for building swss
+#    sonicdev-microsoft.azurecr.io:443/sonic-slave-bullseye:latest
+
+
     echo " * host setup bmv2 syncd docker"
 
     cd $TOP_DIR
@@ -472,6 +479,7 @@ host_main()
 
     # this will take a while, make sai is enough to make libsai.so, but all will be required to make run-switch
 
+    # TODO - with updated script make this make libsai.so so we could actively develop
     if [ ! -f SAI/lib/libsai.so ]; then
         echo " * making all in DASH/dash-pipeline (this will take a while)"
         make all
@@ -754,6 +762,10 @@ docker_compile_sonic_swss()
 # routesync.cpp: In member function 'void swss::RouteSync::getNextHopList(rtnl_route*, std::string&, std::string&, std::string&)':
 # routesync.cpp:1130:25: error: 'rtnl_route_nh_get_encap_mpls_dst' was not declared in this scope; did you mean 'rtnl_route_nh_encap_mpls'?
 #  1130 |             if ((addr = rtnl_route_nh_get_encap_mpls_dst(nexthop)))
+
+# TODO common libs libnl and other protobuf needs to be installed to make this compile ok
+# libnl: https://dev.azure.com/mssonic/build/_build?definitionId=465&_a=summary
+# https://dev.azure.com/mssonic/build/_build/results?buildId=354674&view=artifacts&pathAsName=false&type=publishedArtifact
 
     if grep -q fpmsyncd ./configure.ac; then
         echo " * removing fpmsyncd and tests from make"
