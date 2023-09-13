@@ -17,22 +17,22 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 SCRIPT_NAME=`basename $0`
 DASH_REPO=https://github.com/sonic-net/DASH.git
 DASH_DIR=DASH
-DASH_COMMIT=1756b49     # latest commit on DASH that syncd was build
-DASH_SAI_COMMIT=ad12e9e # origin/v1.12, since sonic-sairedis is build against this
+DASH_COMMIT=5315812     # latest commit on DASH that syncd was build (currently comes from kcudnik repo)
+DASH_SAI_COMMIT=4cb229c # origin/v1.13, since sonic-sairedis is build against this
 DOCKER_JSON=/etc/docker/daemon.json
 RSYSLOG_CONF=/etc/rsyslog.conf
 REDIS_CONF=/etc/redis/redis.conf
 
 SONIC_REPO_DIR=sonic
 SONIC_SWSS_COMMON_REPO=https://github.com/sonic-net/sonic-swss-common.git
-SONIC_SWSS_COMMON_COMMIT=5b6377c    # origin/master
+SONIC_SWSS_COMMON_COMMIT=6a1ff52 # origin/master
 
 SONIC_SAIREDIS_REPO=https://github.com/Azure/sonic-sairedis.git
-SONIC_SAIREDIS_COMMIT=7178fb63
+SONIC_SAIREDIS_COMMIT=f89fe2e7 # v1.13 from kcudnik branch (not merged yet)
 SONIC_SAIREDIS_DASH_TAG_METER_COMMIT=42ba825a # this patch is needed, since sairedis/SAI and DASH/SAI is not the same
 
 SONIC_SWSS_REPO=https://github.com/sonic-net/sonic-swss.git
-SONIC_SWSS_COMMIT=48a0bc67 # origin/master (before dashapi change)
+SONIC_SWSS_COMMIT=ae010bfa # origin/master (before dashapi change)
 
 SYNCD_CONTAINER_NAME_BASE=build_sonic_syncd
 SYNCD_CONTAINER_NAME=build_sonic_syncd
@@ -330,7 +330,7 @@ host_test_syncd_and_saiplayer()
     if [ $(docker ps -q --filter "name=$SIMPLE_SWITCH_CONTAINER" --filter="status=running"| wc -l) -eq 1 ]; then
         echo " * seems like P4 simple switch is running"
     else
-        echo " * ERROR: simple switch docker is not runnin, run in separate terminal: make -C DASH/dash-pipeline run-switch"
+        echo " * ERROR: simple switch docker is not running, run in separate terminal: make -C DASH/dash-pipeline run-switch"
         exit 1
     fi
 
@@ -406,6 +406,100 @@ EOF
     echo " * HOST TEST SYNCD AND SAIPLAYER - SUCCESS"
 }
 
+host_test_syncd_and_saiplayer_OA()
+{
+    echo " * HOST TEST SYNCD AND SAIPLAYER with OA objects"
+
+    cd $TOP_DIR
+
+    echo " * starting docker $SYNCD_CONTAINER_NAME"
+
+    docker start $SYNCD_CONTAINER_NAME
+
+    if [ $( docker exec -it $SYNCD_CONTAINER_NAME bash -c "service rsyslog status" | grep running | wc -l ) -eq 0 ]; then
+        echo " * restarting rsyslog service in docker"
+        docker exec -it $SYNCD_CONTAINER_NAME bash -c "service rsyslog restart"
+    else
+        echo " * seems like rsyslogd is running in docker already"
+    fi
+
+    # NOTE: if p4 switch was already configured then it may require restart make
+
+    SIMPLE_SWITCH_CONTAINER="simple_switch-$USER"
+
+    echo " * simple switch container is $SIMPLE_SWITCH_CONTAINER"
+
+    if [ $(docker ps -q --filter "name=$SIMPLE_SWITCH_CONTAINER" --filter="status=running"| wc -l) -eq 1 ]; then
+        echo " * seems like P4 simple switch is running"
+    else
+        echo " * ERROR: simple switch docker is not running, run in separate terminal: make -C DASH/dash-pipeline run-switch"
+        exit 1
+    fi
+
+    if [ $(docker exec -it $SIMPLE_SWITCH_CONTAINER bash -c "ps -ef" | grep "[s]imple_switch_grpc" | wc -l) -eq 1 ]; then
+        echo " * seems like simple_switch_grpc is running"
+    else
+        echo " * FATAL: simple_switch_grpc is not running :( FIXME"
+        exit 1
+    fi
+
+    echo " * killing potentian syncd running and saiplayer running in docker"
+
+    docker exec -it $SYNCD_CONTAINER_NAME bash -c "pkill -9 syncd; pkill -9 saiplayer;true"
+
+    echo " * flushing all redis database"
+
+    redis-cli FLUSHALL
+
+    echo " * starging syncd in background in $SYNCD_CONTAINER_NAME"
+
+    docker exec -itd $SYNCD_CONTAINER_NAME bash -c "export DASH_USE_NOT_SUPPORTED=1;syncd -SUu -z redis_async"
+
+    sleep 1
+
+    if [ $(docker exec -it $SYNCD_CONTAINER_NAME bash -c "ps -ef" |grep "[s]yncd" |wc -l) -eq 1 ]; then
+        echo " * seems like syncd is running"
+    else
+        echo " * FATAL: syncd is not running in $SYNCD_CONTAINER_NAME, FIXME"
+        exit 1
+    fi
+
+    echo " * copy recording bar.rec to replay"
+
+    docker cp -q $SCRIPT_DIR/bar.rec $SYNCD_CONTAINER_NAME:/root/bar.rec
+
+    echo " * runing simple saiplayer to test syncd communication"
+
+    docker exec -it $SYNCD_CONTAINER_NAME saiplayer -u -r -z redis_async /root/bar.rec
+
+    echo "done 1"
+    exit 1
+#    echo " * display redis contents"
+#    redis-cli -n 1 keys "*"
+#    redis-cli -n 1 hgetall HIDDEN
+#    redis-cli -n 1 hgetall RIDTOVID
+
+    echo " * checking if port number is correct"
+
+    if [ $(redis-cli -n 1 keys "*"|grep SAI_OBJECT_TYPE_PORT: | wc -l) -eq 3 ]; then
+        echo " * saiplayer and syncd p4/bmv2 communication SUCCESS"
+    else
+        echo -n " * FATAL: wrong number of portts in redis, expected 3, got: "
+        redis-cli -n 1 keys "*"|grep SAI_OBJECT_TYPE_PORT: | wc -l
+        exit 1
+    fi
+
+    echo " * listing obtained ports:"
+
+    redis-cli -n 1 keys "*"|grep SAI_OBJECT_TYPE_PORT:
+
+    echo " * shutting down syncd"
+
+    docker exec -it $SYNCD_CONTAINER_NAME syncd_request_shutdown -c cold
+
+    echo " * HOST TEST SYNCD AND SAIPLAYER - SUCCESS"
+}
+
 host_main()
 {
     echo " * HOST MAIN SCRIPT"
@@ -447,6 +541,8 @@ host_main()
         echo " * DASH is already on $DASH_COMMIT"
     else
         echo " * checking out DASH commit $DASH_COMMIT"
+        git remote add kcudnik https://github.com/kcudnik/sonic-sairedis.git || true
+        git fetch --all
         git checkout $DASH_COMMIT
     fi
 
@@ -482,7 +578,7 @@ host_main()
     # TODO - with updated script make this make libsai.so so we could actively develop
     if [ ! -f SAI/lib/libsai.so ]; then
         echo " * making all in DASH/dash-pipeline (this will take a while)"
-        make all
+        make libsai.so
     fi
 
     echo " * build libsai.so succeeded"
@@ -494,6 +590,7 @@ host_main()
     host_setup_bmv2_syncd_docker
     host_exec_script_in_container
     host_test_syncd_and_saiplayer
+    host_test_syncd_and_saiplayer_OA
 
     echo " * HOST MAIN SUCCESS"
 
@@ -527,6 +624,7 @@ docker_install_packages()
         apt-get install -y graphviz
         apt-get install -y aspell-en
         apt-get install -y libjansson4 libjansson-dev
+        apt-get install -y nlohmann-json3-dev
         apt-get install -y doxygen
     fi
 }
@@ -595,7 +693,7 @@ docker_compile_sonic_swss_common()
 
     mkdir -p /usr/share/swss
 
-    if [ -f /usr/bin/swssloglevel ] && [ -f /usr/include/swss/logger.h ] && [ -f /var/run/redis/sonic-db/database_config.json ]; then
+    if [ -f /usr/local/bin/swssloglevel ] && [ -f /usr/include/swss/logger.h ] && [ -f /var/run/redis/sonic-db/database_config.json ]; then
         echo " * seems like sonic-swss-common is compiled and installed"
         return
     fi
@@ -659,6 +757,10 @@ docker_compile_sonic_swss_common()
 
 docker_compile_sonic_sairedis()
 {
+    echo " * install libsai.so from DASH" # TODO make this as deb package with all the headers
+
+    cp -vu /SAI/lib/libsai.so /usr/local/lib/
+
     echo " * compile sonic-sairedis"
 
     if [ -d /var/log/sai_failure_dump/ ] && [ -f /usr/include/sai/sairedis.h ]; then
@@ -676,10 +778,6 @@ docker_compile_sonic_sairedis()
 
     cp -rvu /SAI/SAI/inc/ /SAI/SAI/experimental/ /SAI/SAI/meta/ SAI/
 
-    echo " * install libsai.so from DASH" # TODO make this as deb package with all the headers
-
-    cp -vu /SAI/lib/libsai.so /usr/local/lib/
-
     echo " * cherrypick DASH tag meter fix from kcudnik branch: https://github.com/kcudnik/sonic-sairedis/commit/$SONIC_SAIREDIS_DASH_TAG_METER_COMMIT"
 
     git config --global --add safe.directory /root/sonic-sairedis
@@ -688,9 +786,13 @@ docker_compile_sonic_sairedis()
 
     # this commit will contain all necessary changes to tag and meter
 
-    if [ ! -f lib/sai_redis_dash_tag.cpp ]; then
-        git cherry-pick $SONIC_SAIREDIS_DASH_TAG_METER_COMMIT
-    fi
+    # NEED -lpiprotobuf -lgrpc++ -lpiprotogrpc -lprotobuf
+    # TODO need updated sairedis repo to accept those flags
+# TODO syncd, saidiscovery, configure.ac query_version, saisdkdump
+
+#if [ ! -f lib/sai_redis_dash_tag.cpp ]; then
+#        git cherry-pick $SONIC_SAIREDIS_DASH_TAG_METER_COMMIT
+#    fi
 
     echo " * disable tests and pyext on sairedis"
 
@@ -700,7 +802,7 @@ docker_compile_sonic_sairedis()
         perl -i.bk -pe 's/tests//' Makefile.am
     fi
 
-    if grep -q pyext configure.am; then
+    if grep -q pyext configure.ac; then
         perl -i.bk -pe 's/pyext.+Makefile//' configure.ac
         sed -ie '/unittest/d' configure.ac
     fi
@@ -714,9 +816,10 @@ docker_compile_sonic_sairedis()
     fi
 
     if [ /usr/local/lib/libsai.so -nt ./configure ]; then
-        ./configure --enable-python2=no
+        EXTRA_SAI_LDFLAGS="-lpiprotobuf -lgrpc++ -lpiprotogrpc -lprotobuf" ./configure --enable-python2=no
     fi
 
+    export EXTRA_SAI_LDFLAGS="-lpiprotobuf -lgrpc++ -lpiprotogrpc -lprotobuf"
     make
     make install
 
@@ -793,10 +896,9 @@ docker_main()
     docker_install_packages
     docker_update_rsyslog
     docker_copy_bmv2_files
-
     docker_compile_sonic_swss_common
     docker_compile_sonic_sairedis
-    docker_compile_sonic_swss
+    #docker_compile_sonic_swss
 
     echo " * DOCKER MAIN SUCCESS"
 
