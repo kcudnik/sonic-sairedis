@@ -15,6 +15,7 @@
 #include <memory>
 #include <thread>
 #include <string>
+#include <set>
 
 namespace saiproxy
 {
@@ -168,6 +169,8 @@ namespace saiproxy
 
             uint64_t getNotificationsSentCount() const;
 
+            std::set<sai_object_id_t> getSwitches();
+
         private:
 
             syncd::ServiceMethodTable m_smt;
@@ -206,5 +209,7 @@ namespace saiproxy
              * notifications.
              */
             uint64_t m_notificationsSentCount;
+
+            std::set<sai_object_id_t> m_switches;
     };
 }

@@ -291,6 +291,7 @@ AC_OUTPUT(Makefile
           saiasiccmp/Makefile
           tests/Makefile
           proxylib/Makefile
+          dashapp/Makefile
           unittest/Makefile
           unittest/meta/Makefile
           unittest/lib/Makefile

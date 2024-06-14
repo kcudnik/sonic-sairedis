@@ -1,0 +1,16 @@
+HOW TO TEST pipeline:
+
+from directory ~/sonic-sairedis/dashapp/
+
+* on terminal 1 we clear redis: $ redis-cli FLUSHALL 
+* on terminal 1 we start dashapp: $ ./dashapp
+* on terminal 2 we start syncdproxy: $ ./syncdproxy -p config.ini -t cold -S -z redis_sync
+* on terminal 3 we start saiplayer: $ ../saiplayer/saiplayer -z redis_sync test.rec
+
+since we use virtual switch as underlay for saiproxy then config.ini and lanemap.ini is needed
+
+expected result is that saiplayer exits with 0 exitcode, syncdproxy is still
+running, and dashapp is still running, and running thead in dashapp will be
+creating virtual routers in endless loop
+
+error messages are in syslog

@@ -404,6 +404,11 @@ void Proxy::processCreate(
 
     sai_status_t status = m_vendorSai->create(metaKey.objecttype, &newObjectId, switchId, attr_count, attr_list);
 
+    if (metaKey.objecttype == SAI_OBJECT_TYPE_SWITCH && status == SAI_STATUS_SUCCESS)
+    {
+        m_switches.insert(newObjectId);
+    }
+
     std::vector<swss::FieldValueTuple> entry;
 
     std::string strStatus = sai_serialize_status(status);
@@ -433,6 +438,11 @@ void Proxy::processRemove(
     }
 
     sai_status_t status = m_vendorSai->remove(metaKey);
+
+    if (metaKey.objecttype == SAI_OBJECT_TYPE_SWITCH && status == SAI_STATUS_SUCCESS)
+    {
+        m_switches.erase(metaKey.objectkey.key.object_id);
+    }
 
     std::string strStatus = sai_serialize_status(status);
 
@@ -549,7 +559,10 @@ void Proxy::processGet(
          * Some other error, don't send attributes at all.
          */
 
-        SWSS_LOG_WARN("api failed: %s", sai_serialize_status(status).c_str());
+        if (status != SAI_STATUS_NOT_IMPLEMENTED)
+        {
+            SWSS_LOG_WARN("api failed: %s", sai_serialize_status(status).c_str());
+        }
     }
 
     std::string strStatus = sai_serialize_status(status);
@@ -1221,4 +1234,13 @@ uint64_t Proxy::getNotificationsSentCount() const
     SWSS_LOG_ENTER();
 
     return m_notificationsSentCount;
+}
+
+std::set<sai_object_id_t> Proxy::getSwitches()
+{
+    SWSS_LOG_ENTER();
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    return m_switches;
 }

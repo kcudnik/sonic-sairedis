@@ -138,6 +138,7 @@ sai_switch_type_t SaiSwitch::getSwitchType() const
     sai_attribute_t attr;
 
     attr.id = SAI_SWITCH_ATTR_TYPE;
+    attr.value.s32 = 0;
 
     sai_status_t status = m_vendorSai->get(SAI_OBJECT_TYPE_SWITCH, m_switch_rid, 1, &attr);
 
