@@ -22,6 +22,8 @@
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 
+extern bool g_vpp;
+
 using namespace saivs;
 
 HostInterfaceInfo::HostInterfaceInfo(
@@ -41,6 +43,12 @@ HostInterfaceInfo::HostInterfaceInfo(
     SWSS_LOG_ENTER();
 
     m_run_thread = true;
+
+    if (g_vpp) // VPP
+    {
+        // threads are disabled for vpp
+        return;
+    }
 
     m_e2t = std::make_shared<std::thread>(&HostInterfaceInfo::veth2tap_fun, this);
     m_t2e = std::make_shared<std::thread>(&HostInterfaceInfo::tap2veth_fun, this);

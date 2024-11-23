@@ -27,6 +27,10 @@
 #include <algorithm>
 #include <fstream>
 
+#include "vppxlate/SaiVppXlate.h"
+
+extern bool g_vpp;
+
 using namespace saivs;
 
 // XXX set must also be supported when we change operational status up/down and
@@ -53,6 +57,11 @@ int SwitchStateBase::vs_create_tap_device(
         SWSS_LOG_ERROR("failed to open %s", tundev);
 
         return -1;
+    }
+
+    if (g_vpp) // VPP
+    {
+        return fd;
     }
 
     struct ifreq ifr;
@@ -296,6 +305,11 @@ int SwitchStateBase::promisc(
         _In_ const char *dev)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp) // VPP
+    {
+        return 0;
+    }
 
     int s = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -601,7 +615,16 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
 
     SWSS_LOG_INFO("creating hostif %s", name.c_str());
 
-    int tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI);
+    int tapfd;
+
+    if (g_vpp) // VPP
+    {
+        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI | IFF_VNET_HDR);
+    }
+    else
+    {
+        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI);
+    }
 
     if (tapfd < 0)
     {
@@ -611,6 +634,28 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
     }
 
     SWSS_LOG_INFO("created TAP device for %s, fd: %d", name.c_str(), tapfd);
+
+    if (g_vpp) // VPP
+    {
+        const char *dev = name.c_str();
+        const char *hwif_name = tap_to_hwif_name(dev);
+
+        configure_lcp_interface(hwif_name, dev, true);
+
+        {
+            bool link_up = false;
+
+            interface_get_state(hwif_name, &link_up);
+
+            auto state = link_up ? SAI_PORT_OPER_STATUS_UP : SAI_PORT_OPER_STATUS_DOWN;
+
+            send_port_oper_status_notification(obj_id, state, true);
+
+            SWSS_LOG_NOTICE("VPP interface %s(%s) oper state %s", hwif_name, dev,
+                    (link_up ? "UP" : "DOWN"));
+        }
+
+    }
 
     sai_attribute_t attr;
 
@@ -638,6 +683,34 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
         close(tapfd);
 
         return SAI_STATUS_FAILURE;
+    }
+
+    if (g_vpp) // VPP
+    {
+        const char *dev = name.c_str();
+        const char *hwif_name = tap_to_hwif_name(dev);
+
+        err = sw_interface_set_mac(hwif_name, attr.value.mac);
+
+        if (err < 0)
+        {
+            SWSS_LOG_ERROR("failed to set MAC address %s for %s",
+                    sai_serialize_mac(attr.value.mac).c_str(),
+                    hwif_name);
+
+            close(tapfd);
+
+            return SAI_STATUS_FAILURE;
+        }
+
+        SWSS_LOG_INFO("Successfully set mac to %s for %s", sai_serialize_mac(attr.value.mac).c_str(), name.c_str());
+
+        setIfNameToPortId(name, obj_id);
+        setPortIdToTapName(obj_id, name);
+
+        SWSS_LOG_INFO("created tap interface %s", name.c_str());
+
+        return SAI_STATUS_SUCCESS;
     }
 
     std::string vname = vs_get_veth_name(name, obj_id);
@@ -786,6 +859,40 @@ sai_status_t SwitchStateBase::vs_remove_hostif_tap_interface(
     // TODO this should be hosif_id or if index ?
     std::string name = std::string(attr.value.chardata);
 
+    if (g_vpp) // VPP
+    {
+        /*
+           auto it = m_hostif_info_map.find(name);
+
+           if (it == m_hostif_info_map.end())
+           {
+           SWSS_LOG_ERROR("failed to find host info entry for tap device: %s", name.c_str());
+
+           return SAI_STATUS_FAILURE;
+           }
+
+           SWSS_LOG_NOTICE("attempting to remove tap device: %s", name.c_str());
+
+           auto info = it->second; // destructor will stop threads
+           */
+        // remove host info entry from map
+
+        // m_hostif_info_map.erase(it);
+
+        // remove interface mapping
+
+        // std::string vname = vpp_get_veth_name(name, info->m_portId);
+
+        sai_object_id_t port_id = getPortIdFromIfName(name);
+
+        removeIfNameToPortId(name);
+        removePortIdToTapName(port_id);
+
+        SWSS_LOG_NOTICE("successfully removed hostif tap device: %s", name.c_str());
+
+        return SAI_STATUS_SUCCESS;
+    }
+
     auto it = m_hostif_info_map.find(name);
 
     if (it == m_hostif_info_map.end())
@@ -860,6 +967,14 @@ bool SwitchStateBase::hasIfIndex(
         _In_ int ifindex) const
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp) // VPP
+    {
+        if (m_hostif_info_map.size() == 0)
+        {
+            return false;
+        }
+    }
 
     for (auto& kvp: m_hostif_info_map)
     {
@@ -965,4 +1080,90 @@ void SwitchStateBase::syncOnLinkMsg(
     auto portId = getPortIdFromIfName(ifname);
 
     send_port_oper_status_notification(portId, state, false);
+}
+
+// VPP
+
+// TODO to config
+static const char *sonic_vpp_ifmap = "/usr/share/sonic/hwsku/sonic_vpp_ifmap.ini";
+
+void SwitchStateBase::populate_if_mapping()
+{
+    SWSS_LOG_ENTER();
+
+    if (mapping_init)
+    {
+        return;
+    }
+
+    FILE *fp;
+    char sonic_name[64], vpp_name[64];
+
+    fp = fopen(sonic_vpp_ifmap, "r");
+
+    if (!fp)
+    {
+        return;
+    }
+
+    while (fscanf(fp, "%s %s", sonic_name, vpp_name) != EOF)
+    {
+        std::string tap_name, hwif_name;
+
+        tap_name = std::string(sonic_name);
+        hwif_name = std::string(vpp_name);
+
+        m_hostif_hwif_map[tap_name] = hwif_name;
+        m_hwif_hostif_map[hwif_name] = tap_name;
+    }
+
+    mapping_init = 1;
+
+    fclose(fp);
+}
+
+const char* SwitchStateBase::tap_to_hwif_name(
+        _In_ const char *name)
+{
+    SWSS_LOG_ENTER();
+
+    populate_if_mapping();
+
+    std::string tap_name = std::string(name);
+
+    auto it = m_hostif_hwif_map.find(tap_name);
+
+    if (it == m_hostif_hwif_map.end())
+    {
+        SWSS_LOG_ERROR("failed to find hwif info entry for hostif device: %s", tap_name.c_str());
+
+        return "Unknown";
+    }
+
+    SWSS_LOG_DEBUG("Found hwif %s info entry for hostif device: %s", it->second.c_str(), tap_name.c_str());
+
+    return it->second.c_str();
+}
+
+const char* SwitchStateBase::hwif_to_tap_name(
+        _In_ const char *name)
+{
+    SWSS_LOG_ENTER();
+
+    populate_if_mapping();
+
+    std::string tap_name = std::string(name);
+
+    auto it = m_hwif_hostif_map.find(tap_name);
+
+    if (it == m_hwif_hostif_map.end())
+    {
+        SWSS_LOG_ERROR("failed to find hostif info entry for hwif device: %s", tap_name.c_str());
+
+        return "Unknown";
+    }
+
+    SWSS_LOG_DEBUG("Found  hostif %s info entry for hwif device: %s", it->second.c_str(), tap_name.c_str());
+
+    return it->second.c_str();
 }

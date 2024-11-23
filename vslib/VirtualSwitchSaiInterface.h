@@ -256,6 +256,19 @@ namespace saivs
                     _In_ sai_object_id_t objectId,
                     _In_ const sai_attribute_t *attr);
 
+        private: // VPP
+
+            void setPortStats(
+                    _In_ sai_object_id_t oid);
+
+            bool port_to_hostif_list(
+                    _In_ sai_object_id_t oid,
+                    _Inout_ std::string& if_name);
+
+            bool port_to_hwifname(
+                    _In_ sai_object_id_t oid,
+                    _Inout_ std::string& if_name);
+
         private:
 
             void update_local_metadata(
@@ -267,7 +280,7 @@ namespace saivs
             std::shared_ptr<WarmBootState> extractWarmBootState(
                     _In_ sai_object_id_t switch_id);
 
-            bool validate_switch_warm_boot_atributes(
+            bool validate_switch_warm_boot_attributes(
                     _In_ uint32_t attr_count,
                     _In_ const sai_attribute_t *attr_list) const;
 
@@ -326,5 +339,9 @@ namespace saivs
             std::shared_ptr<RealObjectIdManager> m_realObjectIdManager;
 
             SwitchStateBase::SwitchStateMap m_switchStateMap;
+
+        private: // VPP
+
+	        std::map<sai_object_id_t, std::string> m_phMap;
     };
 }

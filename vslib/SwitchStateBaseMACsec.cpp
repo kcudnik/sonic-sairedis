@@ -17,6 +17,8 @@
 
 using namespace saivs;
 
+extern bool g_vpp;
+
 #define SAI_VS_MACSEC_PREFIX "macsec_"
 #define MACSEC_SYSTEM_IDENTIFIER (12)
 #define MACSEC_PORT_IDENTIFIER (4)
@@ -555,7 +557,19 @@ sai_status_t SwitchStateBase::loadMACsecAttrFromMACsecSC(
     std::stringstream sciHexStr;
 
     sciHexStr << std::setw(MACSEC_SCI_LENGTH) << std::setfill('0');
-    sciHexStr << std::hex << htobe64(sci);
+
+    if (g_vpp) // VPP
+    {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        sciHexStr << std::hex << bswap_64(sci);
+#else
+        sciHexStr << std::hex << sci;
+#endif
+    }
+    else
+    {
+        sciHexStr << std::hex << htobe64(sci);
+    }
 
     macsecAttr.m_sci = sciHexStr.str();
 
@@ -712,7 +726,8 @@ sai_status_t SwitchStateBase::loadMACsecAttrFromMACsecSA(
 
         ssciHexStr << std::hex << attr->value.u32;
 
-        macsecAttr.m_ssci = ssciHexStr.str();
+        macsecAttr.m_ssciStr = ssciHexStr.str();
+        macsecAttr.m_ssci = htonl(attr->value.u32);
 
         SAI_METADATA_GET_ATTR_BY_ID(attr, SAI_MACSEC_SA_ATTR_SALT, attrCount, attrList);
 

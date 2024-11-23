@@ -5,6 +5,10 @@ lib_LTLIBRARIES = libsaivs.la
 noinst_LIBRARIES = libSaiVS.a
 
 libSaiVS_a_SOURCES = \
+					  vppxlate/SaiAclStats.c \
+					  vppxlate/SaiIntfStats.c \
+					  vppxlate/SaiVppStats.c \
+					  vppxlate/SaiVppXlate.c \
 					  Buffer.cpp \
 					  ContextConfigContainer.cpp \
 					  ContextConfig.cpp \
@@ -54,10 +58,21 @@ libSaiVS_a_SOURCES = \
 					  SwitchStateBaseFdb.cpp \
 					  SwitchStateBaseHostif.cpp \
 					  SwitchStateBaseMACsec.cpp \
+					  SaiObjectDB.cpp \
+					  SwitchStateBaseFdbVpp.cpp \
+					  SwitchStateBaseAcl.cpp \
+					  SwitchStateBaseBfd.cpp \
+					  SwitchStateBaseNbr.cpp \
+					  SwitchStateBaseNexthop.cpp \
+					  SwitchStateBaseRif.cpp \
+					  SwitchStateBaseRoute.cpp \
+					  SwitchStateBaseUtils.cpp \
+					  TunnelManager.cpp \
 					  SwitchState.cpp \
 					  TrafficFilterPipes.cpp \
 					  TrafficForwarder.cpp \
 					  VirtualSwitchSaiInterface.cpp \
+					  VirtualSwitchSaiInterfaceVpp.cpp \
 					  VirtualSwitchSaiInterfaceFdb.cpp \
 					  VirtualSwitchSaiInterfacePort.cpp
 

@@ -8,6 +8,8 @@
 
 #include <algorithm>
 
+extern bool g_vpp;
+
 #define SAI_VS_MAX_PORTS 1024
 
 using namespace saivs;
@@ -17,7 +19,9 @@ SwitchStateBase::SwitchStateBase(
         _In_ std::shared_ptr<RealObjectIdManager> manager,
         _In_ std::shared_ptr<SwitchConfig> config):
     SwitchState(switch_id, config),
-    m_realObjectIdManager(manager)
+    m_realObjectIdManager(manager),
+    m_object_db(this),
+    m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
 
@@ -30,11 +34,18 @@ SwitchStateBase::SwitchStateBase(
         _In_ std::shared_ptr<SwitchConfig> config,
         _In_ std::shared_ptr<WarmBootState> warmBootState):
     SwitchState(switch_id, config),
-    m_realObjectIdManager(manager)
+    m_realObjectIdManager(manager),
+    m_object_db(this),
+    m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
 
     m_macsecManager.cleanup_macsec_device();
+
+    if (g_vpp)
+    {
+        vpp_dp_initialize();
+    }
 
     if (warmBootState)
     {
@@ -158,6 +169,57 @@ sai_status_t SwitchStateBase::create(
         return createHostif(object_id, switch_id, attr_count, attr_list);
     }
 
+    if (g_vpp) // VPP
+    {
+        if (object_type == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
+        {
+            sai_object_id_t object_id;
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return createRouterif(object_id, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            return addIpRoute(serializedObjectId, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEXT_HOP)
+        {
+            return createNexthop(serializedObjectId, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER)
+        {
+            return createNexthopGroupMember(serializedObjectId, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEIGHBOR_ENTRY)
+        {
+            return addIpNbr(serializedObjectId, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_ENTRY)
+        {
+            sai_object_id_t object_id;
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return createAclEntry(object_id, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_TABLE)
+        {
+            sai_object_id_t object_id;
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return aclTableCreate(object_id, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER)
+        {
+            sai_object_id_t object_id;
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return createAclGrpMbr(object_id, switch_id, attr_count, attr_list);
+        }
+    }
+
     if (object_type == SAI_OBJECT_TYPE_MACSEC_PORT)
     {
         sai_object_id_t object_id;
@@ -183,6 +245,26 @@ sai_status_t SwitchStateBase::create(
     {
         // Neighbor entry programming for VOQ systems
         return createVoqSystemNeighborEntry(serializedObjectId, switch_id, attr_count, attr_list);
+    }
+
+    if (g_vpp) // VPP
+    {
+        if (object_type == SAI_OBJECT_TYPE_VLAN_MEMBER)
+        {
+            sai_object_id_t object_id;
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return createVlanMember(object_id, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_FDB_ENTRY)
+        {
+            return FdbEntryadd(serializedObjectId, switch_id, attr_count, attr_list);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_BFD_SESSION)
+        {
+            return bfd_session_add(serializedObjectId, switch_id, attr_count, attr_list);
+        }
     }
 
     return create_internal(object_type, serializedObjectId, switch_id, attr_count, attr_list);
@@ -250,6 +332,11 @@ sai_status_t SwitchStateBase::create_internal(
         objectHash[serializedObjectId][a->getAttrMetadata()->attridname] = a;
     }
 
+    if (g_vpp) // VPP
+    {
+        m_object_db.create_or_update(object_type, serializedObjectId, attr_count, attr_list, true /*is_create*/);
+    }
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -299,6 +386,11 @@ sai_status_t SwitchStateBase::createPort(
         _In_ const sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp)
+    {
+        UpdatePort(object_id, attr_count, attr_list);
+    }
 
     auto sid = sai_serialize_object_id(object_id);
 
@@ -379,6 +471,63 @@ sai_status_t SwitchStateBase::remove(
         return removeHostif(objectId);
     }
 
+    if (g_vpp) // VPP
+    {
+        if (object_type == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
+        {
+            sai_object_id_t objectId;
+            sai_deserialize_object_id(serializedObjectId, objectId);
+            return removeRouterif(objectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_VIRTUAL_ROUTER)
+        {
+            sai_object_id_t objectId;
+            sai_deserialize_object_id(serializedObjectId, objectId);
+            return removeVrf(objectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            return removeIpRoute(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEXT_HOP)
+        {
+            return removeNexthop(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER)
+        {
+            return removeNexthopGroupMember(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_NEIGHBOR_ENTRY)
+        {
+            return removeIpNbr(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_ENTRY)
+        {
+            return removeAclEntry(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_TABLE)
+        {
+            return aclTableRemove(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER)
+        {
+            return removeAclGrpMbr(serializedObjectId);
+        }
+
+        if (object_type == SAI_OBJECT_TYPE_ACL_TABLE_GROUP)
+        {
+            return removeAclGrp(serializedObjectId);
+        }
+    }
+
     if (object_type == SAI_OBJECT_TYPE_MACSEC_PORT)
     {
         sai_object_id_t objectId;
@@ -398,6 +547,24 @@ sai_status_t SwitchStateBase::remove(
         return removeMACsecSA(objectId);
     }
 
+    if (g_vpp) // VPP
+    {
+        if (object_type == SAI_OBJECT_TYPE_VLAN_MEMBER)
+        {
+            sai_object_id_t objectId;
+            sai_deserialize_object_id(serializedObjectId, objectId);
+            return removeVlanMember(objectId);
+        }
+        else if (object_type == SAI_OBJECT_TYPE_FDB_ENTRY)
+        {
+            return FdbEntrydel(serializedObjectId);
+        }
+        else if (object_type == SAI_OBJECT_TYPE_BFD_SESSION)
+        {
+            return bfd_session_del(serializedObjectId);
+        }
+    }
+
     return remove_internal(object_type, serializedObjectId);
 }
 
@@ -408,6 +575,11 @@ sai_status_t SwitchStateBase::remove_internal(
     SWSS_LOG_ENTER();
 
     SWSS_LOG_INFO("removing object: %s", serializedObjectId.c_str());
+
+    if (g_vpp) // VPP
+    {
+        m_object_db.remove(object_type, serializedObjectId);
+    }
 
     auto &objectHash = m_objectHash.at(object_type);
 
@@ -432,6 +604,15 @@ sai_status_t SwitchStateBase::setPort(
         _In_ const sai_attribute_t* attr)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp) // VPP
+    {
+        UpdatePort(portId, 1, attr);
+
+        auto sid = sai_serialize_object_id(portId);
+
+        return set_internal(SAI_OBJECT_TYPE_PORT, sid, attr);
+    }
 
     if (attr && attr->id == SAI_PORT_ATTR_ADMIN_STATE && m_switchConfig->m_useTapDevice)
     {
@@ -498,6 +679,27 @@ sai_status_t SwitchStateBase::setAclEntry(
 
     auto sid = sai_serialize_object_id(entry_id);
 
+    if (g_vpp) // VPP
+    {
+        set_internal(SAI_OBJECT_TYPE_ACL_ENTRY, sid, attr);
+
+        sai_object_id_t tbl_oid;
+
+        if (getAclTableId(entry_id, &tbl_oid) != SAI_STATUS_SUCCESS)
+        {
+            return SAI_STATUS_FAILURE;
+        }
+
+        auto status = AclAddRemoveCheck(tbl_oid);
+
+        SWSS_LOG_NOTICE("ACL entry %s set in table %s set status %d",
+                sid.c_str(),
+                sai_serialize_object_id(tbl_oid).c_str(),
+                status);
+
+        return status;
+    }
+
     return set_internal(SAI_OBJECT_TYPE_ACL_ENTRY, sid, attr);
 }
 
@@ -513,6 +715,45 @@ sai_status_t SwitchStateBase::set(
         sai_object_id_t objectId;
         sai_deserialize_object_id(serializedObjectId, objectId);
         return setPort(objectId, attr);
+    }
+
+    if (g_vpp) // VPP
+    {
+        if (objectType == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
+        {
+            sai_object_id_t objectId;
+            sai_deserialize_object_id(serializedObjectId, objectId);
+            return vpp_update_router_interface(objectId, 1, attr);
+        }
+
+        if (objectType == SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER)
+        {
+            sai_object_id_t objectId;
+            sai_deserialize_object_id(serializedObjectId, objectId);
+            return setAclGrpMbr(objectId, attr);
+        }
+
+        if (objectType == SAI_OBJECT_TYPE_ROUTE_ENTRY)
+        {
+            return updateIpRoute(serializedObjectId, attr);
+        }
+
+        if (objectType == SAI_OBJECT_TYPE_SWITCH)
+        {
+            switch(attr->id)
+            {
+                case SAI_SWITCH_ATTR_VXLAN_DEFAULT_ROUTER_MAC:
+                    {
+                        m_tunnel_mgr.set_router_mac(attr);
+                        break;
+                    }
+                case SAI_SWITCH_ATTR_VXLAN_DEFAULT_PORT:
+                    {
+                        m_tunnel_mgr.set_vxlan_port(attr);
+                        break;
+                    }
+            }
+        }
     }
 
     if (objectType == SAI_OBJECT_TYPE_ACL_ENTRY)
@@ -538,6 +779,12 @@ sai_status_t SwitchStateBase::set_internal(
         _In_ const sai_attribute_t* attr)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp) // VPP
+    {
+        //Update child-parent relationship before updating the attribute
+        m_object_db.create_or_update(objectType, serializedObjectId, 1, attr, false /*is_create*/);
+    }
 
     auto it = m_objectHash.at(objectType).find(serializedObjectId);
 
@@ -593,6 +840,16 @@ sai_status_t SwitchStateBase::get(
 {
     SWSS_LOG_ENTER();
 
+    if (g_vpp) // VPP
+    {
+        if (objectType == SAI_OBJECT_TYPE_ACL_COUNTER)
+        {
+            sai_object_id_t object_id;
+
+            sai_deserialize_object_id(serializedObjectId, object_id);
+            return getAclEntryStats(object_id, attr_count, attr_list);
+        }
+    }
     const auto &objectHash = m_objectHash.at(objectType);
 
     auto it = objectHash.find(serializedObjectId);
@@ -664,6 +921,11 @@ sai_status_t SwitchStateBase::get(
 
         if (ait == attrHash.end())
         {
+            if (g_vpp)
+            {
+                return SAI_STATUS_ITEM_NOT_FOUND;
+            }
+
             SWSS_LOG_WARN("%s not implemented on %s",
                     meta->attridname,
                     serializedObjectId.c_str());
@@ -735,7 +997,14 @@ sai_status_t SwitchStateBase::bulkCreate(
 
     for (it = 0; it < object_count; it++)
     {
-        object_statuses[it] = create(object_type, serialized_object_ids[it], switch_id, attr_count[it], attr_list[it]);
+        if (g_vpp) // VPP
+        {
+            object_statuses[it] = create_internal(object_type, serialized_object_ids[it], switch_id, attr_count[it], attr_list[it]);
+        }
+        else
+        {
+            object_statuses[it] = create(object_type, serialized_object_ids[it], switch_id, attr_count[it], attr_list[it]);
+        }
 
         if (object_statuses[it] != SAI_STATUS_SUCCESS)
         {
@@ -779,7 +1048,14 @@ sai_status_t SwitchStateBase::bulkRemove(
 
     for (it = 0; it < object_count; it++)
     {
-        object_statuses[it] = remove(object_type, serialized_object_ids[it]);
+        if (g_vpp) // VPP
+        {
+            object_statuses[it] = remove_internal(object_type, serialized_object_ids[it]);
+        }
+        else
+        {
+            object_statuses[it] = remove(object_type, serialized_object_ids[it]);
+        }
 
         if (object_statuses[it] != SAI_STATUS_SUCCESS)
         {
@@ -3864,3 +4140,107 @@ sai_status_t SwitchStateBase::queryAttributeCapability(
 
     return SAI_STATUS_SUCCESS;
 }
+
+// VPP
+
+sai_status_t SwitchStateBase::get(
+        _In_ sai_object_type_t objectType,
+        _In_ const std::string &serializedObjectId,
+        _In_ const uint32_t  max_attr_count,
+        _Out_ uint32_t *attr_count,
+        _Out_ sai_attribute_t *attr_list)
+{
+    SWSS_LOG_ENTER();
+
+    *attr_count = 0;
+
+    const auto &objectHash = m_objectHash.at(objectType);
+
+    auto it = objectHash.find(serializedObjectId);
+
+    if (it == objectHash.end())
+    {
+        SWSS_LOG_ERROR("not found %s:%s",
+                sai_serialize_object_type(objectType).c_str(),
+                serializedObjectId.c_str());
+
+        return SAI_STATUS_ITEM_NOT_FOUND;
+    }
+
+    /*
+     * We need reference here since we can potentially update attr hash for RO
+     * object.
+     */
+
+    auto& attrHash = it->second;
+
+    /*
+     * Some of the list query maybe for length, so we can't do
+     * normal serialize, maybe with count only.
+     */
+
+    sai_status_t final_status = SAI_STATUS_SUCCESS, status;
+    uint32_t idx = 0;
+    sai_attribute_t *dst_attr;
+
+    for (auto &kvp: attrHash)
+    {
+        auto attr = kvp.second->getAttr();
+
+        dst_attr = &attr_list[idx];
+        dst_attr->id = attr->id;
+
+        status = transfer_attributes(objectType, 1, attr, dst_attr, false);
+
+        if (status == SAI_STATUS_BUFFER_OVERFLOW)
+        {
+            /*
+             * This is considered partial success, since we get correct list
+             * length.  Note that other items ARE processes on the list.
+             */
+
+            SWSS_LOG_NOTICE("BUFFER_OVERFLOW %s: %d",
+                    serializedObjectId.c_str(),
+                    attr->id);
+
+            /*
+             * We still continue processing other attributes for get as long as
+             * we only will be getting buffer overflow error.
+             */
+
+            final_status = status;
+            continue;
+        }
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            // all other errors
+
+            SWSS_LOG_ERROR("get failed %s: %d: %s",
+                    serializedObjectId.c_str(),
+                    attr->id,
+                    sai_serialize_status(status).c_str());
+
+            return status;
+        }
+
+        ++idx;
+
+        if (idx == max_attr_count)
+            break;
+    }
+
+    *attr_count = idx;
+
+    return final_status;
+}
+
+std::shared_ptr<SaiDBObject> SwitchStateBase::get_sai_object(
+        _In_ sai_object_type_t object_type,
+        _In_ const std::string &serializedObjectId)
+{
+    SWSS_LOG_ENTER();
+
+    return m_object_db.get(object_type, serializedObjectId);
+}
+

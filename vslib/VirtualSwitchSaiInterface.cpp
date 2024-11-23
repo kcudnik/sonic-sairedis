@@ -16,6 +16,8 @@
 #include "SwitchMLNX2700.h"
 #include "SwitchNvdaMBF2H536C.h"
 
+#include "vppxlate/SaiIntfStats.h"
+
 #include <inttypes.h>
 
 /*
@@ -24,6 +26,8 @@
 #define VS_MAX_COUNTERS 128
 
 #define MAX_HARDWARE_INFO_LENGTH 0x1000
+
+extern bool g_vpp;
 
 using namespace saivs;
 using namespace saimeta;
@@ -95,7 +99,7 @@ std::shared_ptr<WarmBootState> VirtualSwitchSaiInterface::extractWarmBootState(
     return state;
 }
 
-bool VirtualSwitchSaiInterface::validate_switch_warm_boot_atributes(
+bool VirtualSwitchSaiInterface::validate_switch_warm_boot_attributes(
         _In_ uint32_t attr_count,
         _In_ const sai_attribute_t *attr_list) const
 {
@@ -668,7 +672,7 @@ sai_status_t VirtualSwitchSaiInterface::create(
 
         if (config->m_bootType == SAI_VS_BOOT_TYPE_WARM)
         {
-            if (!validate_switch_warm_boot_atributes(attr_count, attr_list))
+            if (!validate_switch_warm_boot_attributes(attr_count, attr_list))
             {
                 SWSS_LOG_ERROR("invalid attribute passed during warm boot");
 
@@ -890,6 +894,23 @@ sai_status_t VirtualSwitchSaiInterface::queryAttributeCapability(
 {
     SWSS_LOG_ENTER();
 
+    if (g_vpp) // VPP
+    {
+        // TODO move to SwitchState
+        //
+        // TODO: We should generate this metadata for the virtual switch rather
+        // than hard-coding it here.
+
+        // in virtual switch by default all apis are implemented for all
+        // objects. SUCCESS for all attributes
+
+        capability->create_implemented = true;
+        capability->set_implemented    = true;
+        capability->get_implemented    = true;
+
+        return SAI_STATUS_SUCCESS;
+    }
+
     auto ss = m_switchStateMap.at(switch_id);
     return ss->queryAttributeCapability(switch_id, object_type, attr_id, capability);
 }
@@ -960,6 +981,14 @@ sai_status_t VirtualSwitchSaiInterface::getStats(
         _Out_ uint64_t *counters)
 {
     SWSS_LOG_ENTER();
+
+    if (g_vpp) // VPP
+    {
+        if (object_type == SAI_OBJECT_TYPE_PORT)
+        {
+            setPortStats(object_id);
+        }
+    }
 
     /*
      * Get stats is the same as get stats ext with mode == SAI_STATS_MODE_READ.
