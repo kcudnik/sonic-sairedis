@@ -621,7 +621,7 @@ bool MACsecManager::add_macsec_forwarder(
 
     auto &manager = itr->second;
 
-    manager.m_forwarder = std::make_shared<MACsecForwarder>(macsecInterface, manager.m_info);
+    manager.m_forwarder = std::make_shared<MACsecForwarder>(macsecInterface, manager.m_info, m_vpp);
     return true;
 }
 
@@ -956,4 +956,12 @@ bool MACsecManager::exec(
     std::string res;
 
     return exec(command, res);
+}
+
+void MACsecManager::setVpp(
+        _In_ bool vpp)
+{
+    SWSS_LOG_ENTER();
+
+    m_vpp = vpp;
 }

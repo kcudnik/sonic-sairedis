@@ -31,7 +31,8 @@ namespace saivs
                     _In_ int tapfd,
                     _In_ const std::string& tapname,
                     _In_ sai_object_id_t portId,
-                    _In_ std::shared_ptr<EventQueue> eventQueue);
+                    _In_ std::shared_ptr<EventQueue> eventQueue,
+                    _In_ bool vpp);
 
             virtual ~HostInterfaceInfo();
 
@@ -87,5 +88,7 @@ namespace saivs
 
             swss::SelectableEvent m_e2tEvent;
             swss::SelectableEvent m_t2eEvent;
+
+            bool m_vpp;
     };
 }

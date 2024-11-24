@@ -25,7 +25,8 @@ namespace saivs
         public:
 
             VirtualSwitchSaiInterface(
-                    _In_ std::shared_ptr<ContextConfig> contextConfig);
+                    _In_ std::shared_ptr<ContextConfig> contextConfig,
+                    _In_ bool vpp);
 
             virtual ~VirtualSwitchSaiInterface();
 
@@ -339,6 +340,8 @@ namespace saivs
             std::shared_ptr<RealObjectIdManager> m_realObjectIdManager;
 
             SwitchStateBase::SwitchStateMap m_switchStateMap;
+
+            bool m_vpp;
 
         private: // VPP
 

@@ -153,3 +153,16 @@ typedef enum _sai_vs_switch_attr_t
     SAI_VS_SWITCH_ATTR_META_ALLOW_READ_ONLY_ONCE,
 
 } sau_vs_switch_attr_t;
+
+#define SAI_KEY_VS_PACKET_ENGINE            "SAI_VS_PACKET_ENGINE"
+
+#define SAI_VALUE_VS_PACKET_ENGINE_VS      "VS"
+#define SAI_VALUE_VS_PACKET_ENGINE_VPP     "VPP"
+
+typedef enum _sai_vs_packet_engine_t
+{
+    SAI_VS_PACKET_ENGINE_VS,
+
+    SAI_VS_PACKET_ENGINE_VPP,
+
+} sai_vs_packet_engine_t;

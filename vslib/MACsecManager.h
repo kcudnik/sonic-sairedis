@@ -46,6 +46,9 @@ namespace saivs
 
             void cleanup_macsec_device() const;
 
+            void setVpp(
+                    _In_ bool vpp);
+
         protected:
 
             bool create_macsec_egress_sc(
@@ -143,5 +146,7 @@ namespace saivs
             };
 
             std::map<std::string, MACsecTrafficManager> m_macsecTrafficManagers;
+
+            bool m_vpp = false;
     };
 }

@@ -16,7 +16,8 @@ using namespace saivs;
 
 MACsecForwarder::MACsecForwarder(
         _In_ const std::string &macsecInterfaceName,
-        _In_ std::shared_ptr<HostInterfaceInfo> info):
+        _In_ std::shared_ptr<HostInterfaceInfo> info,
+        _In_ bool vpp):
     m_macsecInterfaceName(macsecInterfaceName),
     m_runThread(true),
     m_info(info)
@@ -53,7 +54,7 @@ MACsecForwarder::MACsecForwarder(
                 m_macsecInterfaceName.c_str());
     }
 
-    if (SwitchStateBase::promisc(m_macsecInterfaceName.c_str()))
+    if (SwitchStateBase::promisc(m_macsecInterfaceName.c_str(), vpp))
     {
         close(m_macsecfd);
         SWSS_LOG_THROW(

@@ -10,6 +10,7 @@
 
 extern "C" {
 #include "sai.h"
+#include "saivs.h"
 }
 
 namespace saivs
@@ -67,6 +68,10 @@ namespace saivs
             static bool parseUseTapDevice(
                     _In_ const char* useTapDeviceStr);
 
+            static bool parseSaiVsPacketEngine(
+                    _In_ const char* pe,
+                    _Out_ sai_vs_packet_engine_t& vsPacketEngine);
+
         public:
 
             sai_switch_type_t m_saiSwitchType;
@@ -90,5 +95,7 @@ namespace saivs
             std::shared_ptr<ResourceLimiter> m_resourceLimiter;
 
             std::shared_ptr<CorePortIndexMap> m_corePortIndexMap;
+
+            bool m_vpp;
     };
 }

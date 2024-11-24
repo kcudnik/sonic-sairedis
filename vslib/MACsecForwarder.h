@@ -19,7 +19,8 @@ namespace saivs
 
             MACsecForwarder(
                     _In_ const std::string &macsecInterfaceName,
-                    _In_ std::shared_ptr<HostInterfaceInfo> info);
+                    _In_ std::shared_ptr<HostInterfaceInfo> info,
+                    _In_ bool vpp);
 
             virtual ~MACsecForwarder();
 

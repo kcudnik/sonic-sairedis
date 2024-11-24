@@ -8,8 +8,6 @@
 
 #include <algorithm>
 
-extern bool g_vpp;
-
 #define SAI_VS_MAX_PORTS 1024
 
 using namespace saivs;
@@ -24,6 +22,10 @@ SwitchStateBase::SwitchStateBase(
     m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
+
+    m_vpp = config->m_vpp;
+
+    m_macsecManager.setVpp(m_vpp);
 
     m_macsecManager.cleanup_macsec_device();
 }
@@ -40,9 +42,13 @@ SwitchStateBase::SwitchStateBase(
 {
     SWSS_LOG_ENTER();
 
+    m_vpp = config->m_vpp;
+
+    m_macsecManager.setVpp(m_vpp);
+
     m_macsecManager.cleanup_macsec_device();
 
-    if (g_vpp)
+    if (m_vpp)
     {
         vpp_dp_initialize();
     }
@@ -169,7 +175,7 @@ sai_status_t SwitchStateBase::create(
         return createHostif(object_id, switch_id, attr_count, attr_list);
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (object_type == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
         {
@@ -247,7 +253,7 @@ sai_status_t SwitchStateBase::create(
         return createVoqSystemNeighborEntry(serializedObjectId, switch_id, attr_count, attr_list);
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (object_type == SAI_OBJECT_TYPE_VLAN_MEMBER)
         {
@@ -332,7 +338,7 @@ sai_status_t SwitchStateBase::create_internal(
         objectHash[serializedObjectId][a->getAttrMetadata()->attridname] = a;
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         m_object_db.create_or_update(object_type, serializedObjectId, attr_count, attr_list, true /*is_create*/);
     }
@@ -387,7 +393,7 @@ sai_status_t SwitchStateBase::createPort(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp)
+    if (m_vpp)
     {
         UpdatePort(object_id, attr_count, attr_list);
     }
@@ -471,7 +477,7 @@ sai_status_t SwitchStateBase::remove(
         return removeHostif(objectId);
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (object_type == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
         {
@@ -547,7 +553,7 @@ sai_status_t SwitchStateBase::remove(
         return removeMACsecSA(objectId);
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (object_type == SAI_OBJECT_TYPE_VLAN_MEMBER)
         {
@@ -576,7 +582,7 @@ sai_status_t SwitchStateBase::remove_internal(
 
     SWSS_LOG_INFO("removing object: %s", serializedObjectId.c_str());
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         m_object_db.remove(object_type, serializedObjectId);
     }
@@ -605,7 +611,7 @@ sai_status_t SwitchStateBase::setPort(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         UpdatePort(portId, 1, attr);
 
@@ -679,7 +685,7 @@ sai_status_t SwitchStateBase::setAclEntry(
 
     auto sid = sai_serialize_object_id(entry_id);
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         set_internal(SAI_OBJECT_TYPE_ACL_ENTRY, sid, attr);
 
@@ -717,7 +723,7 @@ sai_status_t SwitchStateBase::set(
         return setPort(objectId, attr);
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (objectType == SAI_OBJECT_TYPE_ROUTER_INTERFACE)
         {
@@ -780,7 +786,7 @@ sai_status_t SwitchStateBase::set_internal(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         //Update child-parent relationship before updating the attribute
         m_object_db.create_or_update(objectType, serializedObjectId, 1, attr, false /*is_create*/);
@@ -840,7 +846,7 @@ sai_status_t SwitchStateBase::get(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (objectType == SAI_OBJECT_TYPE_ACL_COUNTER)
         {
@@ -921,7 +927,7 @@ sai_status_t SwitchStateBase::get(
 
         if (ait == attrHash.end())
         {
-            if (g_vpp)
+            if (m_vpp)
             {
                 return SAI_STATUS_ITEM_NOT_FOUND;
             }
@@ -997,7 +1003,7 @@ sai_status_t SwitchStateBase::bulkCreate(
 
     for (it = 0; it < object_count; it++)
     {
-        if (g_vpp) // VPP
+        if (m_vpp) // VPP
         {
             object_statuses[it] = create_internal(object_type, serialized_object_ids[it], switch_id, attr_count[it], attr_list[it]);
         }
@@ -1048,7 +1054,7 @@ sai_status_t SwitchStateBase::bulkRemove(
 
     for (it = 0; it < object_count; it++)
     {
-        if (g_vpp) // VPP
+        if (m_vpp) // VPP
         {
             object_statuses[it] = remove_internal(object_type, serialized_object_ids[it]);
         }

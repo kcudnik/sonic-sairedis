@@ -597,7 +597,8 @@ namespace saivs
         public:
 
             static int promisc(
-                    _In_ const char *dev);
+                    _In_ const char *dev,
+                    _In_ bool vpp);
 
         protected: // custom hostif
 
@@ -624,7 +625,8 @@ namespace saivs
 
             static int vs_create_tap_device(
                     _In_ const char *dev,
-                    _In_ int flags);
+                    _In_ int flags,
+                    _In_ bool vpp);
 
             static int vs_set_dev_mac_address(
                     _In_ const char *dev,
@@ -811,6 +813,8 @@ namespace saivs
             sai_object_id_t m_lag_hash_id;
 
             std::vector<sai_object_id_t> m_system_port_list;
+
+            bool m_vpp;
 
         protected:
 

@@ -241,7 +241,13 @@ sai_status_t Sai::apiInitialize(
 
     // TODO move to Context class
 
-    m_vsSai = std::make_shared<VirtualSwitchSaiInterface>(contextConfig);
+    sai_vs_packet_engine_t pe;
+
+    SwitchConfig::parseSaiVsPacketEngine(service_method_table->profile_get_value(0, SAI_KEY_VS_PACKET_ENGINE), pe);
+
+    bool vpp = (pe == SAI_VS_PACKET_ENGINE_VPP);
+
+    m_vsSai = std::make_shared<VirtualSwitchSaiInterface>(contextConfig, vpp);
 
     m_meta = std::make_shared<saimeta::Meta>(m_vsSai);
 

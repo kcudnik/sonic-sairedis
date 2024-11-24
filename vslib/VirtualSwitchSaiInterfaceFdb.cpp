@@ -4,8 +4,6 @@
 #include "swss/logger.h"
 #include "meta/sai_serialize.h"
 
-extern bool g_vpp;
-
 using namespace saivs;
 
 bool VirtualSwitchSaiInterface::doesFdbEntryNotMatchFlushAttr(
@@ -281,7 +279,7 @@ sai_status_t VirtualSwitchSaiInterface::flushFdbEntries(
         data.fdb_entry.bv_id = vlanid->value.oid;
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         /* Flushing the FDB Entrys based on Bridge port ID and VLAN ID sent to VS*/
         ss->vpp_fdbentry_flush(switch_id, attr_count, attr_list);
@@ -316,7 +314,7 @@ void VirtualSwitchSaiInterface::ageFdbs()
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         return;
     }

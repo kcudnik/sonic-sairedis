@@ -17,7 +17,8 @@ SwitchConfig::SwitchConfig(
     m_bootType(SAI_VS_BOOT_TYPE_COLD),
     m_switchIndex(switchIndex),
     m_hardwareInfo(hwinfo),
-    m_useTapDevice(false)
+    m_useTapDevice(false),
+    m_vpp(false)
 {
     SWSS_LOG_ENTER();
 
@@ -152,4 +153,29 @@ bool SwitchConfig::parseUseTapDevice(
     }
 
     return false;
+}
+
+bool SwitchConfig::parseSaiVsPacketEngine(
+        _In_ const char* pe,
+        _Out_ sai_vs_packet_engine_t& vsPacketEngine)
+{
+    SWSS_LOG_ENTER();
+
+    std::string st = (pe == NULL) ? "unknown" : pe;
+
+    if (st == SAI_VALUE_VS_PACKET_ENGINE_VS)
+    {
+        vsPacketEngine = SAI_VS_PACKET_ENGINE_VS;
+    }
+    else if (st == SAI_VALUE_VS_PACKET_ENGINE_VPP)
+    {
+        vsPacketEngine = SAI_VS_PACKET_ENGINE_VPP;
+    }
+    else
+    {
+        // default is VS
+        vsPacketEngine = SAI_VS_PACKET_ENGINE_VS;
+    }
+
+    return true;
 }

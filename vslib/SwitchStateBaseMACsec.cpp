@@ -17,8 +17,6 @@
 
 using namespace saivs;
 
-extern bool g_vpp;
-
 #define SAI_VS_MACSEC_PREFIX "macsec_"
 #define MACSEC_SYSTEM_IDENTIFIER (12)
 #define MACSEC_PORT_IDENTIFIER (4)
@@ -558,7 +556,7 @@ sai_status_t SwitchStateBase::loadMACsecAttrFromMACsecSC(
 
     sciHexStr << std::setw(MACSEC_SCI_LENGTH) << std::setfill('0');
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         sciHexStr << std::hex << bswap_64(sci);

@@ -22,8 +22,6 @@
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 
-extern bool g_vpp;
-
 using namespace saivs;
 
 HostInterfaceInfo::HostInterfaceInfo(
@@ -32,19 +30,21 @@ HostInterfaceInfo::HostInterfaceInfo(
         _In_ int tapfd,
         _In_ const std::string& tapname,
         _In_ sai_object_id_t portId,
-        _In_ std::shared_ptr<EventQueue> eventQueue):
+        _In_ std::shared_ptr<EventQueue> eventQueue,
+        _In_ bool vpp):
     m_ifindex(ifindex),
     m_packet_socket(socket),
     m_name(tapname),
     m_portId(portId),
     m_eventQueue(eventQueue),
-    m_tapfd(tapfd)
+    m_tapfd(tapfd),
+    m_vpp(vpp)
 {
     SWSS_LOG_ENTER();
 
     m_run_thread = true;
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         // threads are disabled for vpp
         return;

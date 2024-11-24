@@ -29,8 +29,6 @@
 
 #include "vppxlate/SaiVppXlate.h"
 
-extern bool g_vpp;
-
 using namespace saivs;
 
 // XXX set must also be supported when we change operational status up/down and
@@ -44,7 +42,8 @@ using namespace saivs;
 
 int SwitchStateBase::vs_create_tap_device(
         _In_ const char *dev,
-        _In_ int flags)
+        _In_ int flags,
+        _In_ bool vpp)
 {
     SWSS_LOG_ENTER();
 
@@ -59,7 +58,7 @@ int SwitchStateBase::vs_create_tap_device(
         return -1;
     }
 
-    if (g_vpp) // VPP
+    if (vpp) // VPP
     {
         return fd;
     }
@@ -302,11 +301,12 @@ int SwitchStateBase::ifup(
 }
 
 int SwitchStateBase::promisc(
-        _In_ const char *dev)
+        _In_ const char *dev,
+        _In_ bool vpp)
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (vpp) // VPP
     {
         return 0;
     }
@@ -495,7 +495,7 @@ bool SwitchStateBase::hostif_create_tap_veth_forwarding(
 
     SWSS_LOG_NOTICE("interface index = %d, %s\n", sock_address.sll_ifindex, vethname.c_str());
 
-    if (promisc(vethname.c_str()))
+    if (promisc(vethname.c_str(), m_vpp))
     {
         SWSS_LOG_ERROR("promisc failed on %s", vethname.c_str());
 
@@ -520,7 +520,8 @@ bool SwitchStateBase::hostif_create_tap_veth_forwarding(
                 tapfd,
                 tapname,
                 port_id,
-                m_switchConfig->m_eventQueue);
+                m_switchConfig->m_eventQueue,
+                m_vpp);
 
     SWSS_LOG_NOTICE("setup forward rule for %s succeeded", tapname.c_str());
 
@@ -617,13 +618,13 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
 
     int tapfd;
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
-        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI | IFF_VNET_HDR);
+        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI | IFF_VNET_HDR, m_vpp);
     }
     else
     {
-        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI);
+        tapfd = vs_create_tap_device(name.c_str(), IFF_TAP | IFF_MULTI_QUEUE | IFF_NO_PI, m_vpp);
     }
 
     if (tapfd < 0)
@@ -635,7 +636,7 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
 
     SWSS_LOG_INFO("created TAP device for %s, fd: %d", name.c_str(), tapfd);
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         const char *dev = name.c_str();
         const char *hwif_name = tap_to_hwif_name(dev);
@@ -685,7 +686,7 @@ sai_status_t SwitchStateBase::vs_create_hostif_tap_interface(
         return SAI_STATUS_FAILURE;
     }
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         const char *dev = name.c_str();
         const char *hwif_name = tap_to_hwif_name(dev);
@@ -859,7 +860,7 @@ sai_status_t SwitchStateBase::vs_remove_hostif_tap_interface(
     // TODO this should be hosif_id or if index ?
     std::string name = std::string(attr.value.chardata);
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         /*
            auto it = m_hostif_info_map.find(name);
@@ -968,7 +969,7 @@ bool SwitchStateBase::hasIfIndex(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (m_hostif_info_map.size() == 0)
         {

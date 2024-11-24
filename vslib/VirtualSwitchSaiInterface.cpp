@@ -27,15 +27,15 @@
 
 #define MAX_HARDWARE_INFO_LENGTH 0x1000
 
-extern bool g_vpp;
-
 using namespace saivs;
 using namespace saimeta;
 using namespace sairediscommon;
 
 VirtualSwitchSaiInterface::VirtualSwitchSaiInterface(
-        _In_ std::shared_ptr<ContextConfig> contextConfig):
-    m_contextConfig(contextConfig)
+        _In_ std::shared_ptr<ContextConfig> contextConfig,
+        _In_ bool vpp):
+    m_contextConfig(contextConfig),
+    m_vpp(vpp)
 {
     SWSS_LOG_ENTER();
 
@@ -577,6 +577,8 @@ std::shared_ptr<SwitchStateBase> VirtualSwitchSaiInterface::init_switch(
         SWSS_LOG_THROW("switch already exists %s", sai_serialize_object_id(switch_id).c_str());
     }
 
+    config->m_vpp = m_vpp;
+
     switch (config->m_switchType)
     {
         case SAI_VS_SWITCH_TYPE_BCM56850:
@@ -894,7 +896,7 @@ sai_status_t VirtualSwitchSaiInterface::queryAttributeCapability(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         // TODO move to SwitchState
         //
@@ -982,7 +984,7 @@ sai_status_t VirtualSwitchSaiInterface::getStats(
 {
     SWSS_LOG_ENTER();
 
-    if (g_vpp) // VPP
+    if (m_vpp) // VPP
     {
         if (object_type == SAI_OBJECT_TYPE_PORT)
         {
