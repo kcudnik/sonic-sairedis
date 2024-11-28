@@ -111,8 +111,10 @@ namespace saivs
                     _In_ const sai_system_port_config_t *sys_port_cfg_list);
 
             sai_status_t create_voqs();
+
             sai_status_t create_voq_per_sysport(
                     _In_ sai_object_id_t sys_port_id);
+
             sai_status_t set_system_port_list();
 
         public:
@@ -294,7 +296,7 @@ namespace saivs
                     _In_ sai_bulk_op_error_mode_t mode,
                     _Out_ sai_status_t *object_statuses);
 
-           virtual sai_status_t queryAttrEnumValuesCapability(
+            virtual sai_status_t queryAttrEnumValuesCapability(
                               _In_ sai_object_id_t switch_id,
                               _In_ sai_object_type_t object_type,
                               _In_ sai_attr_id_t attr_id,

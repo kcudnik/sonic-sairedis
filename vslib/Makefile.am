@@ -1,8 +1,14 @@
 AM_CXXFLAGS = $(SAIINC) -I$(top_srcdir)/lib -I/usr/include/libnl3
+AM_CFLAGS = -I/usr/include/vpp_plugins -fPIC -I. -I.. -I../../ -I../../../
 
 lib_LTLIBRARIES = libsaivs.la
 
 noinst_LIBRARIES = libSaiVS.a
+
+#vppxlate/SaiVppXlate.c \
+#					  vppxlate/SaiVppStats.c \
+#					  vppxlate/SaiAclStats.c \
+#					  vppxlate/SaiIntfStats.c
 
 libSaiVS_a_SOURCES = \
 					  Buffer.cpp \
@@ -58,6 +64,10 @@ libSaiVS_a_SOURCES = \
 					  SwitchState.cpp \
 					  TrafficFilterPipes.cpp \
 					  TrafficForwarder.cpp \
+					  SaiObjectDB.cpp \
+					  SwitchVppAcl.cpp \
+					  SwitchVppNexthop.cpp \
+					  TunnelManager.cpp \
 					  VirtualSwitchSaiInterface.cpp \
 					  VirtualSwitchSaiInterfaceFdb.cpp \
 					  VirtualSwitchSaiInterfacePort.cpp
@@ -69,6 +79,8 @@ sai_vs.cpp: ../stub.pl $(top_srcdir)/SAI/meta/saimetadata.c
 
 clean-local:
 	rm -f sai_vs.cpp
+
+VPP_LIBS = -lvlibapi -lvapiclient -lvppapiclient -lvlibmemoryclient -lsvm -lvppinfra -lvlib -lvatplugin
 
 libsaivs_la_SOURCES = sai_vs.cpp
 
@@ -83,6 +95,6 @@ bin_PROGRAMS = tests
 
 tests_SOURCES = tests.cpp
 tests_CXXFLAGS = $(DBGFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS_COMMON)
-tests_LDADD = -lhiredis -lswsscommon -lpthread libsaivs.la -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -lzmq
+tests_LDADD = -lhiredis -lswsscommon -lpthread libsaivs.la -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -lzmq $(VPP_LIBS)
 
 TESTS = tests

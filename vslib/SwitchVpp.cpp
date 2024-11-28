@@ -14,7 +14,9 @@ SwitchVpp::SwitchVpp(
         _In_ sai_object_id_t switch_id,
         _In_ std::shared_ptr<RealObjectIdManager> manager,
         _In_ std::shared_ptr<SwitchConfig> config):
-    SwitchStateBase(switch_id, manager, config)
+    SwitchStateBase(switch_id, manager, config),
+    m_object_db(this),
+    m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
 
@@ -26,7 +28,9 @@ SwitchVpp::SwitchVpp(
         _In_ std::shared_ptr<RealObjectIdManager> manager,
         _In_ std::shared_ptr<SwitchConfig> config,
         _In_ std::shared_ptr<WarmBootState> warmBootState):
-    SwitchStateBase(switch_id, manager, config, warmBootState)
+    SwitchStateBase(switch_id, manager, config, warmBootState),
+    m_object_db(this),
+    m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
 
