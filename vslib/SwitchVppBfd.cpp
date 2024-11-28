@@ -105,7 +105,7 @@ sai_status_t SwitchVpp::vpp_bfd_session_add(
     {
         multihop = attr->value.booldata;
     }
-    
+
     const char *hwif_name = NULL;
     if (!multihop) {
         /* Attribute#7 */
@@ -133,7 +133,7 @@ sai_status_t SwitchVpp::vpp_bfd_session_add(
         else
         {
             SWSS_LOG_ERROR("BFD session create request FAILED due to invalid hwif name");
-    
+
             return SAI_STATUS_FAILURE;
         }
     }
@@ -203,7 +203,7 @@ sai_status_t SwitchVpp::vpp_bfd_session_del(
     {
         multihop = attr.value.booldata;
     }
-    
+
     const char *hwif_name = NULL;
     if (!multihop) {
         /* Attribute#4 */

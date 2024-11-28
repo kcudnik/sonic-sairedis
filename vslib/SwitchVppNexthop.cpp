@@ -38,9 +38,9 @@ sai_status_t SwitchVpp::IpRouteNexthopGroupEntry(
     auto nhg_obj = get_sai_object(SAI_OBJECT_TYPE_NEXT_HOP_GROUP, nhg_soid);
     if (!nhg_obj) {
         SWSS_LOG_ERROR("Failed to find SAI_OBJECT_TYPE_NEXT_HOP_GROUP SaiObject: %s", nhg_soid.c_str());
-        return SAI_STATUS_FAILURE;        
+        return SAI_STATUS_FAILURE;
     }
-    
+
     CHECK_STATUS_QUIET(nhg_obj->get_mandatory_attr(attr));
     if (attr.value.s32 != SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_UNORDERED_ECMP &&
         attr.value.s32 != SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_ORDERED_ECMP) {
@@ -51,7 +51,7 @@ sai_status_t SwitchVpp::IpRouteNexthopGroupEntry(
     group_type = attr.value.s32;
     auto member_map = nhg_obj->get_child_objs(SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER);
     if (member_map == nullptr || member_map->size() == 0) {
-        SWSS_LOG_INFO("Empty nexthop_group. OID %s", 
+        SWSS_LOG_INFO("Empty nexthop_group. OID %s",
             nhg_soid.c_str());
         return SAI_STATUS_FAILURE;
     }
@@ -63,7 +63,7 @@ sai_status_t SwitchVpp::IpRouteNexthopGroupEntry(
         sai_object_id_t next_hop_oid;
         uint32_t next_hop_weight = 1;
         nexthop_grp_member_t mbr;
-        
+
         attr.id = SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID;
         CHECK_STATUS_QUIET(member_obj->get_mandatory_attr(attr));
         next_hop_oid = attr.value.oid;
@@ -148,8 +148,8 @@ sai_status_t SwitchVpp::IpRouteNexthopEntry(
 // and retrieves the required attributes from the next hop object.
 // The function returns SAI_STATUS_SUCCESS if the member is filled successfully,
 // otherwise it returns an appropriate error status.
-sai_status_t 
-SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t next_hop_oid, uint32_t next_hop_weight, uint32_t next_hop_sequence) 
+sai_status_t
+SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t next_hop_oid, uint32_t next_hop_weight, uint32_t next_hop_sequence)
 {
     sai_attribute_t attr;
     auto nh_soid = sai_serialize_object_id(next_hop_oid);
@@ -164,7 +164,7 @@ SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t
         SWSS_LOG_ERROR("Failed to find SAI_OBJECT_TYPE_NEXT_HOP SaiObject: %s", nh_soid.c_str());
         return SAI_STATUS_FAILURE;
     }
-    
+
     attr.id = SAI_NEXT_HOP_ATTR_TYPE;
     CHECK_STATUS_QUIET(nh_obj->get_mandatory_attr(attr));
     int32_t next_hop_type = attr.value.s32;
@@ -209,7 +209,7 @@ SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t 
+sai_status_t
 SwitchVpp::createNexthop(
 		_In_ const std::string& serializedObjectId,
 		_In_ sai_object_id_t switch_id,
@@ -252,7 +252,7 @@ sai_status_t SwitchVpp::removeNexthop(
     return remove_internal(SAI_OBJECT_TYPE_NEXT_HOP, serializedObjectId);
 }
 
-sai_status_t 
+sai_status_t
 SwitchVpp::createNexthopGroupMember(
 		_In_ const std::string& serializedObjectId,
 		_In_ sai_object_id_t switch_id,
@@ -262,7 +262,7 @@ SwitchVpp::createNexthopGroupMember(
     sai_status_t        status;
     sai_attribute_t     attr;
     SWSS_LOG_ENTER();
-   
+
     SaiCachedObject nhg_mbr_obj(this, SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER, serializedObjectId, attr_count, attr_list);
     attr.id = SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID;
     CHECK_STATUS_QUIET(nhg_mbr_obj.get_mandatory_attr(attr));
@@ -292,7 +292,7 @@ SwitchVpp::createNexthopGroupMember(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t 
+sai_status_t
 SwitchVpp::removeNexthopGroupMember(
         _In_ const std::string &serializedObjectId)
 {
@@ -308,13 +308,13 @@ SwitchVpp::removeNexthopGroupMember(
     attr.id = SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID;
     CHECK_STATUS_QUIET(nhg_mbr_obj->get_mandatory_attr(attr));
     SWSS_LOG_INFO("Deleting NHG member %s from nhg %s", serializedObjectId.c_str(), sai_serialize_object_id(attr.value.oid).c_str());
-    
+
     auto nhg_obj = nhg_mbr_obj->get_linked_object(SAI_OBJECT_TYPE_NEXT_HOP_GROUP, SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID);
     if (nhg_obj == nullptr) {
         SWSS_LOG_ERROR("Failed to find SAI_OBJECT_TYPE_NEXT_HOP_GROUP from %s", serializedObjectId.c_str());
         return SAI_STATUS_FAILURE;
     }
-    
+
     auto routes = nhg_obj->get_child_objs(SAI_OBJECT_TYPE_ROUTE_ENTRY);
 
     //call remove_internal to update the mapping from NHG to NHG_MBRs
@@ -325,8 +325,8 @@ SwitchVpp::removeNexthopGroupMember(
 
     if (routes == nullptr) {
         return SAI_STATUS_SUCCESS;
-    }    
-    
+    }
+
     for (auto route : *routes) {
         SWSS_LOG_INFO("NHG member changed. Updating route %s", route.first.c_str());
         IpRouteAddRemove(route.second.get(), false);

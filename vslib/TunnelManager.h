@@ -73,7 +73,7 @@ namespace saivs
          * @return The status of the operation.
          */
         sai_status_t get_tunnel_if(
-            _In_  sai_object_id_t nexthop_oid, 
+            _In_  sai_object_id_t nexthop_oid,
             _Out_ u_int32_t &sw_if_index) {
             auto it = m_tunnel_encap_nexthop_map.find(nexthop_oid);
             if (it != m_tunnel_encap_nexthop_map.end()) {
@@ -95,7 +95,7 @@ namespace saivs
         /**
          * @brief Set VxLAN port.
          */
-        void set_vxlan_port(const sai_attribute_t* attr);        
+        void set_vxlan_port(const sai_attribute_t* attr);
     private:
         SwitchVpp* m_switch_db;
         std::array<uint8_t, 6> m_router_mac;
@@ -104,7 +104,7 @@ namespace saivs
         std::unordered_map<sai_object_id_t, TunnelVSData> m_tunnel_encap_nexthop_map;
 
         sai_status_t tunnel_encap_nexthop_action(
-                        _In_ const SaiObject* tunnel_nh_obj, 
+                        _In_ const SaiObject* tunnel_nh_obj,
                         _In_ Action action);
 
         sai_status_t create_vpp_vxlan_encap(
@@ -112,7 +112,7 @@ namespace saivs
                         _Out_ TunnelVSData& tunnel_data);
 
         sai_status_t remove_vpp_vxlan_encap(
-                        _In_  vpp_vxlan_tunnel_t& req,            
+                        _In_  vpp_vxlan_tunnel_t& req,
                         _In_ TunnelVSData& tunnel_data);
 
         sai_status_t create_vpp_vxlan_decap(
@@ -120,7 +120,7 @@ namespace saivs
 
         sai_status_t remove_vpp_vxlan_decap(
                         _In_ TunnelVSData& tunnel_data);
-                        
+
     };
 
 }

@@ -38,7 +38,7 @@ SwitchVpp::SwitchVpp(
 }
 
 bool SwitchVpp::port_to_hostif_list(
-        _In_ sai_object_id_t port_id, 
+        _In_ sai_object_id_t port_id,
         _Inout_ std::string& if_name)
 {
     SWSS_LOG_ENTER();

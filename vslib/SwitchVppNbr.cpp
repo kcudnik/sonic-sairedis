@@ -156,7 +156,7 @@ bool SwitchVpp::is_ip_nbr_active()
     }
     return nbr_active;
 }
-    
+
 sai_status_t SwitchVpp::addIpNbr(
         _In_ const std::string &serializedObjectId,
         _In_ sai_object_id_t switch_id,

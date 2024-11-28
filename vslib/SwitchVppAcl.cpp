@@ -421,7 +421,7 @@ sai_status_t SwitchVpp::tunterm_set_action_redirect(
         SWSS_LOG_ERROR("IP address missing in nexthop %s", sai_serialize_object_id(next_hop_oid).c_str());
         return SAI_STATUS_SUCCESS;
     }
-    
+
     attr.id = SAI_NEXT_HOP_ATTR_ROUTER_INTERFACE_ID;
     if (get(SAI_OBJECT_TYPE_NEXT_HOP, next_hop_oid, 1, &attr) == SAI_STATUS_SUCCESS)
     {
@@ -462,7 +462,7 @@ sai_status_t SwitchVpp::tunterm_set_action_redirect(
         case SAI_IP_ADDR_FAMILY_IPV6:
         {
             sai_ip_address_t_to_vpp_ip_addr_t(ip_address, rule->next_hop_ip);
-            rule->ip_protocol = 2; // IP46_TYPE_IP4=1, IP46_TYPE_IP6=2 
+            rule->ip_protocol = 2; // IP46_TYPE_IP4=1, IP46_TYPE_IP6=2
             break;
         }
         default:
@@ -474,8 +474,8 @@ sai_status_t SwitchVpp::tunterm_set_action_redirect(
     SWSS_LOG_INFO("Tunterm rule received: IP Protocol %d, rif_oid %ld, next-hop hwif_name %s", rule->ip_protocol,
                     rif_oid, rule->hwif_name);
 
-    vpp_ip_addr_t_to_string(&rule->next_hop_ip, nh_ip_str, INET6_ADDRSTRLEN);        
-    SWSS_LOG_INFO("Tunterm acl rule has next-hop IP %s", nh_ip_str);    
+    vpp_ip_addr_t_to_string(&rule->next_hop_ip, nh_ip_str, INET6_ADDRSTRLEN);
+    SWSS_LOG_INFO("Tunterm acl rule has next-hop IP %s", nh_ip_str);
 
     return status;
 }
@@ -519,7 +519,7 @@ sai_status_t SwitchVpp::tunterm_acl_rule_field_update(
         sin6 =  &ip_mask->addr.ip6;
         memcpy(sin6->sin6_addr.s6_addr, &value->aclfield.mask.ip6, sizeof(value->aclfield.mask.ip6));
         vpp_ip_addr_t_to_string(ip_addr, dst_ip_str, INET6_ADDRSTRLEN);
-        SWSS_LOG_INFO("Tunterm acl rule has dst IP: %s", dst_ip_str);        
+        SWSS_LOG_INFO("Tunterm acl rule has dst IP: %s", dst_ip_str);
         break;
     }
     case SAI_ACL_ENTRY_ATTR_ACTION_REDIRECT:
@@ -644,7 +644,7 @@ sai_status_t SwitchVpp::get_sorted_aces(
                         p_ace->attrs, &p_ace->attr_range) == SAI_STATUS_SUCCESS) {
             p_ace->range_count = 0;
             if (acl_rule_range_get(&p_ace->attr_range.value.aclfield.data.objlist,
-                p_ace->range_limit, p_ace->range_type, &p_ace->range_count) 
+                p_ace->range_limit, p_ace->range_type, &p_ace->range_count)
                 != SAI_STATUS_SUCCESS) {
                 SWSS_LOG_ERROR("Failed acl range get.");
                 status = SAI_STATUS_FAILURE;
@@ -694,7 +694,7 @@ void SwitchVpp::count_tunterm_acl_rules(
                 break;
             }
         }
-        if (tunterm_flag_set) { 
+        if (tunterm_flag_set) {
             n_tunterm_entries++;
             ace.is_tunterm = true;
         } else {
@@ -744,7 +744,7 @@ sai_status_t SwitchVpp::allocate_tunterm_acl(
         SWSS_LOG_ERROR("Failed to allocate memory for tunterm acl.");
         return SAI_STATUS_FAILURE;
     }
-    tunterm_acl->count = (uint32_t) n_tunterm_entries;    
+    tunterm_acl->count = (uint32_t) n_tunterm_entries;
     snprintf(acl_name, sizeof(acl_name), "tunterm_sonic_acl_%s", tbl_sid.c_str());
     tunterm_acl->acl_name = acl_name;
 
@@ -803,7 +803,7 @@ sai_status_t SwitchVpp::fill_acl_rules(
             tunterm_rule++;
         } else {
             rule++;
-        } 
+        }
     }
     return SAI_STATUS_SUCCESS;
 }
@@ -833,7 +833,7 @@ sai_status_t SwitchVpp::acl_add_replace(
     vpp_acl_t *&acl,
     sai_object_id_t tbl_oid,
     acl_tbl_entries_t *aces,
-    std::list<ordered_ace_list_t> &ordered_aces) 
+    std::list<ordered_ace_list_t> &ordered_aces)
 {
     sai_status_t        status = SAI_STATUS_SUCCESS;
     bool                acl_replace;
@@ -868,7 +868,7 @@ sai_status_t SwitchVpp::acl_add_replace(
                     auto ace_it = m_ace_cntr_info_map.find(ace_cntr_oid);
                     if (ace_it != m_ace_cntr_info_map.end()) {
                         m_ace_cntr_info_map.erase(ace_it);
-                    }            
+                    }
                     // For stats we need to find vpp rule index from acl_entry_counter (ace_counter)
                     m_ace_cntr_info_map[ace_cntr_oid] = { tbl_oid, ace.ace_oid, acl_swindex, index };
                 }
@@ -958,7 +958,7 @@ sai_status_t SwitchVpp::tunterm_acl_add_replace(vpp_tunterm_acl_t *acl, sai_obje
 
     SWSS_LOG_INFO("Tunterm ACL table %s %s status %d", tbl_sid.c_str(),
             do_port_bind ? "add" : "replace", status);
-    
+
     return status;
 }
 
@@ -981,7 +981,7 @@ sai_status_t SwitchVpp::tunterm_acl_delete(sai_object_id_t tbl_oid, bool table_d
         SWSS_LOG_WARN("No tunterm ACL configured for table %s",
                         sai_serialize_object_id(tbl_oid).c_str());
         return status;
-    } 
+    }
 
     /*
      *  In the case where tunterm ACL is deleted by ACL update with empty ACL,
@@ -1022,9 +1022,9 @@ sai_status_t SwitchVpp::AclTblConfig(
     size_t                              n_total_entries = 0;
     acl_tbl_entries_t                  *aces = NULL;
     vpp_acl_t                          *acl = NULL;
-    vpp_tunterm_acl_t                  *tunterm_acl = NULL; 
+    vpp_tunterm_acl_t                  *tunterm_acl = NULL;
     char                                aclname[64];
-    char                                tunterm_aclname[64];    
+    char                                tunterm_aclname[64];
     std::map<sai_object_id_t, uint32_t> acl_aces_index_map;
     std::list<ordered_ace_list_t>       ordered_aces = {};
 
@@ -1052,7 +1052,7 @@ sai_status_t SwitchVpp::AclTblConfig(
     CHECK_STATUS_ACLTBLCONFIG(fill_acl_rules(aces, ordered_aces, acl, tunterm_acl));
 
     status = acl_add_replace(acl, tbl_oid, aces, ordered_aces);
-        
+
     if (status == SAI_STATUS_SUCCESS) {
         status = tunterm_acl_add_replace(tunterm_acl, tbl_oid);
     } else {
@@ -1253,7 +1253,7 @@ sai_status_t SwitchVpp::AclAddRemoveCheck(
     if (it == m_acl_tbl_rules_map.end()) {
         return SAI_STATUS_SUCCESS;
     }
-    
+
     status = AclTblConfig(tbl_oid);
     return status;
 }
@@ -1378,7 +1378,7 @@ sai_status_t SwitchVpp::addRemoveAclGrpMbr(
     }
 
     aclBindUnbindPorts(tbl_grp_oid, attr.value.oid, is_add);
-    
+
     SWSS_LOG_NOTICE("ACL group member %s %s table group %s",
 		    sai_serialize_object_id(member_oid).c_str(),
 		    is_add ? "added to" : "removed from",
@@ -1543,7 +1543,7 @@ sai_status_t SwitchVpp::aclBindUnbindPort(
     if (it == m_acl_tbl_grp_mbr_map.end()) {
 	auto sid = sai_serialize_object_id(tbl_grp_oid);
 	SWSS_LOG_INFO("ACL tbl group with id %s not found", sid.c_str());
-	/* 
+	/*
 	 * The tbl group is not created until a group member is added. The bind port
 	 * will be called later when a group member is added.
 	 */

@@ -29,7 +29,7 @@ namespace saivs
             void free(uint32_t index) {
                 if (index >= resource_size + base_index || index < base_index) {
                     throw std::invalid_argument("Invalid index");
-                }                
+                }
                 index -= base_index;
                 resource_bitmap[index / 8] &=  (uint8_t)(~(1 << (index % 8)));
             }

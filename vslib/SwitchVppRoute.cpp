@@ -109,7 +109,7 @@ sai_status_t SwitchVpp::IpRouteAddRemove(
     sai_object_id_t              next_hop_oid;
     sai_attribute_t              attr;
     std::string                  serializedObjectId = route_obj->get_id();
-    
+
     attr.id = SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID;
     CHECK_STATUS_QUIET(route_obj->get_mandatory_attr(attr));
     next_hop_oid = attr.value.oid;
@@ -133,7 +133,7 @@ sai_status_t SwitchVpp::IpRouteAddRemove(
         status = route_obj->get_attr(attr);
 
         if (status == SAI_STATUS_SUCCESS && SAI_PACKET_ACTION_FORWARD == attr.value.s32) {
-            vpp_add_del_intf_ip_addr_norif(serializedObjectId, route_entry, is_add);    
+            vpp_add_del_intf_ip_addr_norif(serializedObjectId, route_entry, is_add);
         }
     }
     else if (SAI_OBJECT_TYPE_NEXT_HOP == sai_object_type_query(next_hop_oid))
@@ -215,10 +215,10 @@ sai_status_t SwitchVpp::addIpRoute(
     if (nh_obj != nullptr) {
         sai_attribute_t attr;
         attr.id = SAI_NEXT_HOP_ATTR_TYPE;
-        CHECK_STATUS_W_MSG(nh_obj->get_attr(attr), "Missing SAI_NEXT_HOP_ATTR_TYPE in tunnel obj");       
-        isTunnelNh = (attr.value.s32 == SAI_NEXT_HOP_TYPE_TUNNEL_ENCAP); 
+        CHECK_STATUS_W_MSG(nh_obj->get_attr(attr), "Missing SAI_NEXT_HOP_ATTR_TYPE in tunnel obj");
+        isTunnelNh = (attr.value.s32 == SAI_NEXT_HOP_TYPE_TUNNEL_ENCAP);
     }
-    
+
     if (isTunnelNh) {
         IpRouteAddRemove(&ip_route_obj, true);
     } else {
@@ -228,7 +228,7 @@ sai_status_t SwitchVpp::addIpRoute(
             IpRouteAddRemove(&ip_route_obj, true);
         }
     }
-    
+
     CHECK_STATUS(create_internal(SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId, switch_id, attr_count, attr_list));
 
     return SAI_STATUS_SUCCESS;
@@ -243,7 +243,7 @@ sai_status_t SwitchVpp::updateIpRoute(
     if (is_ip_nbr_active() == true) {
         SWSS_LOG_NOTICE("ip route entry update %s", serializedObjectId.c_str());
         SaiModDBObject route_mod_obj(this, SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId, 1, attr);
-        
+
         auto route_db_obj = route_mod_obj.get_db_obj();
         if (!route_db_obj) {
             SWSS_LOG_ERROR("Failed to find SAI_OBJECT_TYPE_ROUTE_ENTRY SaiObject: %s", serializedObjectId.c_str());
@@ -251,7 +251,7 @@ sai_status_t SwitchVpp::updateIpRoute(
         } else {
             IpRouteAddRemove(route_db_obj.get(), false);
         }
-        
+
 	    IpRouteAddRemove(&route_mod_obj, true);
     }
 
@@ -270,7 +270,7 @@ sai_status_t SwitchVpp::removeIpRoute(
     if (isLoopback == false && is_ip_nbr_active() == true)
     {
         auto route_obj = get_sai_object(SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId);
-        
+
 	    if (route_obj) {
 	        IpRouteAddRemove(route_obj.get(), false);
 	    }

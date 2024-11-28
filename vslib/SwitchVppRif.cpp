@@ -57,7 +57,7 @@ bool vpp_get_intf_all_ip_prefixes (
     std::string res;
 
     cmd << IP_CMD << " addr show dev " << linux_ifname << " scope global | awk '/inet/ {print $2}'";
-    
+
     int ret = swss::exec(cmd.str(), res);
     if (ret)
     {
@@ -149,7 +149,7 @@ std::string get_intf_name_for_prefix (
     std::string full_if_name = "";
 	bool found = vpp_get_intf_name_for_prefix(route_entry.destination, is_v6, full_if_name);
 	if (found == false)
-	{   
+	{
         auto prefix_str = sai_serialize_ip_prefix(route_entry.destination);
 	    SWSS_LOG_ERROR("host interface for prefix not found: %s", prefix_str.c_str());
     }
@@ -566,7 +566,7 @@ sai_status_t SwitchVpp::UpdatePort(
 	    sai_attribute_t attr;
 
 	    attr.id = SAI_PORT_ATTR_INGRESS_ACL;
-	    if (get(SAI_OBJECT_TYPE_PORT, object_id, 1, &attr) != SAI_STATUS_SUCCESS) { 
+	    if (get(SAI_OBJECT_TYPE_PORT, object_id, 1, &attr) != SAI_STATUS_SUCCESS) {
 		aclBindUnbindPort(object_id, attr.value.oid, true, false);
 	    }
 	} else {
@@ -582,7 +582,7 @@ sai_status_t SwitchVpp::UpdatePort(
 	    sai_attribute_t attr;
 
 	    attr.id = SAI_PORT_ATTR_EGRESS_ACL;
-	    if (get(SAI_OBJECT_TYPE_PORT, object_id, 1, &attr) != SAI_STATUS_SUCCESS) { 
+	    if (get(SAI_OBJECT_TYPE_PORT, object_id, 1, &attr) != SAI_STATUS_SUCCESS) {
 		aclBindUnbindPort(object_id, attr.value.oid, true, false);
 	    }
 	} else {
@@ -607,7 +607,7 @@ sai_status_t SwitchVpp::UpdatePort(
     {
         vpp_set_port_mtu(object_id, 0, attr_type->value.u32);
     }
-    
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -1221,7 +1221,7 @@ sai_status_t SwitchVpp::vpp_add_lpb_intf_ip_addr (
         SWSS_LOG_DEBUG("configure_lcp_interface vpp_name:%s sonic_name:%s prefix:%s",
             vppIfName.c_str(), hostIfname.c_str(), prefix.to_string().c_str());
     }
-    
+
     // Store the ip/vppIfName pair
     lpbIpToIfMap[destinationIP] = vppIfName;
     lpbIpToHostIfMap[destinationIP] = hostIfname;

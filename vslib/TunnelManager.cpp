@@ -20,13 +20,13 @@ using namespace saivs;
         SWSS_LOG_ERROR("%s: status %d", buffer, status); \
         return _status; } }
 
-TunnelManager::TunnelManager(SwitchVpp* switch_db): m_switch_db(switch_db) 
+TunnelManager::TunnelManager(SwitchVpp* switch_db): m_switch_db(switch_db)
 {
     m_router_mac = {0, 0, 0, 0, 0, 1};
     m_vxlan_port = 4789;
 }
 
-const std::array<uint8_t, 6>& 
+const std::array<uint8_t, 6>&
 TunnelManager::get_router_mac() const
 {
     return m_router_mac;
@@ -49,24 +49,24 @@ TunnelManager::set_vxlan_port(const sai_attribute_t* attr)
  * VxLAN tunnel is created in response to the creation of a tunnel encap nexthop entry. This assumes VxLAN tunnel is bidirectional and symmetric.
  * The local VTEP sends packet through the tunnel to the remote VTEP. The remote VTEP sends packet back to the local VTEP through the same tunnel with the same VNI.
  * Here is the VS config to be programmed in response to the creation of a tunnel encap nexthop entry:
- * 
+ *
  * create vxlan tunnel src 1.0.0.1 dst 1.0.0.2 vni 3000
  * ip neighbor vxlan_tunnel0 1.0.0.2 00:00:00:00:00:01 no-fib-entry
  * ip route add 100.1.1.0/24 via 1.0.0.2 vxlan_tunnel0
- * 
- * bvi create mac 00:00:00:00:00:01 
+ *
+ * bvi create mac 00:00:00:00:00:01
  * set interface state bvi0 up
  * set interface ip address bvi0 0.0.0.2/32
  * set interface l2 bridge vxlan_tunnel0 3000 1
  * set interface l2 bridge bvi0 3000 bvi
- * 
+ *
  * corresponding to below sonic config
  *   In CONFIG_DB
  *   "VXLAN_TUNNEL": {
  *        "test": {
  *           "src_ip": "1.0.0.1"
  *       }
- *   }   
+ *   }
  *  "VNET": {
  *       "Vnet1": {
  *           "peer_list": "",
@@ -83,7 +83,7 @@ TunnelManager::set_vxlan_port(const sai_attribute_t* attr)
  */
 sai_status_t
 TunnelManager::tunnel_encap_nexthop_action(
-                    _In_ const SaiObject* tunnel_nh_obj, 
+                    _In_ const SaiObject* tunnel_nh_obj,
                     _In_ Action action)
 {
     sai_attribute_t              attr;
@@ -94,9 +94,9 @@ TunnelManager::tunnel_encap_nexthop_action(
 
 
     SWSS_LOG_ENTER();
-    SWSS_LOG_DEBUG("tunnel_encap_nexthop_action %s %s", 
+    SWSS_LOG_DEBUG("tunnel_encap_nexthop_action %s %s",
         action == Action::CREATE ? "CREATE" : "DELETE", tunnel_nh_obj->get_id().c_str());
-    sai_deserialize_object_id(tunnel_nh_obj->get_id(), object_id);     
+    sai_deserialize_object_id(tunnel_nh_obj->get_id(), object_id);
     auto tunnel_obj = tunnel_nh_obj->get_linked_object(SAI_OBJECT_TYPE_TUNNEL, SAI_NEXT_HOP_ATTR_TUNNEL_ID);
     if (tunnel_obj == nullptr) {
         return SAI_STATUS_FAILURE;
@@ -114,19 +114,19 @@ TunnelManager::tunnel_encap_nexthop_action(
     CHECK_STATUS_W_MSG(tunnel_obj->get_attr(attr), "Missing SAI_TUNNEL_ATTR_ENCAP_SRC_IP in tunnel obj");
     // SAI_TUNNEL_ATTR_ENCAP_TTL_MODE and SAI_TUNNEL_ATTR_ENCAP_TTL_VAL are not supported in vpp
     src_ip = attr.value.ipaddr;
-    
+
     attr.id = SAI_NEXT_HOP_ATTR_IP;
     CHECK_STATUS_W_MSG(tunnel_nh_obj->get_attr(attr), "Missing SAI_NEXT_HOP_ATTR_IP in %s", tunnel_nh_obj->get_id().c_str());
 
     dst_ip = attr.value.ipaddr;
-    
+
     // Iterate tunnel encap mapper
     auto tunnel_encap_mappers = tunnel_obj->get_linked_objects(SAI_OBJECT_TYPE_TUNNEL_MAP, SAI_TUNNEL_ATTR_ENCAP_MAPPERS);
-    
+
     for (auto tunnel_encap_mapper : tunnel_encap_mappers) {
         attr.id = SAI_TUNNEL_MAP_ATTR_TYPE;
-        CHECK_STATUS_W_MSG(tunnel_encap_mapper->get_attr(attr), 
-                "Missing SAI_TUNNEL_MAP_ATTR_TYPE in %s", 
+        CHECK_STATUS_W_MSG(tunnel_encap_mapper->get_attr(attr),
+                "Missing SAI_TUNNEL_MAP_ATTR_TYPE in %s",
                 tunnel_encap_mapper->get_id().c_str());
         if (attr.value.s32 != SAI_TUNNEL_MAP_TYPE_VIRTUAL_ROUTER_ID_TO_VNI) {
             continue;
@@ -134,7 +134,7 @@ TunnelManager::tunnel_encap_nexthop_action(
 
         auto tunnel_encap_mapper_entries = tunnel_encap_mapper->get_child_objs(SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY);
         if (tunnel_encap_mapper_entries == nullptr) {
-            SWSS_LOG_DEBUG("Empty tunnel_encap_mapper table. OID %s", 
+            SWSS_LOG_DEBUG("Empty tunnel_encap_mapper table. OID %s",
                 tunnel_encap_mapper->get_id().c_str());
             continue;
         }
@@ -153,19 +153,19 @@ TunnelManager::tunnel_encap_nexthop_action(
             req.decap_next_index = ~0;
 
             attr.id = SAI_TUNNEL_MAP_ENTRY_ATTR_VNI_ID_VALUE;
-            CHECK_STATUS_W_MSG(tunnel_encap_mapper_entry->get_attr(attr), 
-                "Missing SAI_TUNNEL_MAP_ENTRY_ATTR_VNI_ID_KEY in %s", 
+            CHECK_STATUS_W_MSG(tunnel_encap_mapper_entry->get_attr(attr),
+                "Missing SAI_TUNNEL_MAP_ENTRY_ATTR_VNI_ID_KEY in %s",
                 tunnel_encap_mapper_entry->get_id().c_str());
             tunnel_vni = attr.value.u32;
-            
+
             attr.id = SAI_TUNNEL_MAP_ENTRY_ATTR_VIRTUAL_ROUTER_ID_KEY;
-            CHECK_STATUS_W_MSG(tunnel_encap_mapper_entry->get_attr(attr), 
-                    "Missing SAI_TUNNEL_MAP_ENTRY_ATTR_VIRTUAL_ROUTER_ID_KEY in %s", 
+            CHECK_STATUS_W_MSG(tunnel_encap_mapper_entry->get_attr(attr),
+                    "Missing SAI_TUNNEL_MAP_ENTRY_ATTR_VIRTUAL_ROUTER_ID_KEY in %s",
                     tunnel_encap_mapper_entry->get_id().c_str());
-            
+
             auto ip_vrf = m_switch_db->vpp_get_ip_vrf(attr.value.oid);
             if (!ip_vrf) {
-                SWSS_LOG_ERROR("Failed to find VR from SAI_TUNNEL_MAP_ENTRY_ATTR_VIRTUAL_ROUTER_ID_KEY in %s", 
+                SWSS_LOG_ERROR("Failed to find VR from SAI_TUNNEL_MAP_ENTRY_ATTR_VIRTUAL_ROUTER_ID_KEY in %s",
                     tunnel_encap_mapper_entry->get_id().c_str());
                 return SAI_STATUS_FAILURE;
             }
@@ -175,13 +175,13 @@ TunnelManager::tunnel_encap_nexthop_action(
 
             if (action == Action::CREATE) {
                 if (create_vpp_vxlan_encap(req, tunnel_data) != SAI_STATUS_SUCCESS) {
-                    SWSS_LOG_ERROR("Failed to create vxlan encap for %s", 
+                    SWSS_LOG_ERROR("Failed to create vxlan encap for %s",
                         tunnel_nh_obj->get_id().c_str());
                     return SAI_STATUS_FAILURE;
                 }
-                
+
                 if (create_vpp_vxlan_decap(tunnel_data) != SAI_STATUS_SUCCESS) {
-                    SWSS_LOG_ERROR("Failed to create vxlan decap for %s", 
+                    SWSS_LOG_ERROR("Failed to create vxlan decap for %s",
                         tunnel_nh_obj->get_id().c_str());
                     remove_vpp_vxlan_encap(req, tunnel_data);
                     return SAI_STATUS_FAILURE;
@@ -191,7 +191,7 @@ TunnelManager::tunnel_encap_nexthop_action(
             } else if (action == Action::DELETE) {
                 auto encap_map_it = m_tunnel_encap_nexthop_map.find(object_id);
                 if (encap_map_it == m_tunnel_encap_nexthop_map.end()) {
-                    SWSS_LOG_ERROR("Failed to find sw_if_index for %s", 
+                    SWSS_LOG_ERROR("Failed to find sw_if_index for %s",
                         tunnel_nh_obj->get_id().c_str());
                     continue;
                 }
@@ -204,22 +204,22 @@ TunnelManager::tunnel_encap_nexthop_action(
     }
     return SAI_STATUS_SUCCESS;
 }
-sai_status_t 
+sai_status_t
 TunnelManager::create_tunnel_encap_nexthop(
                     _In_ const std::string& serializedObjectId,
                     _In_ sai_object_id_t switch_id,
                     _In_ uint32_t attr_count,
-                    _In_ const sai_attribute_t *attr_list) 
+                    _In_ const sai_attribute_t *attr_list)
 {
     SWSS_LOG_ENTER();
-    
+
     SaiCachedObject tunnel_nh_obj(m_switch_db, SAI_OBJECT_TYPE_NEXT_HOP, serializedObjectId, attr_count, attr_list);
     return tunnel_encap_nexthop_action(&tunnel_nh_obj, Action::CREATE);
 }
 
-sai_status_t 
+sai_status_t
 TunnelManager::remove_tunnel_encap_nexthop(
-                _In_ const std::string& serializedObjectId) 
+                _In_ const std::string& serializedObjectId)
 {
     SWSS_LOG_ENTER();
     auto tunnel_nh_obj = m_switch_db->get_sai_object(SAI_OBJECT_TYPE_NEXT_HOP, serializedObjectId);
@@ -227,14 +227,14 @@ TunnelManager::remove_tunnel_encap_nexthop(
     if (!tunnel_nh_obj) {
         SWSS_LOG_ERROR("Failed to find SAI_OBJECT_TYPE_NEXT_HOP SaiObject: %s", serializedObjectId.c_str());
         return SAI_STATUS_FAILURE;
-    } 
+    }
     return tunnel_encap_nexthop_action(tunnel_nh_obj.get(), Action::DELETE);
 }
 
 sai_status_t
 TunnelManager::create_vpp_vxlan_encap(
                     _In_  vpp_vxlan_tunnel_t& req,
-                    _Out_ TunnelVSData& tunnel_data) 
+                    _Out_ TunnelVSData& tunnel_data)
 {
     int                         vpp_status;
     u_int32_t                   sw_if_index;
@@ -245,14 +245,14 @@ TunnelManager::create_vpp_vxlan_encap(
 
     vpp_status = vpp_vxlan_tunnel_add_del(&req, 1, &sw_if_index);
     vpp_ip_addr_t_to_string(&req.src_address, src_ip_str, INET6_ADDRSTRLEN);
-    vpp_ip_addr_t_to_string(&req.dst_address, dst_ip_str, INET6_ADDRSTRLEN);    
-    SWSS_LOG_INFO("create vxlan tunnel src %s dst %s vni %d: sw_if_index,%d, status %d", 
+    vpp_ip_addr_t_to_string(&req.dst_address, dst_ip_str, INET6_ADDRSTRLEN);
+    SWSS_LOG_INFO("create vxlan tunnel src %s dst %s vni %d: sw_if_index,%d, status %d",
             src_ip_str, dst_ip_str,
-            req.vni, sw_if_index, vpp_status);          
+            req.vni, sw_if_index, vpp_status);
     if (vpp_status != 0) {
         SWSS_LOG_ERROR("Failed to create vxlan tunnel");
         return SAI_STATUS_FAILURE;
-    }  
+    }
     tunnel_data.sw_if_index = sw_if_index;
     /* the neighbour is to build inner ether. use no_fib_entry to avoid creating the nh in the fib, which will mess up underlay forwarding*/
     if (req.dst_address.sa_family == AF_INET6) {
@@ -267,7 +267,7 @@ TunnelManager::create_vpp_vxlan_encap(
 sai_status_t
 TunnelManager::remove_vpp_vxlan_encap(
                     _In_  vpp_vxlan_tunnel_t& req,
-                    _In_ TunnelVSData& tunnel_data) 
+                    _In_ TunnelVSData& tunnel_data)
 {
     int                         vpp_status;
     u_int32_t                   sw_if_index = tunnel_data.sw_if_index;
@@ -284,8 +284,8 @@ TunnelManager::remove_vpp_vxlan_encap(
 
     vpp_status = vpp_vxlan_tunnel_add_del(&req, 0, &sw_if_index);
     vpp_ip_addr_t_to_string(&req.src_address, src_ip_str, INET6_ADDRSTRLEN);
-    vpp_ip_addr_t_to_string(&req.dst_address, dst_ip_str, INET6_ADDRSTRLEN);        
-    SWSS_LOG_INFO("delete vxlan tunnel src %s dst %s vni %d: sw_if_index %d, status %d", 
+    vpp_ip_addr_t_to_string(&req.dst_address, dst_ip_str, INET6_ADDRSTRLEN);
+    SWSS_LOG_INFO("delete vxlan tunnel src %s dst %s vni %d: sw_if_index %d, status %d",
             src_ip_str, dst_ip_str,
             req.vni, sw_if_index, vpp_status);
     if (vpp_status != 0) {
@@ -296,7 +296,7 @@ TunnelManager::remove_vpp_vxlan_encap(
 }
 sai_status_t
 TunnelManager::create_vpp_vxlan_decap(
-                    _Out_ TunnelVSData& tunnel_data) 
+                    _Out_ TunnelVSData& tunnel_data)
 {
     int                         vpp_status;
     char                        hw_bvi_ifname[32];
@@ -320,7 +320,7 @@ TunnelManager::create_vpp_vxlan_decap(
     }
     // Get new list of physical interfaces from VS
     refresh_interfaces_list();
-    
+
     //bring up bvi interface
     snprintf(hw_bvi_ifname, sizeof(hw_bvi_ifname), "bvi%u", bd_id);
     vpp_status = interface_set_state(hw_bvi_ifname, true);
@@ -335,7 +335,7 @@ TunnelManager::create_vpp_vxlan_decap(
         SWSS_LOG_ERROR("Failed to add bvi interface to bd");
         return SAI_STATUS_FAILURE;
     }
-    
+
     //bind bvi to vrf
     vpp_status = set_interface_vrf(hw_bvi_ifname, 0, tunnel_data.ip_vrf->m_vrf_id, tunnel_data.ip_vrf->m_is_ipv6);
 
@@ -378,7 +378,7 @@ TunnelManager::create_vpp_vxlan_decap(
 
 sai_status_t
 TunnelManager::remove_vpp_vxlan_decap(
-                    _In_ TunnelVSData& tunnel_data) 
+                    _In_ TunnelVSData& tunnel_data)
 {
     char                        hw_bvi_ifname[32];
 
