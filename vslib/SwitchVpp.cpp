@@ -20,8 +20,6 @@ SwitchVpp::SwitchVpp(
 {
     SWSS_LOG_ENTER();
 
-    m_macsecManager.setVpp(true); // TODO refactor
-
     vpp_dp_initialize();
 }
 
@@ -35,8 +33,6 @@ SwitchVpp::SwitchVpp(
     m_tunnel_mgr(this)
 {
     SWSS_LOG_ENTER();
-
-    m_macsecManager.setVpp(true); // TODO refactor
 
     vpp_dp_initialize();
 }
@@ -900,4 +896,105 @@ sai_status_t SwitchVpp::bulkRemove(
     }
 
     return status;
+}
+
+sai_status_t SwitchVpp::get_max(
+        _In_ sai_object_type_t objectType,
+        _In_ const std::string &serializedObjectId,
+        _In_ const uint32_t  max_attr_count,
+        _Out_ uint32_t *attr_count,
+        _Out_ sai_attribute_t *attr_list)
+{
+    SWSS_LOG_ENTER();
+
+    *attr_count = 0;
+
+    const auto &objectHash = m_objectHash.at(objectType);
+
+    auto it = objectHash.find(serializedObjectId);
+
+    if (it == objectHash.end())
+    {
+        SWSS_LOG_ERROR("not found %s:%s",
+                sai_serialize_object_type(objectType).c_str(),
+                serializedObjectId.c_str());
+
+        return SAI_STATUS_ITEM_NOT_FOUND;
+    }
+
+    /*
+     * We need reference here since we can potentially update attr hash for RO
+     * object.
+     */
+
+    auto& attrHash = it->second;
+
+    /*
+     * Some of the list query maybe for length, so we can't do
+     * normal serialize, maybe with count only.
+     */
+
+    sai_status_t final_status = SAI_STATUS_SUCCESS, status;
+    uint32_t idx = 0;
+    sai_attribute_t *dst_attr;
+
+    for (auto &kvp: attrHash)
+    {
+        auto attr = kvp.second->getAttr();
+
+        dst_attr = &attr_list[idx];
+        dst_attr->id = attr->id;
+
+        status = transfer_attributes(objectType, 1, attr, dst_attr, false);
+
+        if (status == SAI_STATUS_BUFFER_OVERFLOW)
+        {
+            /*
+             * This is considered partial success, since we get correct list
+             * length.  Note that other items ARE processes on the list.
+             */
+
+            SWSS_LOG_NOTICE("BUFFER_OVERFLOW %s: %d",
+                    serializedObjectId.c_str(),
+                    attr->id);
+
+            /*
+             * We still continue processing other attributes for get as long as
+             * we only will be getting buffer overflow error.
+             */
+
+            final_status = status;
+            continue;
+        }
+
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            // all other errors
+
+            SWSS_LOG_ERROR("get failed %s: %d: %s",
+                    serializedObjectId.c_str(),
+                    attr->id,
+                    sai_serialize_status(status).c_str());
+
+            return status;
+        }
+
+        ++idx;
+
+        if (idx == max_attr_count)
+            break;
+    }
+
+    *attr_count = idx;
+
+    return final_status;
+}
+
+std::shared_ptr<SaiDBObject> SwitchVpp::get_sai_object(
+        _In_ sai_object_type_t object_type,
+        _In_ const std::string &serializedObjectId)
+{
+    SWSS_LOG_ENTER();
+
+    return m_object_db.get(object_type, serializedObjectId);
 }

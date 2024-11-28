@@ -22,6 +22,13 @@ namespace saivs
     {
         public:
 
+            // name hidding
+
+            using saivs::SwitchStateBase::get;
+            using saivs::SwitchStateBase::set;
+
+        public:
+
             SwitchVpp(
                     _In_ sai_object_id_t switch_id,
                     _In_ std::shared_ptr<RealObjectIdManager> manager,
@@ -66,7 +73,7 @@ namespace saivs
 
             virtual void processFdbEntriesForAging() override;
 
-        protected:
+        public:
 
             virtual sai_status_t create(
                     _In_ sai_object_type_t object_type,
@@ -89,6 +96,8 @@ namespace saivs
                     _In_ const std::string &serializedObjectId,
                     _In_ uint32_t attr_count,
                     _Out_ sai_attribute_t *attr_list) override;
+
+        protected:
 
             virtual sai_status_t create_internal(
                     _In_ sai_object_type_t object_type,
@@ -134,6 +143,34 @@ namespace saivs
                     _In_ const std::vector<std::string> &serialized_object_ids,
                     _In_ sai_bulk_op_error_mode_t mode,
                     _Out_ sai_status_t *object_statuses) override;
+
+        protected: // hostif
+
+            static int vs_create_tap_device(
+                    _In_ const char *dev,
+                    _In_ int flags);
+
+            static int vs_set_dev_mac_address(
+                    _In_ const char *dev,
+                    _In_ const sai_mac_t& mac);
+
+            static int promisc(
+                    _In_ const char *dev);
+
+            virtual bool hostif_create_tap_veth_forwarding(
+                    _In_ const std::string &tapname,
+                    _In_ int tapfd,
+                    _In_ sai_object_id_t port_id) override;
+
+            virtual sai_status_t vs_create_hostif_tap_interface(
+                    _In_ uint32_t attr_count,
+                    _In_ const sai_attribute_t *attr_list) override;
+
+            virtual sai_status_t vs_remove_hostif_tap_interface(
+                    _In_ sai_object_id_t hostif_id) override;
+
+            virtual bool hasIfIndex(
+                    _In_ int ifIndex) const override;
 
         private:
 
@@ -275,16 +312,12 @@ namespace saivs
                     _In_ sai_object_type_t object_type,
                     _In_ const std::string &serialized_object_id);
 
-            // TODO new version
-            static int promisc(
-                    _In_ const char *dev,
-                    _In_ bool vpp);
+            static int vpp_promisc(
+                    _In_ const char *dev);
 
-            // TODO new version
-            static int vs_create_tap_device(
+            static int vpp_create_tap_device(
                     _In_ const char *dev,
-                    _In_ int flags,
-                    _In_ bool vpp);
+                    _In_ int flags);
 
         public: // VPP
 

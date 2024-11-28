@@ -462,14 +462,14 @@ namespace saivs
             sai_status_t removeHostif(
                     _In_ sai_object_id_t objectId);
 
-            sai_status_t vs_remove_hostif_tap_interface(
+            virtual sai_status_t vs_remove_hostif_tap_interface(
                     _In_ sai_object_id_t hostif_id);
 
-            sai_status_t vs_create_hostif_tap_interface(
+            virtual sai_status_t vs_create_hostif_tap_interface(
                     _In_ uint32_t attr_count,
                     _In_ const sai_attribute_t *attr_list);
 
-            bool hostif_create_tap_veth_forwarding(
+            virtual bool hostif_create_tap_veth_forwarding(
                     _In_ const std::string &tapname,
                     _In_ int tapfd,
                     _In_ sai_object_id_t port_id);
@@ -504,7 +504,7 @@ namespace saivs
                     _In_ sai_port_oper_status_t status,
                     _In_ bool force);
 
-            bool hasIfIndex(
+            virtual bool hasIfIndex(
                     _In_ int ifIndex) const;
 
             bool vs_get_oper_speed(

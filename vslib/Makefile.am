@@ -1,16 +1,19 @@
 AM_CXXFLAGS = $(SAIINC) -I$(top_srcdir)/lib -I/usr/include/libnl3
-AM_CFLAGS = -I/usr/include/vpp_plugins -fPIC -I. -I.. -I../../ -I../../../
+
+# TODO fix multiple paths
+AM_CFLAGS = -I/usr/include/vpp_plugins -fPIC -I. #-I.. -I../../ -I../../../
 
 lib_LTLIBRARIES = libsaivs.la
 
 noinst_LIBRARIES = libSaiVS.a
 
-#vppxlate/SaiVppXlate.c \
-#					  vppxlate/SaiVppStats.c \
-#					  vppxlate/SaiAclStats.c \
-#					  vppxlate/SaiIntfStats.c
+# TODO: move vppxlate to proper lib and namespaces
 
 libSaiVS_a_SOURCES = \
+					  vppxlate/SaiVppXlate.c \
+					  vppxlate/SaiVppStats.c \
+					  vppxlate/SaiAclStats.c \
+					  vppxlate/SaiIntfStats.c \
 					  Buffer.cpp \
 					  ContextConfigContainer.cpp \
 					  ContextConfig.cpp \
@@ -71,6 +74,9 @@ libSaiVS_a_SOURCES = \
 					  SwitchVppFdb.cpp \
 					  SwitchVppRif.cpp \
 					  SwitchVppBfd.cpp \
+					  SwitchVppHostif.cpp \
+					  SwitchVppRoute.cpp \
+					  SwitchVppNbr.cpp \
 					  TunnelManager.cpp \
 					  VirtualSwitchSaiInterface.cpp \
 					  VirtualSwitchSaiInterfaceFdb.cpp \
@@ -84,6 +90,7 @@ sai_vs.cpp: ../stub.pl $(top_srcdir)/SAI/meta/saimetadata.c
 clean-local:
 	rm -f sai_vs.cpp
 
+# TODO move to configure?
 VPP_LIBS = -lvlibapi -lvapiclient -lvppapiclient -lvlibmemoryclient -lsvm -lvppinfra -lvlib -lvatplugin
 
 libsaivs_la_SOURCES = sai_vs.cpp
