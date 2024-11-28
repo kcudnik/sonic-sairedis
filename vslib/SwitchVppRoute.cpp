@@ -42,23 +42,23 @@ static void create_route_prefix_entry (
     switch (ip_address->addr_family) {
     case SAI_IP_ADDR_FAMILY_IPV4:
     {
-	struct sockaddr_in *sin =  &ip_route->prefix_addr.addr.ip4;
+        struct sockaddr_in *sin =  &ip_route->prefix_addr.addr.ip4;
 
-	ip_route->prefix_addr.sa_family = AF_INET;
-	sin->sin_addr.s_addr = ip_address->addr.ip4;
-	ip_route->prefix_len = getPrefixLenFromAddrMask(reinterpret_cast<const uint8_t*>(&ip_address->mask.ip4), 4);
+        ip_route->prefix_addr.sa_family = AF_INET;
+        sin->sin_addr.s_addr = ip_address->addr.ip4;
+        ip_route->prefix_len = getPrefixLenFromAddrMask(reinterpret_cast<const uint8_t*>(&ip_address->mask.ip4), 4);
 
-	break;
+        break;
     }
     case SAI_IP_ADDR_FAMILY_IPV6:
     {
-	struct sockaddr_in6 *sin6 =  &ip_route->prefix_addr.addr.ip6;
+        struct sockaddr_in6 *sin6 =  &ip_route->prefix_addr.addr.ip6;
 
-	ip_route->prefix_addr.sa_family = AF_INET6;
-	memcpy(sin6->sin6_addr.s6_addr, ip_address->addr.ip6, sizeof(sin6->sin6_addr.s6_addr));
-	ip_route->prefix_len = getPrefixLenFromAddrMask(ip_address->mask.ip6, 16);
+        ip_route->prefix_addr.sa_family = AF_INET6;
+        memcpy(sin6->sin6_addr.s6_addr, ip_address->addr.ip6, sizeof(sin6->sin6_addr.s6_addr));
+        ip_route->prefix_len = getPrefixLenFromAddrMask(ip_address->mask.ip6, 16);
 
-	break;
+        break;
     }
     }
 }
@@ -74,21 +74,21 @@ void create_vpp_nexthop_entry (
     switch (ip_address->addr_family) {
     case SAI_IP_ADDR_FAMILY_IPV4:
     {
-	struct sockaddr_in *sin =  &vpp_nexthop->addr.addr.ip4;
+        struct sockaddr_in *sin =  &vpp_nexthop->addr.addr.ip4;
 
-	vpp_nexthop->addr.sa_family = AF_INET;
-	sin->sin_addr.s_addr = ip_address->addr.ip4;
+        vpp_nexthop->addr.sa_family = AF_INET;
+        sin->sin_addr.s_addr = ip_address->addr.ip4;
 
-	break;
+        break;
     }
     case SAI_IP_ADDR_FAMILY_IPV6:
     {
-	struct sockaddr_in6 *sin6 =  &vpp_nexthop->addr.addr.ip6;
+        struct sockaddr_in6 *sin6 =  &vpp_nexthop->addr.addr.ip6;
 
-	vpp_nexthop->addr.sa_family = AF_INET6;
-	memcpy(sin6->sin6_addr.s6_addr, ip_address->addr.ip6, sizeof(sin6->sin6_addr.s6_addr));
+        vpp_nexthop->addr.sa_family = AF_INET6;
+        memcpy(sin6->sin6_addr.s6_addr, ip_address->addr.ip6, sizeof(sin6->sin6_addr.s6_addr));
 
-	break;
+        break;
     }
     }
     vpp_nexthop->type = type;
@@ -100,7 +100,7 @@ void create_vpp_nexthop_entry (
 
 sai_status_t SwitchVpp::IpRouteAddRemove(
         _In_ const SaiObject* route_obj,
-	    _In_ bool is_add)
+            _In_ bool is_add)
 {
     SWSS_LOG_ENTER();
 
@@ -252,7 +252,7 @@ sai_status_t SwitchVpp::updateIpRoute(
             IpRouteAddRemove(route_db_obj.get(), false);
         }
 
-	    IpRouteAddRemove(&route_mod_obj, true);
+            IpRouteAddRemove(&route_mod_obj, true);
     }
 
     set_internal(SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId, attr);
@@ -271,9 +271,9 @@ sai_status_t SwitchVpp::removeIpRoute(
     {
         auto route_obj = get_sai_object(SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId);
 
-	    if (route_obj) {
-	        IpRouteAddRemove(route_obj.get(), false);
-	    }
+            if (route_obj) {
+                IpRouteAddRemove(route_obj.get(), false);
+            }
     }
 
     CHECK_STATUS(remove_internal(SAI_OBJECT_TYPE_ROUTE_ENTRY, serializedObjectId));

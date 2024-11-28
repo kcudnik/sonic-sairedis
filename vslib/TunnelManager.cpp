@@ -77,9 +77,9 @@ TunnelManager::set_vxlan_port(const sai_attribute_t* attr)
  *   }
  *   In APPL_DB
  *   "VNET_ROUTE_TUNNEL_TABLE:Vnet1:100.1.1.0/24":
- *	 {
+ *         {
  *       "endpoint": "1.0.0.2"
- *	 }
+ *         }
  */
 sai_status_t
 TunnelManager::tunnel_encap_nexthop_action(

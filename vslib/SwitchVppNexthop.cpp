@@ -45,7 +45,7 @@ sai_status_t SwitchVpp::IpRouteNexthopGroupEntry(
     if (attr.value.s32 != SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_UNORDERED_ECMP &&
         attr.value.s32 != SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_ORDERED_ECMP) {
         SWSS_LOG_ERROR("Unsupported type (%d) in nexthop group %s", attr.value.s32, nhg_soid.c_str());
-	    return SAI_STATUS_NOT_IMPLEMENTED;
+            return SAI_STATUS_NOT_IMPLEMENTED;
     }
 
     group_type = attr.value.s32;
@@ -211,10 +211,10 @@ SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t
 
 sai_status_t
 SwitchVpp::createNexthop(
-		_In_ const std::string& serializedObjectId,
-		_In_ sai_object_id_t switch_id,
-		_In_ uint32_t attr_count,
-		_In_ const sai_attribute_t *attr_list)
+                _In_ const std::string& serializedObjectId,
+                _In_ sai_object_id_t switch_id,
+                _In_ uint32_t attr_count,
+                _In_ const sai_attribute_t *attr_list)
 {
     const sai_attribute_value_t     *next_hop_type;
     uint32_t                        attr_index;
@@ -254,10 +254,10 @@ sai_status_t SwitchVpp::removeNexthop(
 
 sai_status_t
 SwitchVpp::createNexthopGroupMember(
-		_In_ const std::string& serializedObjectId,
-		_In_ sai_object_id_t switch_id,
-		_In_ uint32_t attr_count,
-		_In_ const sai_attribute_t *attr_list)
+                _In_ const std::string& serializedObjectId,
+                _In_ sai_object_id_t switch_id,
+                _In_ uint32_t attr_count,
+                _In_ const sai_attribute_t *attr_list)
 {
     sai_status_t        status;
     sai_attribute_t     attr;
