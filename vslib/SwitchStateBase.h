@@ -334,7 +334,7 @@ namespace saivs
 
         public:
 
-            void processFdbEntriesForAging();
+            virtual void processFdbEntriesForAging();
 
         private: // fdb related
 

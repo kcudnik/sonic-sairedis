@@ -44,6 +44,7 @@ libSaiVS_a_SOURCES = \
 					  SwitchBCM56850.cpp \
 					  SwitchBCM56971B0.cpp \
 					  SwitchBCM81724.cpp \
+					  SwitchVpp.cpp \
 					  SwitchConfigContainer.cpp \
 					  SwitchConfig.cpp \
 					  SwitchContainer.cpp \
