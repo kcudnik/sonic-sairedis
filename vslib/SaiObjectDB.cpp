@@ -1,13 +1,13 @@
-#include <memory>
-#include <map>
-
-#include "SwitchStateBase.h"
-#include "SwitchStateBaseUtils.h"
+#include "SwitchVpp.h"
+#include "SwitchVppUtils.h"
 #include "SaiObjectDB.h"
 
 #include "meta/sai_serialize.h"
 
 #include "swss/logger.h"
+
+#include <memory>
+#include <map>
 
 using namespace saivs;
 
@@ -56,7 +56,7 @@ get_parent_oids(const sai_attribute_value_t *attr_val, const SaiChildRelation& c
 }
 
 static std::vector<std::string>
-get_parent_oids(SwitchStateBase* switch_db, sai_object_type_t child_type, const std::string& child_oid, const SaiChildRelation& child_def) 
+get_parent_oids(SwitchVpp* switch_db, sai_object_type_t child_type, const std::string& child_oid, const SaiChildRelation& child_def) 
 {
     std::vector<std::string> parent_ids;
     sai_status_t status;
@@ -270,7 +270,7 @@ SaiObjectDB::get(
     // check if the object exists
     status = m_switch_db->get(object_type, id, 0, &attr);
     if (status != SAI_STATUS_SUCCESS) {
-        SWSS_LOG_WARN("Object is not found in SwitchStateBase %s:%s", sai_serialize_object_type(object_type).c_str(), id.c_str());
+        SWSS_LOG_WARN("Object is not found in SwitchVpp %s:%s", sai_serialize_object_type(object_type).c_str(), id.c_str());
         return std::shared_ptr<SaiDBObject>();
     }
     /*
@@ -367,7 +367,7 @@ SaiDBObject::get_attr(sai_attribute_t &attr) const
     return m_switch_db->get(m_type, m_id, 1, &attr);
 }
 
-SaiModDBObject::SaiModDBObject(SwitchStateBase* switch_db, sai_object_type_t type, const std::string& id, 
+SaiModDBObject::SaiModDBObject(SwitchVpp* switch_db, sai_object_type_t type, const std::string& id, 
                               uint32_t attr_count, const sai_attribute_t *attr_list) : 
              SaiObject(switch_db, type, id), m_attr_count(attr_count), m_attr_list(attr_list) 
 {

@@ -1,5 +1,5 @@
-#include "SwitchStateBaseUtils.h"
-#include "SwitchStateBase.h"
+#include "SwitchVppUtils.h"
+#include "SwitchVpp.h"
 #include "SaiObjectDB.h"
 #include "TunnelManager.h"
 #include "IpVrfInfo.h"
@@ -20,7 +20,7 @@ using namespace saivs;
         SWSS_LOG_ERROR("%s: status %d", buffer, status); \
         return _status; } }
 
-TunnelManager::TunnelManager(SwitchStateBase* switch_db): m_switch_db(switch_db) 
+TunnelManager::TunnelManager(SwitchVpp* switch_db): m_switch_db(switch_db) 
 {
     m_router_mac = {0, 0, 0, 0, 0, 1};
     m_vxlan_port = 4789;
@@ -340,7 +340,7 @@ TunnelManager::create_vpp_vxlan_decap(
     vpp_status = set_interface_vrf(hw_bvi_ifname, 0, tunnel_data.ip_vrf->m_vrf_id, tunnel_data.ip_vrf->m_is_ipv6);
 
     //set bvi IPv4
-    uint16_t offset = (uint16_t)((uint16_t)(bd_id - SwitchStateBase::dynamic_bd_id_base) + 2);
+    uint16_t offset = (uint16_t)((uint16_t)(bd_id - SwitchVpp::dynamic_bd_id_base) + 2);
 
     bvi_ip_prefix.prefix_len = 32;
     bvi_ip_prefix.prefix_addr.sa_family = AF_INET;

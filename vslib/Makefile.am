@@ -67,6 +67,10 @@ libSaiVS_a_SOURCES = \
 					  SaiObjectDB.cpp \
 					  SwitchVppAcl.cpp \
 					  SwitchVppNexthop.cpp \
+					  SwitchVppUtils.cpp \
+					  SwitchVppFdb.cpp \
+					  SwitchVppRif.cpp \
+					  SwitchVppBfd.cpp \
 					  TunnelManager.cpp \
 					  VirtualSwitchSaiInterface.cpp \
 					  VirtualSwitchSaiInterfaceFdb.cpp \

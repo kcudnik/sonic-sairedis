@@ -66,6 +66,75 @@ namespace saivs
 
             virtual void processFdbEntriesForAging() override;
 
+        protected:
+
+            virtual sai_status_t create(
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::string &serializedObjectId,
+                    _In_ sai_object_id_t switch_id,
+                    _In_ uint32_t attr_count,
+                    _In_ const sai_attribute_t *attr_list) override;
+
+            virtual sai_status_t remove(
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::string &serializedObjectId) override;
+
+            virtual sai_status_t set(
+                    _In_ sai_object_type_t objectType,
+                    _In_ const std::string &serializedObjectId,
+                    _In_ const sai_attribute_t* attr) override;
+
+            virtual sai_status_t get(
+                    _In_ sai_object_type_t objectType,
+                    _In_ const std::string &serializedObjectId,
+                    _In_ uint32_t attr_count,
+                    _Out_ sai_attribute_t *attr_list) override;
+
+            virtual sai_status_t create_internal(
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::string &serializedObjectId,
+                    _In_ sai_object_id_t switch_id,
+                    _In_ uint32_t attr_count,
+                    _In_ const sai_attribute_t *attr_list) override;
+
+            virtual sai_status_t remove_internal(
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::string &serializedObjectId) override;
+
+            virtual sai_status_t set_internal(
+                    _In_ sai_object_type_t objectType,
+                    _In_ const std::string &serializedObjectId,
+                    _In_ const sai_attribute_t* attr) override;
+
+            virtual sai_status_t createPort(
+                    _In_ sai_object_id_t object_id,
+                    _In_ sai_object_id_t switch_id,
+                    _In_ uint32_t attr_count,
+                    _In_ const sai_attribute_t *attr_list) override;
+
+            virtual sai_status_t setPort(
+                    _In_ sai_object_id_t portId,
+                    _In_ const sai_attribute_t* attr) override;
+
+            virtual sai_status_t setAclEntry(
+                    _In_ sai_object_id_t entry_id,
+                    _In_ const sai_attribute_t* attr) override;
+
+            virtual sai_status_t bulkCreate(
+                    _In_ sai_object_id_t switch_id,
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::vector<std::string> &serialized_object_ids,
+                    _In_ const uint32_t *attr_count,
+                    _In_ const sai_attribute_t **attr_list,
+                    _In_ sai_bulk_op_error_mode_t mode,
+                    _Out_ sai_status_t *object_statuses) override;
+
+            virtual sai_status_t bulkRemove(
+                    _In_ sai_object_type_t object_type,
+                    _In_ const std::vector<std::string> &serialized_object_ids,
+                    _In_ sai_bulk_op_error_mode_t mode,
+                    _Out_ sai_status_t *object_statuses) override;
+
         private:
 
             // std::map<sai_object_id_t, std::string> phMap; // TODO to be removed
@@ -193,7 +262,7 @@ namespace saivs
 
             // TODO wiird function, max attr_count
 
-            sai_status_t get(
+            sai_status_t get_max(
                     _In_ sai_object_type_t objectType,
                     _In_ const std::string &serializedObjectId,
                     _In_ const uint32_t max_attr_count,

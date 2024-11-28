@@ -1,6 +1,6 @@
-#include "SwitchStateBase.h"
-#include "SwitchStateBaseNexthop.h"
-#include "SwitchStateBaseUtils.h"
+#include "SwitchVpp.h"
+#include "SwitchVppNexthop.h"
+#include "SwitchVppUtils.h"
 
 #include "meta/sai_serialize.h"
 #include "meta/NotificationPortStateChange.h"
@@ -26,7 +26,7 @@ using namespace saivs;
     sai_status_t _status = (status);                        \
     if (_status != SAI_STATUS_SUCCESS) { return _status; } }
 
-sai_status_t SwitchStateBase::IpRouteNexthopGroupEntry(
+sai_status_t SwitchVpp::IpRouteNexthopGroupEntry(
     _In_ sai_object_id_t next_hop_grp_oid,
     _Out_ nexthop_grp_config_t **nxthop_group)
 {
@@ -113,7 +113,7 @@ sai_status_t SwitchStateBase::IpRouteNexthopGroupEntry(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::IpRouteNexthopEntry(
+sai_status_t SwitchVpp::IpRouteNexthopEntry(
         _In_ sai_object_id_t next_hop_oid,
         _Out_ nexthop_grp_config_t **nxthop_group_cfg)
 {
@@ -149,7 +149,7 @@ sai_status_t SwitchStateBase::IpRouteNexthopEntry(
 // The function returns SAI_STATUS_SUCCESS if the member is filled successfully,
 // otherwise it returns an appropriate error status.
 sai_status_t 
-SwitchStateBase::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t next_hop_oid, uint32_t next_hop_weight, uint32_t next_hop_sequence) 
+SwitchVpp::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_object_id_t next_hop_oid, uint32_t next_hop_weight, uint32_t next_hop_sequence) 
 {
     sai_attribute_t attr;
     auto nh_soid = sai_serialize_object_id(next_hop_oid);
@@ -210,7 +210,7 @@ SwitchStateBase::fillNHGrpMember(nexthop_grp_member_t *nxt_grp_member, sai_objec
 }
 
 sai_status_t 
-SwitchStateBase::createNexthop(
+SwitchVpp::createNexthop(
 		_In_ const std::string& serializedObjectId,
 		_In_ sai_object_id_t switch_id,
 		_In_ uint32_t attr_count,
@@ -228,7 +228,7 @@ SwitchStateBase::createNexthop(
     return create_internal(SAI_OBJECT_TYPE_NEXT_HOP, serializedObjectId, switch_id, attr_count, attr_list);
 }
 
-sai_status_t SwitchStateBase::removeNexthop(
+sai_status_t SwitchVpp::removeNexthop(
         _In_ const std::string &serializedObjectId)
 {
     sai_attribute_t                 attr;
@@ -253,7 +253,7 @@ sai_status_t SwitchStateBase::removeNexthop(
 }
 
 sai_status_t 
-SwitchStateBase::createNexthopGroupMember(
+SwitchVpp::createNexthopGroupMember(
 		_In_ const std::string& serializedObjectId,
 		_In_ sai_object_id_t switch_id,
 		_In_ uint32_t attr_count,
@@ -293,7 +293,7 @@ SwitchStateBase::createNexthopGroupMember(
 }
 
 sai_status_t 
-SwitchStateBase::removeNexthopGroupMember(
+SwitchVpp::removeNexthopGroupMember(
         _In_ const std::string &serializedObjectId)
 {
     sai_status_t        status;

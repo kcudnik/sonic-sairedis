@@ -326,7 +326,7 @@ namespace saivs
                     _In_ const std::string &serializedObjectId,
                     _In_ const sai_attribute_t* attr);
 
-        private:
+        protected:
 
             sai_object_type_t objectTypeQuery(
                     _In_ sai_object_id_t objectId);
@@ -375,16 +375,16 @@ namespace saivs
 
         protected: // custom port
 
-            sai_status_t createPort(
+            virtual sai_status_t createPort(
                     _In_ sai_object_id_t object_id,
                     _In_ sai_object_id_t switch_id,
                     _In_ uint32_t attr_count,
                     _In_ const sai_attribute_t *attr_list);
 
-            sai_status_t removePort(
+            virtual sai_status_t removePort(
                     _In_ sai_object_id_t objectId);
 
-            sai_status_t setPort(
+            virtual sai_status_t setPort(
                     _In_ sai_object_id_t objectId,
                     _In_ const sai_attribute_t* attr);
 
@@ -540,7 +540,7 @@ namespace saivs
 
         protected:
 
-            sai_status_t setAclEntry(
+            virtual sai_status_t setAclEntry(
                     _In_ sai_object_id_t entry_id,
                     _In_ const sai_attribute_t* attr);
 

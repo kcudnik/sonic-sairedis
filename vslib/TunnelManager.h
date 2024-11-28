@@ -1,11 +1,11 @@
 #pragma once
 
-#include "SwitchStateBase.h"
+#include "SwitchVpp.h"
 #include "vppxlate/SaiVppXlate.h"
 
 namespace saivs
 {
-    class SwitchStateBase;
+    class SwitchVpp;
     enum class Action {
         CREATE,
         UPDATE,
@@ -26,7 +26,7 @@ namespace saivs
 
     class TunnelManager {
     public:
-        TunnelManager(SwitchStateBase* switch_db);
+        TunnelManager(SwitchVpp* switch_db);
 
         // sai_status_t create_tunnel_map_entry(
         //                 _In_ const std::string &serializedObjectId,
@@ -97,7 +97,7 @@ namespace saivs
          */
         void set_vxlan_port(const sai_attribute_t* attr);        
     private:
-        SwitchStateBase* m_switch_db;
+        SwitchVpp* m_switch_db;
         std::array<uint8_t, 6> m_router_mac;
         u_int16_t m_vxlan_port;
         //nexthop SAI object ID to sw_if_index map

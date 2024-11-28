@@ -11,10 +11,10 @@ extern "C" {
 namespace saivs
 {
     /*
-      There is circular dependency between SaiObjectDB and SwitchStateBase. To remove it we need major surgery. For example, 
+      There is circular dependency between SaiObjectDB and SwitchVpp. To remove it we need major surgery. For example, 
       move SaiObjectDB to SwitchState. When we need to read an object, such as get_linked_object, get it from m_objectHash in SwitchState
     */
-    class SwitchStateBase;
+    class SwitchVpp;
     class SaiDBObject;
 
     typedef struct _SaiChildRelation
@@ -32,7 +32,7 @@ namespace saivs
     */
     class SaiObject {
     public:
-        SaiObject(SwitchStateBase* switch_db, sai_object_type_t type, const std::string& id) : m_switch_db(switch_db), m_type(type), m_id(id){}
+        SaiObject(SwitchVpp* switch_db, sai_object_type_t type, const std::string& id) : m_switch_db(switch_db), m_type(type), m_id(id){}
 
         virtual ~SaiObject() = default;
 
@@ -58,7 +58,7 @@ namespace saivs
         // Get the attribute name from the attribute ID
         const char* get_attr_name(_In_ sai_attr_id_t attr_id) const;
     protected:
-        SwitchStateBase* m_switch_db;
+        SwitchVpp* m_switch_db;
         sai_object_type_t m_type;    
         std::string m_id;
     };
@@ -76,13 +76,13 @@ namespace saivs
         /**
          * @brief Constructs a SaiCachedObject with the specified parameters.
          * 
-         * @param switch_db A pointer to the SwitchStateBase object.
+         * @param switch_db A pointer to the SwitchVpp object.
          * @param type The type of the SAI object.
          * @param id The serialized ID of the SAI object.
          * @param attr_count The number of attributes associated with the SAI object.
          * @param attr_list An array of sai_attribute_t structures representing the attributes of the SAI object.
          */
-        SaiCachedObject(SwitchStateBase* switch_db, sai_object_type_t type, const std::string& id, uint32_t attr_count, const sai_attribute_t *attr_list) : 
+        SaiCachedObject(SwitchVpp* switch_db, sai_object_type_t type, const std::string& id, uint32_t attr_count, const sai_attribute_t *attr_list) : 
             SaiObject(switch_db, type, id), m_attr_count(attr_count), m_attr_list(attr_list) {}
         ~SaiCachedObject() = default;
 
@@ -114,11 +114,11 @@ namespace saivs
         /**
          * @brief Constructs a `SaiDBObject` object.
          * 
-         * @param switch_db A pointer to the SwitchStateBase object.
+         * @param switch_db A pointer to the SwitchVpp object.
          * @param type The type of the SaiObject.
          * @param id The ID of the SaiObject.
          */
-        SaiDBObject(SwitchStateBase* switch_db, sai_object_type_t type, const std::string& id) : SaiObject(switch_db, type, id) {}
+        SaiDBObject(SwitchVpp* switch_db, sai_object_type_t type, const std::string& id) : SaiObject(switch_db, type, id) {}
 
         /**
          * @brief Default destructor for the `SaiDBObject` class.
@@ -198,7 +198,7 @@ namespace saivs
      */
     class SaiModDBObject : public SaiObject {
     public:
-        SaiModDBObject(SwitchStateBase* switch_db, sai_object_type_t type, const std::string& id, 
+        SaiModDBObject(SwitchVpp* switch_db, sai_object_type_t type, const std::string& id, 
                        uint32_t attr_count, const sai_attribute_t *attr_list);
 
         ~SaiModDBObject() = default;
@@ -231,16 +231,16 @@ namespace saivs
      * This class provides methods for adding, removing, and retrieving SAI objects from the database.
      * Each SAI object is associated with a unique ID and belongs to a specific switch.
      * 
-     * @note This class assumes that the switch database (`SwitchStateBase`) is already initialized.
+     * @note This class assumes that the switch database (`SwitchVpp`) is already initialized.
      */
     class SaiObjectDB {
     public:
         /**
          * @brief Constructs a SaiObjectDB object.
          * 
-         * @param switch_db A pointer to the switch database (`SwitchStateBase`).
+         * @param switch_db A pointer to the switch database (`SwitchVpp`).
          */
-        SaiObjectDB(SwitchStateBase* switch_db) : m_switch_db(switch_db) {};
+        SaiObjectDB(SwitchVpp* switch_db) : m_switch_db(switch_db) {};
 
         /**
          * @brief Destructs the SaiObjectDB object.
@@ -289,7 +289,7 @@ namespace saivs
 
     private:
         // Pointer to the switch database
-        SwitchStateBase* m_switch_db; 
+        SwitchVpp* m_switch_db; 
         /**
          * @brief A map of SAI parent objects based on their type and ID.
          *  parent-type -> parent-oid -> parent-object

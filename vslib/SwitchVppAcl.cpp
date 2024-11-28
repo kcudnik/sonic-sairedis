@@ -1,7 +1,6 @@
-#include "SwitchStateBase.h"
-#include "SwitchStateBaseAcl.h"
-#include "SwitchStateBaseUtils.h"
-//#include "NotificationPortStateChange.h"
+#include "SwitchVpp.h"
+#include "SwitchVppAcl.h"
+#include "SwitchVppUtils.h"
 
 #include "meta/sai_serialize.h"
 
@@ -271,7 +270,7 @@ static sai_status_t acl_rule_port_range_vpp_acl_set(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::acl_rule_range_get(
+sai_status_t SwitchVpp::acl_rule_range_get(
     _In_ const sai_object_list_t   *range_list,
     _Out_ sai_u32_range_t *range_limit_list,
     _Out_ sai_acl_range_type_t *range_type_list,
@@ -391,7 +390,7 @@ sai_status_t acl_rule_field_update(
     return status;
 }
 
-sai_status_t SwitchStateBase::tunterm_set_action_redirect(
+sai_status_t SwitchVpp::tunterm_set_action_redirect(
     _In_ sai_acl_entry_attr_t          attr_id,
     _In_ const sai_attribute_value_t  *value,
     _Out_ vpp_tunterm_acl_rule_t      *rule)
@@ -481,7 +480,7 @@ sai_status_t SwitchStateBase::tunterm_set_action_redirect(
     return status;
 }
 
-sai_status_t SwitchStateBase::tunterm_acl_rule_field_update(
+sai_status_t SwitchVpp::tunterm_acl_rule_field_update(
     _In_ sai_acl_entry_attr_t          attr_id,
     _In_ const sai_attribute_value_t  *value,
     _Out_ vpp_tunterm_acl_rule_t      *rule)
@@ -533,7 +532,7 @@ sai_status_t SwitchStateBase::tunterm_acl_rule_field_update(
     return status;
 }
 
-sai_status_t SwitchStateBase::getAclTableId(
+sai_status_t SwitchVpp::getAclTableId(
     _In_ sai_object_id_t entry_id, sai_object_id_t *tbl_oid)
 {
     sai_attribute_t attr;
@@ -551,7 +550,7 @@ sai_status_t SwitchStateBase::getAclTableId(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::acl_range_attr_get (
+sai_status_t SwitchVpp::acl_range_attr_get (
     _In_ const std::string &serializedObjectId,
     _In_ uint32_t attr_count,
     _In_ const sai_attribute_t *attr_list,
@@ -596,7 +595,7 @@ static bool cmp_priority (
     return (f.priority > s.priority);
 }
 
-sai_status_t SwitchStateBase::get_sorted_aces(
+sai_status_t SwitchVpp::get_sorted_aces(
     sai_object_id_t tbl_oid,
     size_t &n_total_entries,
     acl_tbl_entries_t *&aces,
@@ -632,7 +631,7 @@ sai_status_t SwitchStateBase::get_sorted_aces(
 
         auto sid = sai_serialize_object_id(entry_id);
 
-        if (get(SAI_OBJECT_TYPE_ACL_ENTRY, sid, MAX_ACL_ATTRS,
+        if (get_max(SAI_OBJECT_TYPE_ACL_ENTRY, sid, MAX_ACL_ATTRS,
             &p_ace->attrs_count, p_ace->attrs) != SAI_STATUS_SUCCESS) {
             SWSS_LOG_ERROR("Failed to get acl entry.");
             status = SAI_STATUS_FAILURE;
@@ -673,7 +672,7 @@ sai_status_t SwitchStateBase::get_sorted_aces(
     return SAI_STATUS_SUCCESS;
 }
 
-void SwitchStateBase::count_tunterm_acl_rules(
+void SwitchVpp::count_tunterm_acl_rules(
     acl_tbl_entries_t *aces,
     std::list<ordered_ace_list_t> &ordered_aces,
     size_t &n_entries,
@@ -704,7 +703,7 @@ void SwitchStateBase::count_tunterm_acl_rules(
     }
 }
 
-sai_status_t SwitchStateBase::allocate_acl(
+sai_status_t SwitchVpp::allocate_acl(
     size_t n_entries,
     sai_object_id_t tbl_oid,
     char (&acl_name)[64],
@@ -728,7 +727,7 @@ sai_status_t SwitchStateBase::allocate_acl(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::allocate_tunterm_acl(
+sai_status_t SwitchVpp::allocate_tunterm_acl(
     size_t n_tunterm_entries,
     sai_object_id_t tbl_oid,
     char (&acl_name)[64],
@@ -752,7 +751,7 @@ sai_status_t SwitchStateBase::allocate_tunterm_acl(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::fill_acl_rules(
+sai_status_t SwitchVpp::fill_acl_rules(
     acl_tbl_entries_t *aces,
     std::list<ordered_ace_list_t> &ordered_aces,
     vpp_acl_t *acl,
@@ -809,7 +808,7 @@ sai_status_t SwitchStateBase::fill_acl_rules(
     return SAI_STATUS_SUCCESS;
 }
 
-void SwitchStateBase::cleanup_acl_tbl_config(
+void SwitchVpp::cleanup_acl_tbl_config(
     acl_tbl_entries_t *&aces,
     std::list<ordered_ace_list_t> &ordered_aces,
     vpp_acl_t *&acl,
@@ -830,7 +829,7 @@ void SwitchStateBase::cleanup_acl_tbl_config(
     ordered_aces.clear();
 }
 
-sai_status_t SwitchStateBase::acl_add_replace(
+sai_status_t SwitchVpp::acl_add_replace(
     vpp_acl_t *&acl,
     sai_object_id_t tbl_oid,
     acl_tbl_entries_t *aces,
@@ -887,7 +886,7 @@ sai_status_t SwitchStateBase::acl_add_replace(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::tunterm_acl_bindunbind(sai_object_id_t tbl_oid, bool is_add, std::string hwif_name)
+sai_status_t SwitchVpp::tunterm_acl_bindunbind(sai_object_id_t tbl_oid, bool is_add, std::string hwif_name)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
     auto tunterm_idx_it = m_tunterm_acl_swindex_map.find(tbl_oid);
@@ -902,7 +901,7 @@ sai_status_t SwitchStateBase::tunterm_acl_bindunbind(sai_object_id_t tbl_oid, bo
     return status;
 }
 
-sai_status_t SwitchStateBase::tunterm_acl_add_replace(vpp_tunterm_acl_t *acl, sai_object_id_t tbl_oid)
+sai_status_t SwitchVpp::tunterm_acl_add_replace(vpp_tunterm_acl_t *acl, sai_object_id_t tbl_oid)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
     uint32_t     tunterm_acl_swindex = 0;
@@ -963,7 +962,7 @@ sai_status_t SwitchStateBase::tunterm_acl_add_replace(vpp_tunterm_acl_t *acl, sa
     return status;
 }
 
-sai_status_t SwitchStateBase::tbl_hw_ports_map_delete(sai_object_id_t tbl_oid)
+sai_status_t SwitchVpp::tbl_hw_ports_map_delete(sai_object_id_t tbl_oid)
 {
     auto hw_ports_it = m_acl_tbl_hw_ports_map.find(tbl_oid);
     if (hw_ports_it == m_acl_tbl_hw_ports_map.end()) {
@@ -973,7 +972,7 @@ sai_status_t SwitchStateBase::tbl_hw_ports_map_delete(sai_object_id_t tbl_oid)
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::tunterm_acl_delete(sai_object_id_t tbl_oid, bool table_delete)
+sai_status_t SwitchVpp::tunterm_acl_delete(sai_object_id_t tbl_oid, bool table_delete)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
     auto         tunterm_idx_it = m_tunterm_acl_swindex_map.find(tbl_oid);
@@ -1014,7 +1013,7 @@ sai_status_t SwitchStateBase::tunterm_acl_delete(sai_object_id_t tbl_oid, bool t
     return status;
 }
 
-sai_status_t SwitchStateBase::AclTblConfig(
+sai_status_t SwitchVpp::AclTblConfig(
     _In_ sai_object_id_t tbl_oid)
 {
     sai_status_t                        status = SAI_STATUS_SUCCESS;
@@ -1065,7 +1064,7 @@ sai_status_t SwitchStateBase::AclTblConfig(
     return status;
 }
 
-sai_status_t SwitchStateBase::aclGetVppIndices(
+sai_status_t SwitchVpp::aclGetVppIndices(
     _In_ sai_object_id_t ace_cntr_oid,
     _Out_ uint32_t *acl_index,
     _Out_ uint32_t *ace_index)
@@ -1089,7 +1088,7 @@ sai_status_t SwitchStateBase::aclGetVppIndices(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::aclTableCreate(
+sai_status_t SwitchVpp::aclTableCreate(
         _In_ sai_object_id_t object_id,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
@@ -1104,7 +1103,7 @@ sai_status_t SwitchStateBase::aclTableCreate(
     return aclDefaultAllowConfigure(object_id);
 }
 
-sai_status_t SwitchStateBase::aclTableRemove(
+sai_status_t SwitchVpp::aclTableRemove(
     _In_ const std::string &serializedObjectId)
 {
     sai_object_id_t tbl_oid;
@@ -1116,7 +1115,7 @@ sai_status_t SwitchStateBase::aclTableRemove(
     return AclTblRemove(tbl_oid);
 }
 
-sai_status_t SwitchStateBase::aclDefaultAllowConfigure (
+sai_status_t SwitchVpp::aclDefaultAllowConfigure (
     _In_ sai_object_id_t tbl_oid)
 {
     sai_attribute_t attr[2];
@@ -1173,7 +1172,7 @@ sai_status_t SwitchStateBase::aclDefaultAllowConfigure (
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::AclTblRemove(
+sai_status_t SwitchVpp::AclTblRemove(
     _In_ sai_object_id_t tbl_oid)
 {
     sai_status_t status;
@@ -1209,7 +1208,7 @@ sai_status_t SwitchStateBase::AclTblRemove(
     return status;
 }
 
-sai_status_t SwitchStateBase::addRemoveAclEntrytoMap(
+sai_status_t SwitchVpp::addRemoveAclEntrytoMap(
     _In_ sai_object_id_t entry_id,
     _In_ sai_object_id_t tbl_oid,
     _In_ bool is_add)
@@ -1245,7 +1244,7 @@ sai_status_t SwitchStateBase::addRemoveAclEntrytoMap(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::AclAddRemoveCheck(
+sai_status_t SwitchVpp::AclAddRemoveCheck(
     _In_ sai_object_id_t tbl_oid)
 {
     sai_status_t status = SAI_STATUS_SUCCESS;
@@ -1259,7 +1258,7 @@ sai_status_t SwitchStateBase::AclAddRemoveCheck(
     return status;
 }
 
-sai_status_t SwitchStateBase::createAclEntry(
+sai_status_t SwitchVpp::createAclEntry(
         _In_ sai_object_id_t object_id,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
@@ -1285,7 +1284,7 @@ sai_status_t SwitchStateBase::createAclEntry(
     return status;
 }
 
-sai_status_t SwitchStateBase::removeAclEntry(
+sai_status_t SwitchVpp::removeAclEntry(
         _In_ const std::string &serializedObjectId)
 {
     SWSS_LOG_ENTER();
@@ -1316,7 +1315,7 @@ sai_status_t SwitchStateBase::removeAclEntry(
     return status;
 }
 
-sai_status_t SwitchStateBase::getAclTableGroupId(
+sai_status_t SwitchVpp::getAclTableGroupId(
     _In_ sai_object_id_t member_oid,
     _Out_ sai_object_id_t *tbl_grp_oid)
 {
@@ -1335,7 +1334,7 @@ sai_status_t SwitchStateBase::getAclTableGroupId(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::addRemoveAclGrpMbr(
+sai_status_t SwitchVpp::addRemoveAclGrpMbr(
     _In_ sai_object_id_t member_oid,
     _In_ sai_object_id_t tbl_grp_oid,
     _In_ bool is_add)
@@ -1387,7 +1386,7 @@ sai_status_t SwitchStateBase::addRemoveAclGrpMbr(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::createAclGrpMbr(
+sai_status_t SwitchVpp::createAclGrpMbr(
         _In_ sai_object_id_t object_id,
         _In_ sai_object_id_t switch_id,
         _In_ uint32_t attr_count,
@@ -1412,7 +1411,7 @@ sai_status_t SwitchStateBase::createAclGrpMbr(
     return status;
 }
 
-sai_status_t SwitchStateBase::removeAclGrpMbr(
+sai_status_t SwitchVpp::removeAclGrpMbr(
         _In_ const std::string &serializedObjectId)
 {
     SWSS_LOG_ENTER();
@@ -1439,7 +1438,7 @@ sai_status_t SwitchStateBase::removeAclGrpMbr(
     return status;
 }
 
-sai_status_t SwitchStateBase::setAclGrpMbr(
+sai_status_t SwitchVpp::setAclGrpMbr(
         _In_ sai_object_id_t member_oid,
         _In_ const sai_attribute_t* attr)
 {
@@ -1470,7 +1469,7 @@ sai_status_t SwitchStateBase::setAclGrpMbr(
     return status;
 }
 
-sai_status_t SwitchStateBase::removeAclGrp(
+sai_status_t SwitchVpp::removeAclGrp(
     _In_ const std::string &serializedObjectId)
 {
     SWSS_LOG_ENTER();
@@ -1502,7 +1501,7 @@ sai_status_t SwitchStateBase::removeAclGrp(
     return remove_internal(SAI_OBJECT_TYPE_ACL_TABLE_GROUP, serializedObjectId);
 }
 
-sai_status_t SwitchStateBase::addRemovePortTblGrp(
+sai_status_t SwitchVpp::addRemovePortTblGrp(
     _In_ sai_object_id_t port_oid,
     _In_ sai_object_id_t tbl_grp_oid,
     _In_ bool is_add)
@@ -1529,7 +1528,7 @@ sai_status_t SwitchStateBase::addRemovePortTblGrp(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::aclBindUnbindPort(
+sai_status_t SwitchVpp::aclBindUnbindPort(
         _In_ sai_object_id_t port_oid,
         _In_ sai_object_id_t tbl_grp_oid,
 	_In_ bool is_input,
@@ -1597,7 +1596,7 @@ sai_status_t SwitchStateBase::aclBindUnbindPort(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::aclBindUnbindPorts(
+sai_status_t SwitchVpp::aclBindUnbindPorts(
         _In_ sai_object_id_t tbl_grp_oid,
 	_In_ sai_object_id_t tbl_oid,
 	_In_ bool is_bind)
@@ -1690,7 +1689,7 @@ sai_status_t SwitchStateBase::aclBindUnbindPorts(
     return SAI_STATUS_SUCCESS;
 }
 
-sai_status_t SwitchStateBase::getAclEntryStats(
+sai_status_t SwitchVpp::getAclEntryStats(
     _In_ sai_object_id_t ace_cntr_oid,
     _In_ uint32_t attr_count,
     _Out_ sai_attribute_t *attr_list)
