@@ -1061,16 +1061,12 @@ START_TEST (test_show_version_X)
 {
   printf ("--- XXX Basic show version message - reply test ---\n");
 
-  if(1)
+  if (1)
   {
       vapi_msg_af_packet_create *pc = vapi_alloc_af_packet_create(ctx);
       ck_assert_ptr_ne (NULL, pc);
 
-      int cnt = 2;
-
-      //pc->header._vl_msg_id = cnt++;
-      //pc->header.context = cnt++;
-
+      // auto populated
       printf("msg id: %d\n", pc->header._vl_msg_id);
       printf("context: %d\n", pc->header.context);
 
@@ -1081,6 +1077,7 @@ START_TEST (test_show_version_X)
       printf("host: %s\n", pc->payload.host_if_name);
 
       vapi_msg_af_packet_create_hton(pc); // TODO is this needed ?
+
       printf("send\n");
       vapi_error_e rv = vapi_send(ctx, pc);
       printf("send rv: %d\n", rv);
@@ -1090,7 +1087,11 @@ START_TEST (test_show_version_X)
       size_t size;
       rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
       printf("recv: %d\n", rv);
+
       ck_assert_int_eq (VAPI_OK, rv);
+
+      vapi_msg_af_packet_create_reply_hton(resp); // check for  OK
+
       int placeholder;
       af_packet_create_cb(NULL, &placeholder, VAPI_OK, true, &resp->payload);
 

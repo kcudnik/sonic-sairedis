@@ -1,3 +1,5 @@
+//sudo bash -c "echo 'core.%p.%e.%t.%h' >  /proc/sys/kernel/core_pattern"
+
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -30,7 +32,6 @@ vat_main_t vat_main;
 // TODO hack, where is this defined ?
 #define __plugin_msg_base 0
 
-/*
 // TODO this needs to be defined to link, why?
 f64 vat_time_now (vat_main_t * vam)
 {
@@ -46,33 +47,6 @@ void __clib_no_tail_calls vat_suspend (vlib_main_t *vm, f64 interval)
 {
     const struct timespec req = {0, 100000000};
     nanosleep(&req, NULL);
-}
-*/
-
-static void scenario1()
-{
-    // TODO THIS crashes on
-    // clib_mem_heap_alloc_inline (heap=<optimized out>, size=9, align=8, os_out_of_memory_on_failure=1)
-    vl_socket_client_connect(VPP_SOCKET_PATH, "myclient", 0);
-}
-
-static void scenario2()
-{
-    clib_mem_init_thread_safe(0, 128 << 20);
-
-    int ret = vl_socket_client_connect(VPP_SOCKET_PATH, "myclient", 0);
-
-    if (ret < 0)
-    {
-        fprintf(stderr, "Failed to connect to VPP socket: %s\n", VPP_SOCKET_PATH);
-        fprintf(stderr, "Error Code: %d, Error Message: %s\n", errno, strerror(errno));
-        exit(1);
-    }
-
-    // TODO THIS crashes on:
-    // 0  0x00007f7a2f0e414f in vl_msg_api_alloc (nbytes=15) at /home/kcudnik/vpp/repo/vpp/src/vlibapi/memory_shared.c:210
-    // 210       pool = (am->our_pid == shmem_hdr->vl_pid);
-    vl_client_disconnect();
 }
 
 static int vl_socket_client_read_internal (socket_client_main_t * scm, int wait)
@@ -213,8 +187,164 @@ vsc_socket_connect (vat_main_t * vam, char *client_name)
     return 0;
 }
 
+//int fun()
+//{
+//    int sockfd;
+//    struct sockaddr_un server_addr;
+//    vl_api_af_packet_create_t msg;
+//    int msg_size;
+//
+//    // Create the Unix socket
+//    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+//    if (sockfd < 0) {
+//        perror("socket");
+//        return -1;
+//    }
+//
+//    // Connect to VPP's Unix socket
+//    memset(&server_addr, 0, sizeof(server_addr));
+//    server_addr.sun_family = AF_UNIX;
+//    strncpy(server_addr.sun_path, VPP_SOCKET_PATH, sizeof(server_addr.sun_path) - 1);
+//
+//    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+//        perror("connect");
+//        close(sockfd);
+//        return -1;
+//    }
+//
+//    printf("connected\n");
+//
+//    // Prepare the message to create the AF_PACKET interface
+//    memset(&msg, 0, sizeof(msg));
+//    strncpy((char *)msg.host_if_name, "vpp1out", sizeof(msg.host_if_name)); // Interface name
+//    //msg.hw_addr_len = 6;  // MAC address length (e.g., 6 bytes for Ethernet)
+//    //memcpy(msg.hw_address, (u8[]){0x00, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e}, 6); // Example MAC address
+//
+//    msg.use_random_hw_addr = 1;
+//
+//    // Message size (the size of the structure)
+//    msg_size = sizeof(msg);
+//
+//    // Send the message to VPP
+//    if (write(sockfd, &msg, msg_size) < 0) {
+//        perror("write");
+//        close(sockfd);
+//        return -1;
+//    }
+//
+//    printf("wrote!\n");
+//
+//    // Receive the response (blocking)
+//    char response[256];
+//    int response_len = read(sockfd, response, sizeof(response));
+//    if (response_len < 0) {
+//        perror("read");
+//        close(sockfd);
+//        return -1;
+//    }
+//
+//    // Process the response (check for success, etc.)
+//    printf("Received response from VPP: %s\n", response);
+//
+//    // Close the socket
+//    close(sockfd);
+//    return 0;
+//}
+
+// Define the API request structure (e.g., for creating a host interface)
+typedef struct {
+    u8 interface_name[64];
+} vl_api_create_host_interface_t;
+
+typedef struct {
+    u32 context;  // This is the context from the original request
+    u32 retval;   // Return value, 0 on success
+} vl_api_create_host_interface_reply_t;
+
+// Function to send a message to VPP over the Unix socket
+int send_vpp_message(int sockfd, void *message, size_t msg_size) {
+    if (write(sockfd, message, msg_size) < 0) {
+        perror("Failed to write to socket");
+        return -1;
+    }
+    return 0;
+}
+
+// Function to receive the reply from VPP
+int receive_vpp_reply(int sockfd, void *buffer, size_t buf_size) {
+    int n = read(sockfd, buffer, buf_size);
+    if (n < 0) {
+        perror("Failed to read from socket");
+        return -1;
+    }
+    return n;
+}
+
+
+int fun2()
+{
+    int sockfd;
+    struct sockaddr_un server_addr;
+    vl_api_create_host_interface_t req_msg;
+    vl_api_create_host_interface_reply_t reply_msg;
+   size_t req_msg_size = sizeof(req_msg);
+    size_t reply_msg_size = sizeof(reply_msg);
+
+    // Create the Unix socket
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("socket");
+        return -1;
+    }
+
+    // Connect to VPP's Unix socket
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sun_family = AF_UNIX;
+    strncpy(server_addr.sun_path, VPP_SOCKET_PATH, sizeof(server_addr.sun_path) - 1);
+
+    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect");
+        close(sockfd);
+        return -1;
+    }
+
+    printf("connected\n");
+    // Prepare the message to create a host interface
+    memset(&req_msg, 0, req_msg_size);
+    strncpy((char *)req_msg.interface_name, "vpp1out", sizeof(req_msg.interface_name));  // Interface name
+
+    // Send the request to VPP
+    if (send_vpp_message(sockfd, &req_msg, req_msg_size) < 0) {
+        close(sockfd);
+        return -1;
+    }
+
+    printf("sent\n");
+
+    // Receive the reply from VPP
+    if (receive_vpp_reply(sockfd, &reply_msg, reply_msg_size) < 0) {
+        close(sockfd);
+        return -1;
+    }
+
+    printf("got reply\n");
+
+    // Process the reply
+    if (reply_msg.retval == 0) {
+        printf("Host interface created successfully!\n");
+    } else {
+        printf("Failed to create host interface, error code: %d\n", reply_msg.retval);
+    }
+
+    // Close the socket
+    close(sockfd);
+    return 0;
+}
 int main()
 {
+    return fun2();
+    //return fun();
+
     clib_mem_init_thread_safe(0, 128 << 20);
 
     api_main_t *am = vlibapi_get_main();
@@ -237,33 +367,33 @@ int main()
 
 
 
-//    {
-//        vl_api_show_version_t *mp;
-//        mp = vl_msg_api_alloc(sizeof(*mp));
-//        memset(mp, 0, sizeof(*mp));
-//        mp->_vl_msg_id = htons(VL_API_SHOW_VERSION);
-//        mp->client_index = vam->my_client_index;
-//        vl_socket_client_write(sockfd, mp, sizeof(*mp));
-//        vl_socket_client_read(sockfd, response, sizeof(response), 1);
-//    }
+    //    {
+    //        vl_api_show_version_t *mp;
+    //        mp = vl_msg_api_alloc(sizeof(*mp));
+    //        memset(mp, 0, sizeof(*mp));
+    //        mp->_vl_msg_id = htons(VL_API_SHOW_VERSION);
+    //        mp->client_index = vam->my_client_index;
+    //        vl_socket_client_write(sockfd, mp, sizeof(*mp));
+    //        vl_socket_client_read(sockfd, response, sizeof(response), 1);
+    //    }
 
     // manually create host interface
 
-//    svm_region_init();
-//
-//    svm_region_t * root_rp = svm_get_root_rp();
-//    printf("root_rp: %p\n", root_rp);
+    //    svm_region_init();
+    //
+    //    svm_region_t * root_rp = svm_get_root_rp();
+    //    printf("root_rp: %p\n", root_rp);
 
-//#define VPP_SHM_PATH "/run/vpp/api-shm"
-//#define VPP_SHM_PATH "vpp1"
-//    // allocate shared memory
-//    ret = vl_map_shmem(VPP_SHM_PATH, 1);
-//
-//    if (ret != 0)
-//    {
-//        printf("memory failed shm\n");
-//        exit(3);
-//    }
+    //#define VPP_SHM_PATH "/run/vpp/api-shm"
+    //#define VPP_SHM_PATH "vpp1"
+    //    // allocate shared memory
+    //    ret = vl_map_shmem(VPP_SHM_PATH, 1);
+    //
+    //    if (ret != 0)
+    //    {
+    //        printf("memory failed shm\n");
+    //        exit(3);
+    //    }
 
     socket_client_main_t *scm = vam->socket_client_main;
 
@@ -297,7 +427,7 @@ int main()
 
     if (0)
     {
-       M(AF_PACKET_CREATE, mp);
+        M(AF_PACKET_CREATE, mp);
     }
     else
     {
@@ -314,6 +444,8 @@ int main()
     // Copy interface name into API message
     strncpy((char *)mp->host_if_name, INTERFACE_NAME, name_len);
     mp->host_if_name[name_len] = '\0';  // Ensure null termination
+
+    mp->use_random_hw_addr = 1;
 
     printf("S\n");
 
@@ -345,7 +477,7 @@ int main()
         ret = -99;
 
         printf("read\n");
-        // ret = vl_socket_client_read(5);
+        //ret = vl_socket_client_read(5);
         ret = vl_socket_client_read_internal(scm, 5);
         printf("read end\n");
 
