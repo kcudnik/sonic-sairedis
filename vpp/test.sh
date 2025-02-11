@@ -87,20 +87,6 @@ $VPP2 set int state host-vpp2vpp1 up
 $VPP2 set int ip addr host-vpp2out 10.0.1.2/24
 $VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
 
-echo "* add routes"
-
-ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
-ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
-
-# TODO  move up
-echo "* disable checksum" # for tcp to work
-ip netns exec vpp1 ethtool -K vpp1host rx off tx off gso off >/dev/null
-ip netns exec vpp2 ethtool -K vpp2host rx off tx off gso off >/dev/null
-
-# normal route
-#$VPP1 ip route add 10.0.1.0/24 via host-vpp1vpp2
-#$VPP2 ip route add 10.0.0.0/24 via host-vpp2vpp1
-
 echo "* create tunnels"
 $VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
 $VPP1 set int state ipip0 up
@@ -111,6 +97,19 @@ $VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
 $VPP2 set int state ipip0 up
 $VPP2 ip route add 10.0.0.0/24 via ipip0
 $VPP2 set int ip addr ipip0 1.1.1.1/32
+
+# normal route
+#$VPP1 ip route add 10.0.1.0/24 via host-vpp1vpp2
+#$VPP2 ip route add 10.0.0.0/24 via host-vpp2vpp1
+
+echo "* add routes"
+ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
+ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
+
+# TODO  move up
+echo "* disable checksum" # for tcp to work
+ip netns exec vpp1 ethtool -K vpp1host rx off tx off gso off >/dev/null
+ip netns exec vpp2 ethtool -K vpp2host rx off tx off gso off >/dev/null
 
 echo "* test ping"
 #$VPP2 ping 10.0.1.1
