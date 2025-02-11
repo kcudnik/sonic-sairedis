@@ -1,19 +1,5 @@
-/*
- *------------------------------------------------------------------
- * Copyright (c) 2017 Cisco and/or its affiliates.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *------------------------------------------------------------------
- */
+//gcc vapi.c vapi_c_test.c \
+//-lvlib -lvlibapi -lvppapiclient -lvlibmemoryclient -lvppinfra -lpthread -lsvm -lcheck -lm -lrt -lsubunit
 
 #include <stdio.h>
 #include <endian.h>
@@ -22,6 +8,7 @@
 #include <assert.h>
 #include <setjmp.h>
 #include <check.h>
+
 #include <vppinfra/string.h>
 #include <vapi/vapi.h>
 #include <vapi/memclnt.api.vapi.h>
@@ -33,7 +20,6 @@
 #include <vapi/af_packet.api.vapi.h>
 
 //*#include <vnet/ip/ip4.h>
-
 //#include <fake.api.vapi.h>
 
 #include <vppinfra/vec.h>
@@ -1232,9 +1218,9 @@ void add_del_ip_address(
     vapi_msg_free(ctx, resp);
 }
 
-START_TEST (test_show_version_X)
+START_TEST (test_cfg_vpp1)
 {
-  printf ("--- XXX Basic show version message - reply test ---\n");
+  printf ("--- XXX configure VPP1 ---\n");
 
   // TODO we need sw_if_index for each one to operate
 
@@ -1273,150 +1259,121 @@ START_TEST (test_show_version_X)
 //DONE $VPP1 create host name vpp1vpp2
 //DONE $VPP1 set int state host-vpp1out up
 //DONE $VPP1 set int state host-vpp1vpp2 up
-//$VPP1 set int ip addr host-vpp1out 10.0.0.2/24
-//$VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
+//DONE $VPP1 set int ip addr host-vpp1out 10.0.0.2/24
+//DONE $VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
+}
+END_TEST;
 
-//$VPP2 create host name vpp2out
-//$VPP2 create host name vpp2vpp1
-//$VPP2 set int state host-vpp2out up
-//$VPP2 set int state host-vpp2vpp1 up
-//$VPP2 set int ip addr host-vpp2out 10.0.1.2/24
-//$VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
-//
-//$VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
-//$VPP1 set int state ipip0 up
-//$VPP1 ip route add 10.0.1.0/24 via ipip0
-//$VPP1 set int ip addr ipip0 1.1.1.1/32
-//
-//$VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
-//$VPP2 set int state ipip0 up
-//$VPP2 ip route add 10.0.0.0/24 via ipip0
-//$VPP2 set int ip addr ipip0 1.1.1.1/32
+START_TEST (test_cfg_vpp2)
+{
+  printf ("--- XXX configure VPP2 ---\n");
 
+  // TODO we need sw_if_index for each one to operate
 
+  // TODO should be done other way, to get api exit code
+  int idxA = create_host_name("vpp2out"); // create host name vpp2out
+  int idxB = create_host_name("vpp2vpp1");
+
+  // TODO if using hostname we need to list interfaces
+
+  sw_interface_set_flags(idxA, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP); // set int state host-vpp2out up
+  sw_interface_set_flags(idxB, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+
+  vapi_type_address_with_prefix p1;
+  vapi_type_address_with_prefix p2;
+
+  // TODO make helper methods to populate this
+  p1.len = 24;
+  p1.address.af = ADDRESS_IP4;
+  p1.address.un.ip4[0] = 10;
+  p1.address.un.ip4[1] = 0;
+  p1.address.un.ip4[2] = 1;
+  p1.address.un.ip4[3] = 2;
+
+  p2.len = 24;
+  p2.address.af = ADDRESS_IP4;
+  p2.address.un.ip4[0] = 10;
+  p2.address.un.ip4[1] = 0;
+  p2.address.un.ip4[2] = 3;
+  p2.address.un.ip4[3] = 2;
+
+  add_del_ip_address(idxA, &p1, false); // set int ip addr host-vpp2out 10.0.1.2/24
+  add_del_ip_address(idxB, &p2, false);
+  // set int ip addr
+
+//DONE $VPP2 create host name vpp2out
+//DONE $VPP2 create host name vpp2vpp1
+//DONE $VPP2 set int state host-vpp2out up
+//DONE $VPP2 set int state host-vpp2vpp1 up
+//DONE $VPP2 set int ip addr host-vpp2out 10.0.1.2/24
+//DONE $VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
+}
+END_TEST;
+
+void setup_blocking1()
+{
+  api_prefix = "/run/vpp/api1.sock";
+  setup_blocking();
 }
 
-END_TEST;
-//int main() {
-//    vapi_ctx_t ctx;
-//    vapi_connect(&ctx, "/run/vpp/api.sock"); // Connect to VPP over Unix socket
-//
-//    vapi_msg_af_packet_create *req;
-//    vapi_msg_af_packet_create_new(&req);
-//    vapi_msg_af_packet_create_set_host_if_name(req, "veth0");
-//
-//    vapi_send(&ctx, req); // Send request
-//    vapi_msg_af_packet_create_reply *reply;
-//    vapi_receive(ctx, (void **)&reply); // Receive response
-//
-//    if (reply && reply->retval == 0) {
-//        printf("Interface created successfully!\n");
-//    } else {
-//        printf("Error creating interface\n");
-//    }
-//
-//    vapi_disconnect(ctx);
-//    return 0;
+void setup_blocking2()
+{
+  api_prefix = "/run/vpp/api2.sock";
+  setup_blocking();
+}
 
 Suite *
 test_suite (void)
 {
   Suite *s = suite_create ("VAPI test");
 /*
-  TCase *tc_negative = tcase_create ("Negative tests");
-  tcase_add_test (tc_negative, test_invalid_values);
-  suite_add_tcase (s, tc_negative);
-
-  TCase *tc_swap = tcase_create ("Byteswap tests");
-  tcase_add_test (tc_swap, test_hton_1);
-  tcase_add_test (tc_swap, test_hton_2);
-  tcase_add_test (tc_swap, test_hton_4);
-  tcase_add_test (tc_swap, test_ntoh_1);
-  tcase_add_test (tc_swap, test_ntoh_2);
-  tcase_add_test (tc_swap, test_ntoh_4);
-  suite_add_tcase (s, tc_swap);
-
-  TCase *tc_connect = tcase_create ("Connect");
-  tcase_add_test (tc_connect, test_connect);
-  suite_add_tcase (s, tc_connect);
-
-  TCase *tc_block = tcase_create ("Blocking API");
-  tcase_set_timeout (tc_block, 25);
-  tcase_add_checked_fixture (tc_block, setup_blocking, teardown);
-  tcase_add_test (tc_block, test_show_version_1);
-  tcase_add_test (tc_block, test_show_version_2);
-  tcase_add_test (tc_block, test_loopbacks_1);
-  tcase_add_test (tc_block, test_pmtu);
-  suite_add_tcase (s, tc_block);
-
   TCase *tc_nonblock = tcase_create ("Nonblocking API");
   tcase_set_timeout (tc_nonblock, 25);
   tcase_add_checked_fixture (tc_nonblock, setup_nonblocking, teardown);
   tcase_add_test (tc_nonblock, test_show_version_3);
-  tcase_add_test (tc_nonblock, test_show_version_4);
-  tcase_add_test (tc_nonblock, test_show_version_5);
-
-  tcase_add_test (tc_nonblock, test_loopbacks_2);
-  tcase_add_test (tc_nonblock, test_no_response_1);
-  tcase_add_test (tc_nonblock, test_no_response_2);
   suite_add_tcase (s, tc_nonblock);
-
-  TCase *tc_unsupported = tcase_create ("Unsupported message");
-  tcase_add_checked_fixture (tc_unsupported, setup_blocking, teardown);
-  //tcase_add_test (tc_unsupported, test_unsupported);
-  suite_add_tcase (s, tc_unsupported);
-
-  TCase *tc_dynamic = tcase_create ("Dynamic message size");
-  tcase_add_test (tc_dynamic, test_api_strings);
-  suite_add_tcase (s, tc_dynamic);
-
-  //gcc vapi.c vapi_c_test.c -I ../../ -lvlib -lvlibapi -lvppapiclient -lvlibmemoryclient -lvppinfra -lpthread -lsvm -lcheck -lm -lrt -lsubunit
-
 */
-  TCase *tc_block1 = tcase_create ("Blocking API - X");
+
+  TCase *tc_block1 = tcase_create ("Configure VPP1");
   tcase_set_timeout (tc_block1, 25);
-  tcase_add_checked_fixture (tc_block1, setup_blocking, teardown);
+  tcase_add_checked_fixture (tc_block1, setup_blocking1, teardown);
   suite_add_tcase (s, tc_block1);
-  tcase_add_test (tc_block1, test_show_version_X);
-
-
+  tcase_add_test (tc_block1, test_cfg_vpp1);
+  
+  TCase *tc_block2 = tcase_create ("Configure VPP2");
+  tcase_set_timeout (tc_block2, 25);
+  tcase_add_checked_fixture (tc_block2, setup_blocking2, teardown);
+  suite_add_tcase (s, tc_block2);
+  tcase_add_test (tc_block2, test_cfg_vpp2);
 
   return s;
 }
 
-int
-main (int argc, char *argv[])
+int main (int argc, char *argv[])
 {
-  if (4 != argc)
+    if (3 != argc)
     {
-      printf ("Invalid argc==`%d'\n", argc);
-      return EXIT_FAILURE;
+        printf ("Invalid argc==`%d'\n", argc);
+        return EXIT_FAILURE;
     }
-  app_name = argv[1];
-  api_prefix = argv[2];
-  if (!strcmp (argv[3], "shm"))
-    use_uds = 0;
-  else if (!strcmp (argv[3], "uds"))
+    app_name = argv[1];
+    api_prefix = argv[2];
+
     use_uds = 1;
-  else
-    {
-      printf ("Unrecognised required argument '%s', expected 'uds' or 'shm'.",
-	      argv[3]);
-      return EXIT_FAILURE;
-    }
-  printf ("App name: `%s', API prefix: `%s'\n", app_name, api_prefix);
 
-  int number_failed;
-  Suite *s;
-  SRunner *sr;
+    printf ("App name: `%s', API prefix: `%s'\n", app_name, api_prefix);
 
-  s = test_suite ();
-  sr = srunner_create (s);
+    int number_failed;
+    Suite *s;
+    SRunner *sr;
 
-  srunner_run_all (sr, CK_NORMAL);
-  number_failed = srunner_ntests_failed (sr);
-  srunner_free (sr);
-  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    s = test_suite ();
+    sr = srunner_create (s);
+
+    srunner_run_all (sr, CK_NORMAL);
+    number_failed = srunner_ntests_failed (sr);
+    srunner_free (sr);
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 // make && sudo ./test foo /run/vpp/api1.sock uds
