@@ -37,7 +37,7 @@
 #include <vppinfra/mem.h>
 
 DEFINE_VAPI_MSG_IDS_VPE_API_JSON;
-DEFINE_VAPI_MSG_IDS_INTERFACE_API_JSON;
+DEFINE_VAPI_MSG_IDS_INTERFACE_API_JSON; // if flags
 DEFINE_VAPI_MSG_IDS_IP_API_JSON;
 DEFINE_VAPI_MSG_IDS_L2_API_JSON;
 DEFINE_VAPI_MSG_IDS_VPE_API_JSON;
@@ -1060,7 +1060,8 @@ END_TEST;
 //#define INTERFACE_NAME1 "vpp1out"
 //#define INTERFACE_NAME2 "vpp1vpp2"
 
-void create_host_name(
+vapi_type_interface_index
+create_host_name(
         const char* ifname)
 {
       vapi_msg_af_packet_create *pc = vapi_alloc_af_packet_create(ctx);
@@ -1105,21 +1106,90 @@ void create_host_name(
 
       printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
 
+      int sw_if_index = p->sw_if_index;
+
       if (p->retval != 0)
           printf("ERROR: create hostif failed\n");
       else
           printf("create interface SUCCESS\n");
 
-      vapi_msg_free(ctx, resp);
+      vapi_msg_free(ctx, resp); // ctx destroyed, can't use payload any more !
+
+      return sw_if_index;
+}
+
+void sw_interface_set_flags(
+        vapi_type_interface_index sw_if_index,
+        vapi_enum_if_status_flags flags)
+{
+    //vapi_sw_interface_set_flags(ggg
+
+    //      vapi_alloc_sw_interface_set_flags
+
+    vapi_msg_sw_interface_set_flags *isf =  vapi_alloc_sw_interface_set_flags(ctx); // alloc
+    ck_assert_ptr_ne (NULL, isf);
+
+    isf->payload.sw_if_index = sw_if_index; // populate payload
+    isf->payload.flags = flags;
+
+    printf("sw_idx: %d, flags: %d\n", sw_if_index, flags);
+
+//    626 #ifndef defined_vapi_msg_sw_interface_set_flags
+//         627 #define defined_vapi_msg_sw_interface_set_flags
+//          628 typedef struct __attribute__ ((__packed__)) {
+//               629   vapi_type_interface_index sw_if_index;
+//                630   vapi_enum_if_status_flags flags;
+//                 631 } vapi_payload_sw_interface_set_flags;
+
+    vapi_msg_sw_interface_set_flags_hton(isf); // msg endian
+
+    vapi_error_e rv = vapi_send(ctx, isf);
+    ck_assert_int_eq(VAPI_OK, rv);
+
+    vapi_msg_sw_interface_set_flags_reply *resp;
+
+    size_t size;
+    rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
+    printf("recv: %d\n", rv);
+    ck_assert_int_eq (VAPI_OK, rv);
+
+    vapi_msg_sw_interface_set_flags_reply_hton(resp); // reply endian
+
+    // payload contains only retval
+    vapi_payload_sw_interface_set_flags_reply *p = &resp->payload;
+
+    printf("retval: %d\n", p->retval);
+
+    if (p->retval != 0)
+        printf("ERROR: SW interface state flags\n");
+    else
+        printf("SW set interface state flags SUCCESS\n");
+
+    vapi_msg_free(ctx, resp);
 }
 
 START_TEST (test_show_version_X)
 {
   printf ("--- XXX Basic show version message - reply test ---\n");
 
-  create_host_name("vpp1out");
-  create_host_name("vpp1vpp2");
+  // TODO we need sw_if_index for each one to operate
 
+  // TODO should be done other way, to get api exit code
+  int idxA = create_host_name("vpp1out");
+  int idxB = create_host_name("vpp1vpp2");
+
+  // TODO if using hostname we need to list interfaces
+
+  sw_interface_set_flags(idxA, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+  sw_interface_set_flags(idxB, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+
+
+//DONE $VPP1 create host name vpp1out
+//DONE $VPP1 create host name vpp1vpp2
+//DONE $VPP1 set int state host-vpp1out up
+//DONE $VPP1 set int state host-vpp1vpp2 up
+//$VPP1 set int ip addr host-vpp1out 10.0.0.2/24
+//$VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
 
 // --
 
