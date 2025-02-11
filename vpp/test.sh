@@ -92,6 +92,7 @@ echo "* add routes"
 ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
 ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
 
+# TODO  move up
 echo "* disable checksum" # for tcp to work
 ip netns exec vpp1 ethtool -K vpp1host rx off tx off gso off >/dev/null
 ip netns exec vpp2 ethtool -K vpp2host rx off tx off gso off >/dev/null

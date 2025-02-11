@@ -31,6 +31,9 @@
 #include <vapi/ip.api.vapi.h>
 #include <vapi/l2.api.vapi.h>
 #include <vapi/af_packet.api.vapi.h>
+
+//*#include <vnet/ip/ip4.h>
+
 //#include <fake.api.vapi.h>
 
 #include <vppinfra/vec.h>
@@ -1057,6 +1060,21 @@ END_TEST;
 //  return VAPI_OK;
 //}
 
+// --
+
+//  vapi_msg_show_version *sv = vapi_alloc_show_version (ctx);
+//  ck_assert_ptr_ne (NULL, sv);
+//  vapi_msg_show_version_hton (sv);
+//  vapi_error_e rv = vapi_send (ctx, sv);
+//  ck_assert_int_eq (VAPI_OK, rv);
+//  vapi_msg_show_version_reply *resp;
+//  size_t size;
+//  rv = vapi_recv (ctx, (void *) &resp, &size, 0, 0);
+//  ck_assert_int_eq (VAPI_OK, rv);
+//  int placeholder;
+//  show_version_cb (NULL, &placeholder, VAPI_OK, true, &resp->payload);
+//  vapi_msg_free (ctx, resp);
+
 //#define INTERFACE_NAME1 "vpp1out"
 //#define INTERFACE_NAME2 "vpp1vpp2"
 
@@ -1094,7 +1112,7 @@ create_host_name(
 
       ck_assert_int_eq (VAPI_OK, rv);
 
-      vapi_msg_af_packet_create_reply_hton(resp); // check for  OK
+      vapi_msg_af_packet_create_reply_ntoh(resp); // check for  OK
 
       //int placeholder;
       //af_packet_create_cb(NULL, &placeholder, VAPI_OK, true, &resp->payload);
@@ -1122,8 +1140,6 @@ void sw_interface_set_flags(
         vapi_type_interface_index sw_if_index,
         vapi_enum_if_status_flags flags)
 {
-    //vapi_sw_interface_set_flags(ggg
-
     //      vapi_alloc_sw_interface_set_flags
 
     vapi_msg_sw_interface_set_flags *isf =  vapi_alloc_sw_interface_set_flags(ctx); // alloc
@@ -1133,13 +1149,6 @@ void sw_interface_set_flags(
     isf->payload.flags = flags;
 
     printf("sw_idx: %d, flags: %d\n", sw_if_index, flags);
-
-//    626 #ifndef defined_vapi_msg_sw_interface_set_flags
-//         627 #define defined_vapi_msg_sw_interface_set_flags
-//          628 typedef struct __attribute__ ((__packed__)) {
-//               629   vapi_type_interface_index sw_if_index;
-//                630   vapi_enum_if_status_flags flags;
-//                 631 } vapi_payload_sw_interface_set_flags;
 
     vapi_msg_sw_interface_set_flags_hton(isf); // msg endian
 
@@ -1153,7 +1162,7 @@ void sw_interface_set_flags(
     printf("recv: %d\n", rv);
     ck_assert_int_eq (VAPI_OK, rv);
 
-    vapi_msg_sw_interface_set_flags_reply_hton(resp); // reply endian
+    vapi_msg_sw_interface_set_flags_reply_ntoh(resp); // reply endian
 
     // payload contains only retval
     vapi_payload_sw_interface_set_flags_reply *p = &resp->payload;
@@ -1168,6 +1177,61 @@ void sw_interface_set_flags(
     vapi_msg_free(ctx, resp);
 }
 
+void add_del_ip_address(
+        vapi_type_interface_index sw_if_index,
+        vapi_type_address_with_prefix *prefix,
+        bool is_del)
+{
+     //vapi_alloc_sw_interface_add_del_address
+// ip4_add_del_interface_address
+// ip6_add_del_interface_address
+
+    vapi_msg_sw_interface_add_del_address *iada = vapi_alloc_sw_interface_add_del_address(ctx); // alloc
+    ck_assert_ptr_ne (NULL, iada);
+
+    iada->payload.sw_if_index = sw_if_index; // populate payload
+    iada->payload.is_add = !is_del;
+    iada->payload.del_all = false;
+    iada->payload.prefix = *prefix;
+
+  //  typedef struct __attribute__((__packed__)) {
+  //       399   vapi_type_address address;
+  //        400   u8 len;
+  //         401 } vapi_type_prefix;
+  //   402
+    
+    // vapi_type_address_with_prefix prefix;
+    //
+
+    printf("sw_idx: %d\n", sw_if_index);
+
+    vapi_msg_sw_interface_add_del_address_hton(iada); // msg endian
+
+    vapi_error_e rv = vapi_send(ctx, iada);
+    ck_assert_int_eq(VAPI_OK, rv);
+
+    vapi_msg_sw_interface_add_del_address_reply *resp;
+
+    size_t size;
+    rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
+    printf("recv: %d\n", rv);
+    ck_assert_int_eq (VAPI_OK, rv);
+
+    vapi_msg_sw_interface_add_del_address_reply_ntoh(resp); // reply endian
+
+    // payload contains only retval
+    vapi_payload_sw_interface_add_del_address_reply *p = &resp->payload;
+
+    printf("retval: %d\n", p->retval);
+
+    if (p->retval != 0)
+        printf("ERROR: SW interface add del address\n");
+    else
+        printf("SW set interface add del address SUCCESS\n");
+
+    vapi_msg_free(ctx, resp);
+}
+
 START_TEST (test_show_version_X)
 {
   printf ("--- XXX Basic show version message - reply test ---\n");
@@ -1175,14 +1239,35 @@ START_TEST (test_show_version_X)
   // TODO we need sw_if_index for each one to operate
 
   // TODO should be done other way, to get api exit code
-  int idxA = create_host_name("vpp1out");
+  int idxA = create_host_name("vpp1out"); // create host name vpp1out
   int idxB = create_host_name("vpp1vpp2");
 
   // TODO if using hostname we need to list interfaces
 
-  sw_interface_set_flags(idxA, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+  sw_interface_set_flags(idxA, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP); // set int state host-vpp1out up
   sw_interface_set_flags(idxB, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
 
+  vapi_type_address_with_prefix p1;
+  vapi_type_address_with_prefix p2;
+
+  // TODO make helper methods to populate this
+  p1.len = 24;
+  p1.address.af = ADDRESS_IP4;
+  p1.address.un.ip4[0] = 10;
+  p1.address.un.ip4[1] = 0;
+  p1.address.un.ip4[2] = 0;
+  p1.address.un.ip4[3] = 2;
+
+  p2.len = 24;
+  p2.address.af = ADDRESS_IP4;
+  p2.address.un.ip4[0] = 10;
+  p2.address.un.ip4[1] = 0;
+  p2.address.un.ip4[2] = 3;
+  p2.address.un.ip4[3] = 1;
+
+  add_del_ip_address(idxA, &p1, false); // set int ip addr host-vpp1out 10.0.0.2/24
+  add_del_ip_address(idxB, &p2, false);
+  // set int ip addr
 
 //DONE $VPP1 create host name vpp1out
 //DONE $VPP1 create host name vpp1vpp2
@@ -1191,20 +1276,24 @@ START_TEST (test_show_version_X)
 //$VPP1 set int ip addr host-vpp1out 10.0.0.2/24
 //$VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
 
-// --
+//$VPP2 create host name vpp2out
+//$VPP2 create host name vpp2vpp1
+//$VPP2 set int state host-vpp2out up
+//$VPP2 set int state host-vpp2vpp1 up
+//$VPP2 set int ip addr host-vpp2out 10.0.1.2/24
+//$VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
+//
+//$VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
+//$VPP1 set int state ipip0 up
+//$VPP1 ip route add 10.0.1.0/24 via ipip0
+//$VPP1 set int ip addr ipip0 1.1.1.1/32
+//
+//$VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
+//$VPP2 set int state ipip0 up
+//$VPP2 ip route add 10.0.0.0/24 via ipip0
+//$VPP2 set int ip addr ipip0 1.1.1.1/32
 
-//  vapi_msg_show_version *sv = vapi_alloc_show_version (ctx);
-//  ck_assert_ptr_ne (NULL, sv);
-//  vapi_msg_show_version_hton (sv);
-//  vapi_error_e rv = vapi_send (ctx, sv);
-//  ck_assert_int_eq (VAPI_OK, rv);
-//  vapi_msg_show_version_reply *resp;
-//  size_t size;
-//  rv = vapi_recv (ctx, (void *) &resp, &size, 0, 0);
-//  ck_assert_int_eq (VAPI_OK, rv);
-//  int placeholder;
-//  show_version_cb (NULL, &placeholder, VAPI_OK, true, &resp->payload);
-//  vapi_msg_free (ctx, resp);
+
 }
 
 END_TEST;
