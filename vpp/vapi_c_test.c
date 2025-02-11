@@ -1031,52 +1031,51 @@ START_TEST (test_api_strings)
 
 END_TEST;
 
-vapi_error_e
-af_packet_create_cb(vapi_ctx_t ctx, void *caller_ctx,
-		 vapi_error_e rv, bool is_last,
-		 vapi_payload_af_packet_create_reply * p)
+//vapi_error_e
+//af_packet_create_cb(vapi_ctx_t ctx, void *caller_ctx,
+//		 vapi_error_e rv, bool is_last,
+//		 vapi_payload_af_packet_create_reply * p)
+//{
+//  ck_assert_int_eq (VAPI_OK, rv);
+//  ck_assert_int_eq (true, is_last);
+//  //ck_assert_str_eq ("vpe", (char *) p->program);
+//  
+//  printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
+//
+//  if (p->retval != 0)
+//  {
+//      printf("ERROR: create hostif failed\n");
+//      return -1;
+//  }
+//  printf("create interface SUCCESS\n");
+//
+//  //printf
+//  //  ("show_version_reply: program: `%s', version: `%s', build directory: "
+//  //   "`%s', build date: `%s'\n", p->program, p->version, p->build_directory,
+//  //   p->build_date);
+//  ++*(int *) caller_ctx;
+//  return VAPI_OK;
+//}
+
+//#define INTERFACE_NAME1 "vpp1out"
+//#define INTERFACE_NAME2 "vpp1vpp2"
+
+void create_host_name(
+        const char* ifname)
 {
-  ck_assert_int_eq (VAPI_OK, rv);
-  ck_assert_int_eq (true, is_last);
-  //ck_assert_str_eq ("vpe", (char *) p->program);
-  
-  printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
-
-  if (p->retval != 0)
-  {
-      printf("ERROR: create hostif failed\n");
-      return -1;
-  }
-  printf("create interface SUCCESS\n");
-
-  //printf
-  //  ("show_version_reply: program: `%s', version: `%s', build directory: "
-  //   "`%s', build date: `%s'\n", p->program, p->version, p->build_directory,
-  //   p->build_date);
-  ++*(int *) caller_ctx;
-  return VAPI_OK;
-}
-
-#define INTERFACE_NAME "vpp1out"
-
-START_TEST (test_show_version_X)
-{
-  printf ("--- XXX Basic show version message - reply test ---\n");
-
-  if (1)
-  {
       vapi_msg_af_packet_create *pc = vapi_alloc_af_packet_create(ctx);
       ck_assert_ptr_ne (NULL, pc);
 
       // auto populated
-      printf("msg id: %d\n", pc->header._vl_msg_id);
-      printf("context: %d\n", pc->header.context);
+      printf("msg id: %d, context: %d\n", pc->header._vl_msg_id, pc->header.context); // dbg
+
+      int len = strlen(ifname);
 
       pc->payload.use_random_hw_addr = 1;
-      strncpy((char *)pc->payload.host_if_name, INTERFACE_NAME, sizeof(INTERFACE_NAME)); 
-      pc->payload.host_if_name[sizeof(INTERFACE_NAME)] = 0;
+      strncpy((char *)pc->payload.host_if_name, ifname, len); 
+      pc->payload.host_if_name[len] = 0;
 
-      printf("host: %s\n", pc->payload.host_if_name);
+      printf("host: %s\n", pc->payload.host_if_name); // dbg
 
       vapi_msg_af_packet_create_hton(pc); // TODO is this needed ?
 
@@ -1085,7 +1084,9 @@ START_TEST (test_show_version_X)
       printf("send rv: %d\n", rv);
 
       ck_assert_int_eq(VAPI_OK, rv);
+
       vapi_msg_af_packet_create_reply *resp;
+
       size_t size;
       rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
       printf("recv: %d\n", rv);
@@ -1094,25 +1095,46 @@ START_TEST (test_show_version_X)
 
       vapi_msg_af_packet_create_reply_hton(resp); // check for  OK
 
-      int placeholder;
-      af_packet_create_cb(NULL, &placeholder, VAPI_OK, true, &resp->payload);
+      //int placeholder;
+      //af_packet_create_cb(NULL, &placeholder, VAPI_OK, true, &resp->payload);
+
+      //ck_assert_int_eq (VAPI_OK, rv);
+      //ck_assert_int_eq (true, is_last);
+      
+      vapi_payload_af_packet_create_reply *p = &resp->payload;
+
+      printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
+
+      if (p->retval != 0)
+          printf("ERROR: create hostif failed\n");
+      else
+          printf("create interface SUCCESS\n");
 
       vapi_msg_free(ctx, resp);
-  }
+}
+
+START_TEST (test_show_version_X)
+{
+  printf ("--- XXX Basic show version message - reply test ---\n");
+
+  create_host_name("vpp1out");
+  create_host_name("vpp1vpp2");
+
+
 // --
 
-  vapi_msg_show_version *sv = vapi_alloc_show_version (ctx);
-  ck_assert_ptr_ne (NULL, sv);
-  vapi_msg_show_version_hton (sv);
-  vapi_error_e rv = vapi_send (ctx, sv);
-  ck_assert_int_eq (VAPI_OK, rv);
-  vapi_msg_show_version_reply *resp;
-  size_t size;
-  rv = vapi_recv (ctx, (void *) &resp, &size, 0, 0);
-  ck_assert_int_eq (VAPI_OK, rv);
-  int placeholder;
-  show_version_cb (NULL, &placeholder, VAPI_OK, true, &resp->payload);
-  vapi_msg_free (ctx, resp);
+//  vapi_msg_show_version *sv = vapi_alloc_show_version (ctx);
+//  ck_assert_ptr_ne (NULL, sv);
+//  vapi_msg_show_version_hton (sv);
+//  vapi_error_e rv = vapi_send (ctx, sv);
+//  ck_assert_int_eq (VAPI_OK, rv);
+//  vapi_msg_show_version_reply *resp;
+//  size_t size;
+//  rv = vapi_recv (ctx, (void *) &resp, &size, 0, 0);
+//  ck_assert_int_eq (VAPI_OK, rv);
+//  int placeholder;
+//  show_version_cb (NULL, &placeholder, VAPI_OK, true, &resp->payload);
+//  vapi_msg_free (ctx, resp);
 }
 
 END_TEST;

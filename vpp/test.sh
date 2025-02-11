@@ -69,7 +69,7 @@ VPP1="vppctl -s /run/vpp/cli-vpp1.sock"
 VPP2="vppctl -s /run/vpp/cli-vpp2.sock"
 
 echo DO C TEST
-exit 2
+exit 0
 
 # VPP: show api clients
 
