@@ -18,6 +18,9 @@
 #include <vapi/ip.api.vapi.h>
 #include <vapi/l2.api.vapi.h>
 #include <vapi/af_packet.api.vapi.h>
+#include <vapi/ipip.api.vapi.h>
+
+//#include <vnet/fib/fib_table.h> // for fib_table_find
 
 //*#include <vnet/ip/ip4.h>
 //#include <fake.api.vapi.h>
@@ -31,6 +34,7 @@ DEFINE_VAPI_MSG_IDS_IP_API_JSON;
 DEFINE_VAPI_MSG_IDS_L2_API_JSON;
 DEFINE_VAPI_MSG_IDS_VPE_API_JSON;
 DEFINE_VAPI_MSG_IDS_AF_PACKET_API_JSON; // needed for af_packet
+DEFINE_VAPI_MSG_IDS_IPIP_API_JSON; // needed for ipip
 
 //DEFINE_VAPI_MSG_IDS_FAKE_API_JSON;
 
@@ -1068,11 +1072,11 @@ vapi_type_interface_index
 create_host_name(
         const char* ifname)
 {
-      vapi_msg_af_packet_create *pc = vapi_alloc_af_packet_create(ctx);
+      vapi_msg_af_packet_create_v3 *pc = vapi_alloc_af_packet_create_v3(ctx);
       ck_assert_ptr_ne (NULL, pc);
 
       // auto populated
-      printf("msg id: %d, context: %d\n", pc->header._vl_msg_id, pc->header.context); // dbg
+      // DBG printf("msg id: %d, context: %d\n", pc->header._vl_msg_id, pc->header.context); // dbg
 
       int len = strlen(ifname);
 
@@ -1080,25 +1084,50 @@ create_host_name(
       strncpy((char *)pc->payload.host_if_name, ifname, len); 
       pc->payload.host_if_name[len] = 0;
 
-      printf("host: %s\n", pc->payload.host_if_name); // dbg
+      pc->payload.mode = AF_PACKET_API_MODE_ETHERNET;
+      pc->payload.rx_frame_size = 2048;
+      pc->payload.tx_frame_size = 2048; //67584;
+      pc->payload.tx_frame_size = 2048*2; // 67584;
+      pc->payload.rx_frames_per_block = 32;
+      pc->payload.tx_frames_per_block = 1024;
+      pc->payload.flags = AF_PACKET_API_FLAG_QDISC_BYPASS | AF_PACKET_API_FLAG_CKSUM_GSO;
+      pc->payload.num_rx_queues = 1;
+      pc->payload.num_tx_queues = 1;
 
-      vapi_msg_af_packet_create_hton(pc); // TODO is this needed ?
+//751 #ifndef defined_vapi_msg_af_packet_create_v3
+//752 #define defined_vapi_msg_af_packet_create_v3
+//753 typedef struct __attribute__ ((__packed__)) {
+//758   u32 rx_frame_size;
+//759   u32 tx_frame_size;
+//760   u32 rx_frames_per_block;
+//761   u32 tx_frames_per_block;
+//762   vapi_enum_af_packet_flags flags;
+//763   u16 num_rx_queues;
+//764   u16 num_tx_queues;
+//765 } vapi_payload_af_packet_create_v3;
+//766
+//767 typedef struct __attribute__ ((__packed
 
-      printf("send\n");
+
+      // printf("host: %s\n", pc->payload.host_if_name); // dbg
+
+      vapi_msg_af_packet_create_v3_hton(pc); // TODO is this needed ?
+
+      //printf("send\n");
       vapi_error_e rv = vapi_send(ctx, pc);
-      printf("send rv: %d\n", rv);
+      //printf("send rv: %d\n", rv);
 
       ck_assert_int_eq(VAPI_OK, rv);
 
-      vapi_msg_af_packet_create_reply *resp;
+      vapi_msg_af_packet_create_v3_reply *resp;
 
       size_t size;
       rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
-      printf("recv: %d\n", rv);
+      //printf("recv: %d\n", rv);
 
       ck_assert_int_eq (VAPI_OK, rv);
 
-      vapi_msg_af_packet_create_reply_ntoh(resp); // check for  OK
+      vapi_msg_af_packet_create_v3_reply_ntoh(resp); // check for  OK
 
       //int placeholder;
       //af_packet_create_cb(NULL, &placeholder, VAPI_OK, true, &resp->payload);
@@ -1106,7 +1135,7 @@ create_host_name(
       //ck_assert_int_eq (VAPI_OK, rv);
       //ck_assert_int_eq (true, is_last);
       
-      vapi_payload_af_packet_create_reply *p = &resp->payload;
+      vapi_payload_af_packet_create_v3_reply *p = &resp->payload;
 
       printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
 
@@ -1180,12 +1209,6 @@ void add_del_ip_address(
     iada->payload.del_all = false;
     iada->payload.prefix = *prefix;
 
-  //  typedef struct __attribute__((__packed__)) {
-  //       399   vapi_type_address address;
-  //        400   u8 len;
-  //         401 } vapi_type_prefix;
-  //   402
-    
     // vapi_type_address_with_prefix prefix;
     //
 
@@ -1216,6 +1239,43 @@ void add_del_ip_address(
         printf("SW set interface add del address SUCCESS\n");
 
     vapi_msg_free(ctx, resp);
+}
+
+int create_ipip_tunnel(
+        vapi_type_ipip_tunnel *tunnel)
+{
+    vapi_msg_ipip_add_tunnel *tun = vapi_alloc_ipip_add_tunnel(ctx);
+    ck_assert_ptr_ne (NULL, tun);
+
+    tun->payload.tunnel = *tunnel; // populate payload
+
+    vapi_msg_ipip_add_tunnel_hton(tun);
+
+    vapi_error_e rv = vapi_send(ctx, tun);
+    ck_assert_int_eq(VAPI_OK, rv);
+
+    vapi_msg_ipip_add_tunnel_reply *resp;
+
+    size_t size;
+    rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
+    ck_assert_int_eq (VAPI_OK, rv);
+
+    vapi_msg_ipip_add_tunnel_reply_ntoh(resp);
+
+    vapi_payload_ipip_add_tunnel_reply *p = &resp->payload;
+
+    printf("retval: %d, sw_if_index: %d\n", p->retval, p->sw_if_index);
+
+    int sw_if_index = p->sw_if_index;
+
+    if (p->retval != 0)
+        printf("ERROR: add ipip tunnel failed\n");
+    else
+        printf("add ipip tunnel SUCCESS\n");
+
+    vapi_msg_free(ctx, resp); // ctx destroyed, can't use payload any more !
+
+    return sw_if_index;
 }
 
 START_TEST (test_cfg_vpp1)
@@ -1253,14 +1313,70 @@ START_TEST (test_cfg_vpp1)
 
   add_del_ip_address(idxA, &p1, false); // set int ip addr host-vpp1out 10.0.0.2/24
   add_del_ip_address(idxB, &p2, false);
-  // set int ip addr
 
-//DONE $VPP1 create host name vpp1out
-//DONE $VPP1 create host name vpp1vpp2
-//DONE $VPP1 set int state host-vpp1out up
-//DONE $VPP1 set int state host-vpp1vpp2 up
-//DONE $VPP1 set int ip addr host-vpp1out 10.0.0.2/24
-//DONE $VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
+  // tunnel !
+
+  vapi_type_ipip_tunnel tunnel;
+
+  u32 fib_index = 0;
+  u32 table_id = 0; // outer-table-id (by default 0)
+
+  bool ip6_set = false;
+
+  fib_index = 0; // fib_table_find(fib_ip_proto (ip6_set), table_id);
+
+  printf ("fib_index = %d, table_id = %d\n", fib_index, table_id);
+
+  tunnel.instance = ~0; // auto assigned
+  tunnel.src.af = ADDRESS_IP4; // TODO add api to populate this
+  tunnel.src.un.ip4[0] = 10; // ip4 = (vapi_type_ip4_address){192, 168, 2, 1};
+  tunnel.src.un.ip4[1] = 0;
+  tunnel.src.un.ip4[2] = 3;
+  tunnel.src.un.ip4[3] = 1;
+  tunnel.dst.af = ADDRESS_IP4;
+  tunnel.dst.un.ip4[0] = 10;
+  tunnel.dst.un.ip4[1] = 0;
+  tunnel.dst.un.ip4[2] = 3;
+  tunnel.dst.un.ip4[3] = 2;
+  tunnel.sw_if_index = ~0; // TODO which one? hwo to obtain this?
+  tunnel.table_id = fib_index; // TODO table id or fib id ?
+  tunnel.flags = TUNNEL_API_ENCAP_DECAP_FLAG_NONE;
+  tunnel.mode = TUNNEL_API_MODE_P2P;
+  tunnel.dscp = IP_API_DSCP_CS0;
+    
+  if (fib_index == ~0)
+  {
+      printf("ERROR: no such fib\n");
+      return;
+      // TODO sw_if_index to invalid
+  }
+
+  int idxC = create_ipip_tunnel(&tunnel);
+
+  printf("ipip sw index: %d\n", idxC);
+
+  // TODO check idxC if success
+
+  sw_interface_set_flags(idxC, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+
+  // TODO add route! via
+
+  vapi_type_address_with_prefix p3;
+
+  p3.len = 32;
+  p3.address.af = ADDRESS_IP4; // dummy ip address
+  p3.address.un.ip4[0] = 1;
+  p3.address.un.ip4[1] = 1;
+  p3.address.un.ip4[2] = 1;
+  p3.address.un.ip4[3] = 1;
+
+  add_del_ip_address(idxC, &p3, false); // set int ip addr host-vpp1out 10.0.0.2/24
+
+//DONE $VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
+//DONE $VPP1 set int state ipip0 up
+//$VPP1 ip route add 10.0.1.0/24 via ipip0
+//DONE $VPP1 set int ip addr ipip0 1.1.1.1/32
+
 }
 END_TEST;
 
@@ -1301,12 +1417,67 @@ START_TEST (test_cfg_vpp2)
   add_del_ip_address(idxB, &p2, false);
   // set int ip addr
 
-//DONE $VPP2 create host name vpp2out
-//DONE $VPP2 create host name vpp2vpp1
-//DONE $VPP2 set int state host-vpp2out up
-//DONE $VPP2 set int state host-vpp2vpp1 up
-//DONE $VPP2 set int ip addr host-vpp2out 10.0.1.2/24
-//DONE $VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
+  vapi_type_ipip_tunnel tunnel;
+
+  u32 fib_index = 0;
+  u32 table_id = 0; // outer-table-id (by default 0)
+
+  bool ip6_set = false;
+
+  fib_index = 0; // fib_table_find(fib_ip_proto (ip6_set), table_id);
+
+  printf ("fib_index = %d, table_id = %d\n", fib_index, table_id);
+
+  tunnel.instance = ~0; // auto assigned
+  tunnel.src.af = ADDRESS_IP4; // TODO add api to populate this
+  tunnel.src.un.ip4[0] = 10; // ip4 = (vapi_type_ip4_address){192, 168, 2, 1};
+  tunnel.src.un.ip4[1] = 0;
+  tunnel.src.un.ip4[2] = 3;
+  tunnel.src.un.ip4[3] = 2;
+  tunnel.dst.af = ADDRESS_IP4;
+  tunnel.dst.un.ip4[0] = 10;
+  tunnel.dst.un.ip4[1] = 0;
+  tunnel.dst.un.ip4[2] = 3;
+  tunnel.dst.un.ip4[3] = 1;
+  tunnel.sw_if_index = ~0; // TODO which one? hwo to obtain this?
+  tunnel.table_id = fib_index; // TODO table id or fib id ?
+  tunnel.flags = TUNNEL_API_ENCAP_DECAP_FLAG_NONE;
+  tunnel.mode = TUNNEL_API_MODE_P2P;
+  tunnel.dscp = IP_API_DSCP_CS0;
+    
+  if (fib_index == ~0)
+  {
+      printf("ERROR: no such fib\n");
+      return;
+      // TODO sw_if_index to invalid
+  }
+
+  int idxC = create_ipip_tunnel(&tunnel);
+
+  printf("ipip sw index: %d\n", idxC);
+
+  // TODO check idxC if success
+
+  sw_interface_set_flags(idxC, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
+
+  // TODO add route! via
+
+  vapi_type_address_with_prefix p3;
+
+  p3.len = 32;
+  p3.address.af = ADDRESS_IP4; // dummy ip address
+  p3.address.un.ip4[0] = 1;
+  p3.address.un.ip4[1] = 1;
+  p3.address.un.ip4[2] = 1;
+  p3.address.un.ip4[3] = 1;
+
+  add_del_ip_address(idxC, &p3, false); // set int ip addr host-vpp1out 10.0.0.2/24
+
+//DONE $VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
+//DONE $VPP2 set int state ipip0 up
+//$VPP2 ip route add 10.0.0.0/24 via ipip0
+//DONE $VPP2 set int ip addr ipip0 1.1.1.1/32
+
 }
 END_TEST;
 
