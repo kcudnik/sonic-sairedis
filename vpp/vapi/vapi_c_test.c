@@ -1045,7 +1045,9 @@ af_packet_create_cb(vapi_ctx_t ctx, void *caller_ctx,
   if (p->retval != 0)
   {
       printf("ERROR: create hostif failed\n");
+      return -1;
   }
+  printf("create interface SUCCESS\n");
 
   //printf
   //  ("show_version_reply: program: `%s', version: `%s', build directory: "
@@ -1197,6 +1199,7 @@ test_suite (void)
   tcase_add_test (tc_block1, test_show_version_X);
 
 
+
   return s;
 }
 
@@ -1235,10 +1238,4 @@ main (int argc, char *argv[])
   return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-/*
- * fd.io coding-style-patch-verification: ON
- *
- * Local Variables:
- * eval: (c-set-style "gnu")
- * End:
- */
+// make && sudo ./test foo /run/vpp/api1.sock uds

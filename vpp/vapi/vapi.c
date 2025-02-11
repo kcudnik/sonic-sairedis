@@ -22,9 +22,9 @@
 #include <stddef.h>
 #include <assert.h>
 
-#include <vpp-api/vapi/vapi_dbg.h>
-#include <vpp-api/vapi/vapi.h>
-#include <vpp-api/vapi/vapi_internal.h>
+#include "vapi_dbg.h"
+#include "vapi.h"
+#include "vapi_internal.h"
 #include <vppinfra/types.h>
 #include <vppinfra/pool.h>
 #include <vlib/vlib.h>
