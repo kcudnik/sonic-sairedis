@@ -1278,12 +1278,10 @@ int create_ipip_tunnel(
     return sw_if_index;
 }
 
-int route_add_del(
+void route_add_del(
         vapi_type_prefix* prefix,
         int sw_if_index)
 {
-    return;
-
     printf("creating route!\n");
     // NOTE: there is v2 version
 
@@ -1293,11 +1291,11 @@ int route_add_del(
     // Set payload
     req->payload.is_add = 1; // 1 = add route, 0 = delete
     req->payload.is_multipath = 0; // Single path
-    req->payload.route.table_id = ~0; // TODO default ?
-    req->payload.route.stats_index = ~0; // TODO
+    req->payload.route.table_id = 0; // TODO default ?
+    req->payload.route.stats_index = 0; // TODO
     req->payload.route.prefix = *prefix;
     req->payload.route.n_paths = 1;
-    req->payload.route.src = ~0; // TODO ?
+    req->payload.route.src = 0; // TODO ?
     req->payload.route.paths[0].sw_if_index = sw_if_index; // Use ipip0 interface
     req->payload.route.paths[0].proto = FIB_API_PATH_NH_PROTO_IP4;
     req->payload.route.paths[0].weight = 1; // Default weight
@@ -1440,7 +1438,7 @@ START_TEST (test_cfg_vpp1)
   p4.address.af = ADDRESS_IP4;
   p4.address.un.ip4[0] = 10;
   p4.address.un.ip4[1] = 0;
-  p4.address.un.ip4[2] = 0;
+  p4.address.un.ip4[2] = 1;
   p4.address.un.ip4[3] = 0;
   p4.len = 24; // CIDR notation
 

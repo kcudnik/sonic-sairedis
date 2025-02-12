@@ -92,14 +92,14 @@ echo DO C TEST
 #$VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
 #$VPP1 set int state ipip0 up
 #$VPP1 set int ip addr ipip0 1.1.1.1/32
-#
+#$VPP1 ip route add 10.0.1.0/24 via ipip0
+
 #$VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
 #$VPP2 set int state ipip0 up
 #$VPP2 set int ip addr ipip0 1.1.1.1/32
+#$VPP2 ip route add 10.0.0.0/24 via ipip0
 
 ## add routes via tunnel
-$VPP1 ip route add 10.0.1.0/24 via ipip0
-$VPP2 ip route add 10.0.0.0/24 via ipip0
 
 ## disabled
 # normal route via interface
