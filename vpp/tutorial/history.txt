@@ -1,0 +1,406 @@
+
+# startup1.conf
+unix {cli-listen /run/vpp/cli-vpp1.sock}
+api-segment { prefix vpp1 }
+plugins { plugin dpdk_plugin.so { disable } }
+socksvr { socket-name /run/vpp/api1.sock }
+statseg { socket-name /run/vpp/stats1.sock }
+
+# startup2.conf
+unix {cli-listen /run/vpp/cli-vpp2.sock}
+api-segment { prefix vpp2 }
+plugins { plugin dpdk_plugin.so { disable } }
+socksvr { socket-name /run/vpp/api2.sock }
+statseg { socket-name /run/vpp/stats2.sock }
+
+$ sudo systemctl stop vpp
+
+$ sudo /usr/bin/vpp -c startup1.conf
+$ sudo /usr/bin/vpp -c startup2.conf
+
+$ sudo vppctl -s /run/vpp/cli-vpp1.sock
+$ sudo vppctl -s /run/vpp/cli-vpp2.sock
+
+$ sudo ip link add name vpp1out type veth peer name vpp1host
+$ ip a s
+$ sudo ip link set dev vpp1out up
+$ sudo ip link set dev vpp1host up
+
+# 5: vpp1host@vpp1out: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+# link/ether b2:72:9e:57:a9:74 brd ff:ff:ff:ff:ff:ff
+# inet6 fe80::b072:9eff:fe57:a974/64 scope link
+# valid_lft forever preferred_lft forever
+# 6: vpp1out@vpp1host: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+# link/ether 96:6a:1d:f1:76:93 brd ff:ff:ff:ff:ff:ff
+# inet6 fe80::946a:1dff:fef1:7693/64 scope link
+# valid_lft forever preferred_lft forever
+
+$ sudo ip addr add 10.10.1.1/24 dev vpp1host
+$ ip addr show vpp1host
+
+sudo vppctl -s /run/vpp/cli-vpp1.sock
+
+#vpp: show version
+
+#vpp1: create host-interface name vpp1out
+#vpp1: set int state host-vpp1out up
+#vpp1: set int ip address host-vpp1out 10.10.1.2/24
+
+#vpp: show hardware
+#vpp: show interface
+#vpp: show int addr
+
+#vpp: show traca
+#vpp: clear trace
+#vpp: trace add af-packet-input 10
+#vpp: show graph trace_supported
+
+ping -c 1 10.10.1.2
+
+#vpp: show trace
+
+#vpp: show ip neighbors
+Age                       IP                    Flags      Ethernet              Interface
+28.9446                10.10.1.1                  D    b2:72:9e:57:a9:74 host-vpp1out
+
+#vpp: show ip fib
+
+
+sudo /usr/bin/vpp -c startup2.conf
+sudo vppctl -s /run/vpp/cli-vpp2.sock
+#vpp2: show version
+
+// create memif
+
+#vpp1: create interface memif id 0 master
+#vpp1: set interface state memif0/0 up
+#vpp1: set int ip address memif0/0 10.10.2.1/24
+#vpp1: show int memif0/0
+
+#vpp2: create interface memif id 0 slave
+#vpp2: set interface state memif0/0 up
+#vpp2: set int ip address memif0/0 10.10.2.2/24
+#vpp2: show int memif0/0
+
+#vpp1: ping 10.10.2.2
+#vpp2: ping 10.10.2.1
+
+// works here
+
+
+$ sudo ip route add 10.10.2.0/24 via 10.10.1.2
+
+#vpp2: ip route add 10.10.1.0/24  via 10.10.2.1
+
+// ping vpp2 interface memif0/0
+
+$ ping -c 1 10.10.2.2
+
+
+// excercise 2 - bridge
+
+$ ps -ef | grep vpp | awk '{print $2}'| xargs sudo kill
+$ sudo ip link del dev vpp1host
+$ sudo ip link del dev vpp1vpp2
+
+
+$ sudo ip link add name vpp1out type veth peer name vpp1host
+$ sudo ip link set dev vpp1out up
+$ sudo ip link set dev vpp1host up
+$ sudo ip addr add 10.10.1.1/24 dev vpp1host
+$ ip a s
+
+$ sudo ip link add name vpp1vpp2 type veth peer name vpp2vpp1
+$ sudo ip link set dev vpp1vpp2 up
+$ sudo ip link set dev vpp2vpp1 up
+
+#vpp1: create host-interface name vpp1vpp2
+#vpp1: set int state host-vpp1vpp2 up
+#vpp1: show int
+
+#vpp2: create host-interface name vpp2vpp1
+#vpp2: set int state host-vpp2vpp1 up
+#vpp2: show int
+
+// nesesary 
+#vpp1: create host-interface name vpp1out
+#vpp1: set int state host-vpp1out up
+
+#vpp1: show bridge-domain
+
+// add to bridge domain "1"
+
+#vpp1: set int l2 bridge host-vpp1out 1
+#vpp1: set int l2 bridge host-vpp1vpp2 1
+
+#vpp1: show bridge-domain
+BD-ID   Index   BSN  Age(min)  Learning  U-Forwrd   UU-Flood   Flooding  ARP-Term  arp-ufwd Learn-co Learn-li   BVI-Intf
+1       1      0     off        on        on       flood        on       off       off        2    16777216     N/A
+
+#vpp1: show bridge-domain 1 detail
+Interface           If-idx ISN  SHG  BVI  TxFlood        VLAN-Tag-Rewrite
+host-vpp1out            2     1    0    -      *                 none
+host-vpp1vpp2           1     1    0    -      *                 none
+
+
+#vpp2: create loopback interface
+#vpp2: set interface state loop0 up
+#vpp2: set interface ip address loop0 10.10.1.2/24
+
+#vpp2: show bridge-diomain
+#vpp2: set int l2 bridge loop0 1 bvi
+#vpp2: set int l2 bridge host-vpp2vpp1  1
+
+// from host pings to vpp2
+$ ping -c 1 10.10.1.2
+
+#vpp2: ping 10.10.1.1
+
+#vpp1: show l2fib verbose
+#vpp2: show l2fib verbose
+
+#vpp1: show runtime
+
+
+
+/// ipip
+
+#vpp: create ipip tunnel src 192.168.1.1 dst 192.168.2.1
+#vpp: set interface ip address ipip0 10.0.0.1/24
+#vpp: set interface state ipip0 up
+#vpp: ip route add 10.0.1.0/24 via 10.0.0.2 ipip0
+
+# show ipip tunnel
+# show interface
+# show ip fib
+
+
+
+------------------------
+
+// vpp1host --- [ vpp1out vpp1vpp2 ] -- [vpp2vpp1 vpp2out] -- vpp2host
+
+ip -n vpp1 link add name vpp1host type veth peer name vpp1out
+ip -n vpp1 link set vpp1out netns 1
+ip -n vpp2 link add name vpp2host type veth peer name vpp2out
+ip -n vpp2 link set vpp2out netns 1
+ip link add name vpp1vpp2 type veth peer name vpp2vpp1
+
+// for all namespaces
+//ip netns exec vpp1 ethtool -K rx off tx off gso off
+ip netns exec vpp1 ethtool -K vpp1host rx off tx off gso off
+ip netns exec vpp2 ethtool -K vpp2host rx off tx off gso off
+
+ip -n vpp1 link set vpp1host up
+ip -n vpp1 link set lo up
+ip -n vpp2 link set vpp2host up
+ip -n vpp2 link set lo up
+
+ip link set vpp1vpp2 up
+ip link set vpp2vpp1 up
+ip link set vpp1out up
+ip link set vpp2out up
+
+ip -n vpp1 addr add 10.0.0.1/24 dev vpp1host
+ip -n vpp2 addr add 10.0.1.1/24 dev vpp2host
+
+// vpp1
+vpp# create host name vpp1out
+vpp# create host name vpp1vpp2
+vpp# set int state host-vpp1out up
+vpp# set int state host-vpp1vpp2 up
+vpp# set int addr host-vpp1out 10.0.0.2/24
+
+
+ip netns exec vpp2 ping 10.0.0.1
+
+
+ip netns exec vpp2 nc 10.0.0.1 2222
+
+tcpdump -n -i vpp2vpp1
+
+
+
+
+vppctl -s /run/vpp/cli-vpp2.sock
+vpp# trace add af-input 10
+vpp# trace add af-packet-input 10
+vpp# show trace
+
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo vppctl -s /run/vpp/cli-vpp2.sock
+vpp# set int rx-mode host-vpp1vpp2 interrupt
+vpp# set int rx-mode host-vpp1out interrupt
+vpp# set int rx-mode host-vpp1out polling
+vpp# set int rx-mode host-vpp1vpp2 polling
+vpp# set int ip addr host-vpp1out 10.0.0.2/24
+vpp# set int ip addr host-vpp1vpp2 10.0.3.1/24
+
+
+vpp# create host ?
+vpp# create host name host-vpp1out
+vpp# create host name vpp1out
+vpp# create host name vpp1vpp2
+vpp# set int state host-vpp1out up
+vpp# set in state vpp1vpp2 up
+vpp# set in state host-vpp1vpp2 up
+vpp# set int addr host-vpp1out 10.0.0.2/24
+vpp# set int ?
+vpp# set int ip addr host-vpp1out 10.0.0.2/24
+vpp# set int ip addr host-vpp1vpp2 10.0.3.1/24
+vpp# set int rx-mode host-vpp1out polling
+vpp# set int rx-mode host-vpp1vpp2 polling
+vpp# ping 10.0.0.1
+vpp# ping 10.0.0.1
+vpp# set int rx-mode host-vpp1vpp2 interrupt
+vpp# set int rx-mode host-vpp1out interrupt
+vpp# ping 10.0.0.1
+vpp# q
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo vppctl -s /run/vpp/cli-vpp2.sock
+vpp#
+vpp# create host name vpp2out
+vpp# create host name vpp2vpp1
+vpp# set int state host-vpp2out up
+vpp# set int state host-vpp2vpp1 up
+vpp# set int ip addr host-vpp2out 10.0.1.2/24
+vpp# set int ip addr host-vpp2vpp1 10.0.3.2/24
+vpp# ping 10.0.1.1
+vpp# ping 10.0.3.1
+vpp# q
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo vppctl -s /run/vpp/cli-vpp1.sock
+vpp# create ipip ?
+vpp# create ipip tunnel src 10.0.3.1 dst 10.0.3.2 // TODO make scenario with different dstn network
+
+vpp# set int state ipip0 up
+vpp# ip route add 10.0.1.0/24 via ipip0
+vpp# q
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo vppctl -s /run/vpp/cli-vpp2.sock
+vpp# create ipip tunnel src 10.0.3.2 dst 10.0.3.1
+vpp# ip route add 10.0.0.0/24 via ipip0
+vpp# ping 10.0.0.1
+vpp# q
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip netns vpp2 exec ping 10.0.0.1
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip netns exec vpp2 ping 10.0.0.1
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip -n vpp1 route 0/0 via 10.0.0.2
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip -n vpp1 route 0.0.0.0/0 via 10.0.0.2
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip netns exec vpp2 ping 10.0.0.1
+
+
+// TODO: ask if dst ip is mine do decap, and if'ts not then don't do decap
+// we should don't care about src ip
+// p2mp tunnel 
+
+
+===============
+
+// vpp1host --- [ vpp1out vpp1vpp2 ] -- [ vpp2vpp1 vpp2out ] -- vpp2host
+// 10.0.0.1/24 --- 10.0.0.2/24 = 10.0.3.1/24 --- 10.0.3.2/24 = 10.0.1.2/24 --- 10.0.1.1/24
+
+vppctl -s /run/vpp/cli-vpp2.sock
+vppctl -s /run/vpp/cli-vpp1.sock
+vppctl -s /run/vpp/cli-vpp1.sock
+
+1
+vpp# create host name vpp1out
+vpp# create host name vpp1vpp2
+vpp# set int state host-vpp1out up
+vpp# set int state vpp1vpp2 up
+vpp# set int state host-vpp1vpp2 up
+vpp# set int addr host-vpp1out 10.0.0.2/24
+vpp# set int ip addr host-vpp1out 10.0.0.2/24
+vpp# set int ip addr host-vpp1vpp2 10.0.3.1/24
+
+2
+vpp# create host name vpp2out
+vpp# create host name vpp2vpp1
+vpp# set int state host-vpp2out up
+vpp# set int state host-vpp2vpp1 up
+vpp# set int ip addr host-vpp2out 10.0.1.2/24
+vpp# set int ip addr host-vpp2vpp1 10.0.3.2/24
+vpp# ping 10.0.1.1
+vpp# ping 10.0.3.1
+
+1
+vpp# create ipip tunnel src 10.0.3.1 dst 10.0.3.2
+vpp# set int state ipip0 up
+vpp# ip route add 10.0.1.0/24 via ipip0
+
+2
+vpp# create ipip tunnel src 10.0.3.2 dst 10.0.3.1
+vpp# ip route add 10.0.0.0/24 via ipip0
+vpp# ping 10.0.0.1
+
+ip netns vpp2 exec ping 10.0.0.1
+ip netns exec vpp2 ping 10.0.0.1
+ip -n vpp1 route 0/0 via 10.0.0.2
+ip -n vpp1 route 0.0.0.0/0 via 10.0.0.2
+ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
+ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
+ip netns exec vpp2 ping 10.0.0.1
+
+vppctl -s /run/vpp/cli-vpp2.sock
+
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo ip netns exec vpp2 ping 10.0.0.1
+kcudnik@ubuntu2 ~/vpp-tutorial $ sudo vppctl -s /run/vpp/cli-vpp2.sock
+
+2
+vpp# set int state ipip0 up
+
+vppctl -s /run/vpp/cli-vpp1.sock
+ip netns exec vpp2 ping 10.0.0.1
+vppctl -s /run/vpp/cli-vpp2.sock
+vppctl -s /run/vpp/cli-vpp1.sock
+ip netns exec vpp2 ping 10.0.0.1
+vppctl -s /run/vpp/cli-vpp1.sock
+
+1
+vpp# set int ip addr ipip0 1.1.1.1/32
+
+sudo vppctl -s /run/vpp/cli-vpp2.sock
+2
+vpp# set int ip addr ipip0 1.1.1.1/32
+
+ip netns exec vpp2 ping 10.0.0.1
+ip netns exec vpp1 nc -l 2222
+
+ip netns add vpp1
+ip netns add vpp2
+ip netns list
+ip link
+ip link add --help
+ip link add help
+ip link add name vpp1out type veth peer name vpp1h^Ct
+ip -n vpp1 link add name vpp1host type veth peer name vpp1out
+ip link
+ip link -a
+ip -n vpp1 link set vpp1out netns 1
+ip link
+ip -n vpp2 link add name vpp2host type veth peer name vpp2out
+ip -n vpp2 link set vpp2out netns 1
+ip link
+ip link add name vpp1vpp2 type veth peer name vpp2vpp1
+ip link
+ip -n vpp1 link set vpp1host up
+ip -n vpp1 link set lo up
+ip -n vpp2 link set lo vpp2host up
+ip -n vpp2 link set vpp2host up
+ip -n vpp2 link set lo up
+ip link set vpp1vpp2 up
+ip link set vpp2vpp1 up
+ip link set vpp1out up
+ip link set vpp2out up
+ip -n vpp1 addr add 10.0.0.1/24 dev vpp1host
+ip -n vpp2 addr add 10.0.1.1/24 dev vpp2host
+
+
+tcpdump -n -i vpp1vpp2
+tcpdump -n -i vpp2vpp1
+
+ip netns exec vpp1 ethtool -K rx off tx off gso off
+ip netns exec vpp1 ethtool -K vpp1host rx off tx off gso off
+ip netns exec vpp2 ethtool -K vpp2host rx off tx off gso off
+
+ip netns exec vpp2 nc 10.0.0.1 2222
+
+
