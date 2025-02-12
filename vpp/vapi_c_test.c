@@ -1278,6 +1278,69 @@ int create_ipip_tunnel(
     return sw_if_index;
 }
 
+int route_add_del(
+        vapi_type_prefix* prefix,
+        int sw_if_index)
+{
+    return;
+
+    printf("creating route!\n");
+    // NOTE: there is v2 version
+
+    vapi_msg_ip_route_add_del_v2 *req = vapi_alloc_ip_route_add_del_v2(ctx,1); // 1 path
+    ck_assert_ptr_ne (NULL, req);
+
+    // Set payload
+    req->payload.is_add = 1; // 1 = add route, 0 = delete
+    req->payload.is_multipath = 0; // Single path
+    req->payload.route.table_id = ~0; // TODO default ?
+    req->payload.route.stats_index = ~0; // TODO
+    req->payload.route.prefix = *prefix;
+    req->payload.route.n_paths = 1;
+    req->payload.route.src = ~0; // TODO ?
+    req->payload.route.paths[0].sw_if_index = sw_if_index; // Use ipip0 interface
+    req->payload.route.paths[0].proto = FIB_API_PATH_NH_PROTO_IP4;
+    req->payload.route.paths[0].weight = 1; // Default weight
+    req->payload.route.paths[0].table_id = 0; // default
+    req->payload.route.paths[0].n_labels = 0;
+
+//typedef struct __attribute__((__packed__)) {
+//  u32 table_id;
+//  u32 rpf_id;
+//  u8 preference;
+//  vapi_enum_fib_path_type type;
+//  vapi_enum_fib_path_flags flags;
+//  vapi_enum_fib_path_nh_proto proto;
+//  vapi_type_fib_path_nh nh;
+//  u8 n_labels;
+//  vapi_type_fib_mpls_label label_stack[16];
+
+
+    req->payload.route.table_id = 0;
+    req->payload.route.stats_index = 0; 
+
+    vapi_msg_ip_route_add_del_v2_hton(req);
+
+    vapi_error_e rv = vapi_send(ctx, req);
+    ck_assert_int_eq(VAPI_OK, rv);
+
+    vapi_msg_ip_route_add_del_v2_reply *resp;
+
+    size_t size;
+    rv = vapi_recv(ctx, (void *) &resp, &size, 0, 0);
+    ck_assert_int_eq (VAPI_OK, rv);
+
+    vapi_msg_ip_route_add_del_v2_reply_ntoh(resp);
+
+    vapi_payload_ip_route_add_del_v2_reply *p = &resp->payload;
+
+    if (p->retval != 0)
+        printf("ERROR: add ip route failed\n");
+    else
+        printf("add ip route SUCCESS: stats_index: %d\n", p->stats_index);
+
+}
+
 START_TEST (test_cfg_vpp1)
 {
   printf ("--- XXX configure VPP1 ---\n");
@@ -1359,8 +1422,6 @@ START_TEST (test_cfg_vpp1)
 
   sw_interface_set_flags(idxC, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
 
-  // TODO add route! via
-
   vapi_type_address_with_prefix p3;
 
   p3.len = 32;
@@ -1372,10 +1433,23 @@ START_TEST (test_cfg_vpp1)
 
   add_del_ip_address(idxC, &p3, false); // set int ip addr host-vpp1out 10.0.0.2/24
 
+  // ADD ROUTE
+  //
+  vapi_type_prefix p4;
+
+  p4.address.af = ADDRESS_IP4;
+  p4.address.un.ip4[0] = 10;
+  p4.address.un.ip4[1] = 0;
+  p4.address.un.ip4[2] = 0;
+  p4.address.un.ip4[3] = 0;
+  p4.len = 24; // CIDR notation
+
+  route_add_del(&p4, idxC);
+
 //DONE $VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
 //DONE $VPP1 set int state ipip0 up
-//$VPP1 ip route add 10.0.1.0/24 via ipip0
 //DONE $VPP1 set int ip addr ipip0 1.1.1.1/32
+//DONE $VPP1 ip route add 10.0.1.0/24 via ipip0
 
 }
 END_TEST;
@@ -1460,8 +1534,6 @@ START_TEST (test_cfg_vpp2)
 
   sw_interface_set_flags(idxC, IF_STATUS_API_FLAG_ADMIN_UP | IF_STATUS_API_FLAG_LINK_UP);
 
-  // TODO add route! via
-
   vapi_type_address_with_prefix p3;
 
   p3.len = 32;
@@ -1473,13 +1545,134 @@ START_TEST (test_cfg_vpp2)
 
   add_del_ip_address(idxC, &p3, false); // set int ip addr host-vpp1out 10.0.0.2/24
 
+  // ADD ROUTE
+  vapi_type_prefix p4;
+
+  p4.address.af = ADDRESS_IP4;
+  p4.address.un.ip4[0] = 10;
+  p4.address.un.ip4[1] = 0;
+  p4.address.un.ip4[2] = 0;
+  p4.address.un.ip4[3] = 0;
+  p4.len = 24; // CIDR notation
+
+  route_add_del(&p4, idxC);
+
 //DONE $VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
 //DONE $VPP2 set int state ipip0 up
-//$VPP2 ip route add 10.0.0.0/24 via ipip0
 //DONE $VPP2 set int ip addr ipip0 1.1.1.1/32
+//DONE $VPP2 ip route add 10.0.0.0/24 via ipip0
 
 }
 END_TEST;
+
+/*
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <vapi/vapi.h>
+#include <vapi/ip.api.vapi.h>
+#include <vapi/interface.api.vapi.h>
+
+// Function to get sw_if_index of interface (ipip0 in this case)
+int get_interface_sw_if_index(vapi_ctx_t *ctx, const char *interface_name, u32 *sw_if_index) {
+    vapi_msg_sw_interface_dump *req = vapi_alloc_sw_interface_dump(ctx);
+    if (!req) {
+        printf("Failed to allocate interface dump request\n");
+        return -1;
+    }
+
+    vapi_send(ctx, (vapi_msg_t *)req);
+
+    vapi_msg_sw_interface_details *reply;
+    while (vapi_wait_for_response(ctx, (vapi_msg_t *)req, (void **)&reply) == VAPI_OK) {
+        if (strncmp((char *)reply->payload.interface_name, interface_name, strlen(interface_name)) == 0) {
+            *sw_if_index = reply->payload.sw_if_index;
+            printf("Found interface %s with sw_if_index: %u\n", interface_name, *sw_if_index);
+            return 0;
+        }
+    }
+
+    printf("Interface %s not found\n", interface_name);
+    return -1;
+}
+
+// Function to add an IP route
+int add_ip_route(vapi_ctx_t *ctx, u32 sw_if_index) {
+    vapi_msg_ip_route_add_del *req = vapi_alloc_ip_route_add_del(ctx);
+    if (!req) {
+        printf("Failed to allocate IP route request\n");
+        return -1;
+    }
+
+    memset(req, 0, sizeof(*req));
+
+    // Set payload
+    req->payload.is_add = 1; // 1 = add route, 0 = delete
+    req->payload.is_multipath = 0; // Single path
+
+    // Set route prefix (10.0.0.0/24)
+    req->payload.route.prefix.address.af = ADDRESS_IP4;
+    req->payload.route.prefix.address.un.ip4[0] = 10;
+    req->payload.route.prefix.address.un.ip4[1] = 0;
+    req->payload.route.prefix.address.un.ip4[2] = 0;
+    req->payload.route.prefix.address.un.ip4[3] = 0;
+    req->payload.route.prefix.len = 24; // CIDR notation
+
+    // Set next hop (via ipip0)
+    req->payload.route.n_paths = 1;
+    req->payload.route.paths[0].sw_if_index = sw_if_index; // Use ipip0 interface
+    req->payload.route.paths[0].proto = FIB_API_PATH_NH_PROTO_IP4;
+    req->payload.route.paths[0].weight = 1; // Default weight
+
+    // Send the request
+    vapi_send(ctx, (vapi_msg_t *)req);
+
+    // Wait for response
+    vapi_msg_ip_route_add_del_reply *reply;
+    if (vapi_wait_for_response(ctx, (vapi_msg_t *)req, (void **)&reply) != VAPI_OK) {
+        printf("Failed to add IP route\n");
+        return -1;
+    }
+
+    // Check response
+    if (reply->payload.retval == 0) {
+        printf("IP Route added successfully\n");
+    } else {
+        printf("Failed to add route, error code: %d\n", reply->payload.retval);
+        return -1;
+    }
+
+    return 0;
+}
+
+// Main function
+int main() {
+    // Initialize VAPI client
+    vapi_ctx_t *ctx = vapi_ctx_init();
+    if (!ctx) {
+        printf("Failed to initialize VAPI context\n");
+        return -1;
+    }
+
+    u32 sw_if_index;
+
+    // Get interface index of ipip0
+    if (get_interface_sw_if_index(ctx, "ipip0", &sw_if_index) != 0) {
+        printf("Failed to find ipip0 interface\n");
+        return -1;
+    }
+
+    // Add IP route 10.0.0.0/24 via ipip0
+    if (add_ip_route(ctx, sw_if_index) != 0) {
+        printf("Failed to add IP route\n");
+        return -1;
+    }
+
+    // Clean up
+    vapi_ctx_cleanup(ctx);
+    return 0;
+                                                                                                                                                                                                                                                                                                                                                                                                     }
+*/
 
 void setup_blocking1()
 {

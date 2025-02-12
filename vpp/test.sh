@@ -97,15 +97,16 @@ echo DO C TEST
 #$VPP2 set int state ipip0 up
 #$VPP2 set int ip addr ipip0 1.1.1.1/32
 
-# add routes via tunnel
+## add routes via tunnel
 $VPP1 ip route add 10.0.1.0/24 via ipip0
 $VPP2 ip route add 10.0.0.0/24 via ipip0
 
-# normal route
-#$VPP1 ip route add 10.0.1.0/24 via host-vpp1vpp2
-#$VPP2 ip route add 10.0.0.0/24 via host-vpp2vpp1
+## disabled
+# normal route via interface
+##$VPP1 ip route add 10.0.1.0/24 via host-vpp1vpp2
+##$VPP2 ip route add 10.0.0.0/24 via host-vpp2vpp1
 
-echo "* add routes"
+#echo "* add routes"
 ip -n vpp1 route add 0.0.0.0/0 via 10.0.0.2
 ip -n vpp2 route add 0.0.0.0/0 via 10.0.1.2
 
