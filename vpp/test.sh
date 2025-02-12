@@ -64,39 +64,42 @@ vpp -c startup1.conf
 vpp -c startup2.conf
 #ps -ef |grep [v]pp
 
-sleep 0.1
+sleep 0.2
 VPP1="vppctl -s /run/vpp/cli-vpp1.sock"
 VPP2="vppctl -s /run/vpp/cli-vpp2.sock"
 
 echo DO C TEST
-exit 0
+#exit 0
+./vapi foo bar
+#
+## VPP: show api clients
+#
+#$VPP1 create host name vpp1out
+#$VPP1 create host name vpp1vpp2
+#$VPP1 set int state host-vpp1out up
+#$VPP1 set int state host-vpp1vpp2 up
+#$VPP1 set int ip addr host-vpp1out 10.0.0.2/24
+#$VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
+#
+#$VPP2 create host name vpp2out
+#$VPP2 create host name vpp2vpp1
+#$VPP2 set int state host-vpp2out up
+#$VPP2 set int state host-vpp2vpp1 up
+#$VPP2 set int ip addr host-vpp2out 10.0.1.2/24
+#$VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
+#
+#echo "* create tunnels"
+#$VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
+#$VPP1 set int state ipip0 up
+#$VPP1 set int ip addr ipip0 1.1.1.1/32
+#
+#$VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
+#$VPP2 set int state ipip0 up
+#$VPP2 set int ip addr ipip0 1.1.1.1/32
 
-# VPP: show api clients
-
-$VPP1 create host name vpp1out
-$VPP1 create host name vpp1vpp2
-$VPP1 set int state host-vpp1out up
-$VPP1 set int state host-vpp1vpp2 up
-$VPP1 set int ip addr host-vpp1out 10.0.0.2/24
-$VPP1 set int ip addr host-vpp1vpp2 10.0.3.1/24
-
-$VPP2 create host name vpp2out
-$VPP2 create host name vpp2vpp1
-$VPP2 set int state host-vpp2out up
-$VPP2 set int state host-vpp2vpp1 up
-$VPP2 set int ip addr host-vpp2out 10.0.1.2/24
-$VPP2 set int ip addr host-vpp2vpp1 10.0.3.2/24
-
-echo "* create tunnels"
-$VPP1 create ipip tunnel src 10.0.3.1 dst 10.0.3.2
-$VPP1 set int state ipip0 up
+# add routes via tunnel
 $VPP1 ip route add 10.0.1.0/24 via ipip0
-$VPP1 set int ip addr ipip0 1.1.1.1/32
-
-$VPP2 create ipip tunnel src 10.0.3.2 dst 10.0.3.1
-$VPP2 set int state ipip0 up
 $VPP2 ip route add 10.0.0.0/24 via ipip0
-$VPP2 set int ip addr ipip0 1.1.1.1/32
 
 # normal route
 #$VPP1 ip route add 10.0.1.0/24 via host-vpp1vpp2
