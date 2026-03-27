@@ -3709,6 +3709,40 @@ void sai_deserialize_number(
     sai_deserialize_number<uint32_t>(s, number, hex);
 }
 
+// internal
+static void sai_deserialize_enum_flags(
+        _In_ const std::string& s,
+        _In_ const sai_enum_metadata_t *meta,
+        _Out_ int32_t& value)
+{
+    SWSS_LOG_ENTER();
+
+    value = 0;
+
+    const auto tokens = swss::tokenize(s, '|');
+
+    for (auto& v: tokens)
+    {
+        if (v[0] == '0')
+        {
+            uint32_t val;
+            sai_deserialize_number(s, val, true);
+
+            value |= val;
+            continue;
+        }
+
+        for (size_t i = 0; i < meta->valuescount; ++i)
+        {
+            if (s == meta->valuesnames[i])
+            {
+                value |= meta->values[i];
+                break;
+            }
+        }
+    }
+}
+
 void sai_deserialize_enum(
         _In_ const std::string& s,
         _In_ const sai_enum_metadata_t *meta,
@@ -3720,6 +3754,9 @@ void sai_deserialize_enum(
     {
         return sai_deserialize_number(s, value);
     }
+
+    if (meta->flagstype == SAI_ENUM_FLAGS_TYPE_STRICT)
+        return sai_deserialize_enum_flags(s, meta, value);
 
     for (size_t i = 0; i < meta->valuescount; ++i)
     {
