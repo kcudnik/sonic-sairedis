@@ -1992,3 +1992,29 @@ TEST(SaiSerialize, sai_deserialize_taps_list)
     sai_deserialize_taps_list(count_str, taps_list, true);
     EXPECT_EQ(taps_list.count, 5);
 }
+
+TEST(SaiSerialize, sai_serialize_enum)
+{
+    int flags = 0;
+
+    auto *emd = &sai_metadata_enum_sai_port_error_status_t;
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE | 0x80000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|0x80000");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE | 0xe0000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|0xe0000");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| 0x67100 | 0xff000000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|"
+            "SAI_PORT_ERROR_STATUS_NO_RX_REACHABILITY|SAI_PORT_ERROR_STATUS_LLR_TX_FLUSH|0xff064000");
+
+    flags = 0xff000000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "0xff000000");
+}
