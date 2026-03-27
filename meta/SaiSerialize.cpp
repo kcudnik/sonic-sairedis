@@ -823,50 +823,32 @@ std::string sai_serialize_number(
 }
 
 // internal
-static std::string sai_serialize_enum_flag_value(
-        _In_ const int32_t value,
-        _In_ const sai_enum_metadata_t* meta)
-{
-    SWSS_LOG_ENTER();
-
-    if (meta == NULL)
-        return sai_serialize_number(value);
-
-    for (size_t i = 0; i < meta->valuescount; ++i)
-    {
-        if (meta->values[i] == value)
-            return meta->valuesnames[i];
-    }
-
-    SWSS_LOG_WARN("enum value %d not found in enum %s", value, meta->name);
-
-    return sai_serialize_number<uint32_t>(value, true);
-}
-
-// internal
 static std::string sai_serialize_flags(
-        _In_ const int32_t value,
+        _In_ int32_t value,
         _In_ const sai_enum_metadata_t* meta)
 {
     SWSS_LOG_ENTER();
-
-    // TODO should we use hex values for flags ? or just regular number ?
 
     if (value == 0)
-        return sai_serialize_enum_flag_value(value, meta);
+        return meta->valuesnames[0];
 
     std::string s;
 
-    // downside is that all unrecognised flags will be serialized separately,
-    // but exepcted scenario is that we don't have unrecognized flags
-    // deserialization, would need to deserialize only 1 number instead of N
-
-    for (uint32_t bit = 1; bit; bit <<= 1)
+    for (size_t i = 1; i < meta->valuescount; ++i)
     {
-        if ((value & bit))
+        if (value & meta->values[i])
         {
-            s += "|" + sai_serialize_enum_flag_value(bit, meta);
+            (s += "|") += meta->valuesnames[i];
+
+            value &= ~meta->values[i];
         }
+    }
+
+    if (value)
+    {
+        SWSS_LOG_WARN("unrecognized flags: 0x%x in enum %s", value, meta->name);
+
+        s += "|" + sai_serialize_number<uint32_t>(value, true);
     }
 
     return s.substr(1);
