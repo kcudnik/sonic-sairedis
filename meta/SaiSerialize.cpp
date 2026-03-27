@@ -821,6 +821,46 @@ std::string sai_serialize_number(
     return std::to_string(number);
 }
 
+// internal
+static std::string sai_serialize_flags(
+        _In_ int32_t value,
+        _In_ const sai_enum_metadata_t* meta)
+{
+    SWSS_LOG_ENTER();
+
+    if (value == 0)
+        return meta->values[0] ? "0x0" : meta->valuesnames[0];
+
+    std::string s;
+
+    s.reserve(1024);
+
+    for (size_t i = 0; i < meta->valuescount; ++i)
+    {
+        if (value & meta->values[i])
+        {
+            if (s.size())
+                s.append("|");
+
+            s += meta->valuesnames[i];
+
+            value &= ~meta->values[i];
+        }
+    }
+
+    if (value)
+    {
+        SWSS_LOG_WARN("unrecognized flags: 0x%x in enum %s", value, meta->name);
+
+        if (s.size())
+            s.append("|");
+
+        s += sai_serialize_number<uint32_t>(value, true);
+    }
+
+    return s;
+}
+
 std::string sai_serialize_enum(
         _In_ const int32_t value,
         _In_ const sai_enum_metadata_t* meta)
@@ -831,6 +871,9 @@ std::string sai_serialize_enum(
     {
         return sai_serialize_number(value);
     }
+
+    if (meta->flagstype == SAI_ENUM_FLAGS_TYPE_STRICT)
+        return sai_serialize_flags(value, meta);
 
     for (size_t i = 0; i < meta->valuescount; ++i)
     {

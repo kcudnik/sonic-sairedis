@@ -1992,3 +1992,52 @@ TEST(SaiSerialize, sai_deserialize_taps_list)
     sai_deserialize_taps_list(count_str, taps_list, true);
     EXPECT_EQ(taps_list.count, 5);
 }
+
+TEST(SaiSerialize, sai_serialize_enum)
+{
+    auto *emd = &sai_metadata_enum_sai_port_error_status_t;
+
+    int flags = 0;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_CLEAR");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE | 0x80000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|0x80000");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE | 0xe0000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|0xe0000");
+
+    flags = SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT| 0x67100 | 0xff000000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_PORT_ERROR_STATUS_MAC_LOCAL_FAULT|SAI_PORT_ERROR_STATUS_DATA_UNIT_SIZE|"
+            "SAI_PORT_ERROR_STATUS_NO_RX_REACHABILITY|SAI_PORT_ERROR_STATUS_LLR_TX_FLUSH|0xff064000");
+
+    flags = 0xff000000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "0xff000000");
+
+    emd = &sai_metadata_enum_sai_stats_mode_t;
+
+    flags = 0;
+
+    // has zero flag
+    if (emd->values[0] == 0)
+        EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_STATS_MODE_NONE");
+    else
+        EXPECT_EQ(sai_serialize_enum(flags, emd), "0x0");
+
+    flags = SAI_STATS_MODE_READ;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_STATS_MODE_READ");
+
+    flags = SAI_STATS_MODE_READ|SAI_STATS_MODE_BULK_CLEAR;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_STATS_MODE_READ|SAI_STATS_MODE_BULK_CLEAR");
+
+    flags = SAI_STATS_MODE_READ|SAI_STATS_MODE_BULK_CLEAR|0xff00;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "SAI_STATS_MODE_READ|SAI_STATS_MODE_BULK_CLEAR|0xff00");
+
+    flags = 0xf1230000;
+    EXPECT_EQ(sai_serialize_enum(flags, emd), "0xf1230000");
+}
